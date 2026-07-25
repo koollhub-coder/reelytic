@@ -1,0 +1,152 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { apiFetch } from '../api/client';
+import { useAuth } from '../context/AuthContext';
+import { Shimmer } from '../components/Shimmer';
+
+const cardStyle = {
+    background: 'var(--surface)',
+    border: '1px solid var(--border)',
+    borderRadius: 'var(--r-lg)',
+    padding: 'var(--s5)',
+};
+const labelStyle = {
+    fontSize: 'var(--fs-xs)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.06em',
+    color: 'var(--text-3)',
+    fontWeight: 600,
+};
+
+export function Dashboard() {
+    const navigate = useNavigate();
+    const { user } = useAuth();
+    const [data, setData] = useState(null);
+    const [error, setError] = useState('');
+
+    useEffect(() => {
+        apiFetch('/me/stats')
+            .then((res) => { setData(res); setError(''); })
+            .catch((err) => setError(err.message));
+    }, []);
+
+    if (error) {
+        return (
+            <div>
+                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-2xl)', fontWeight: 700, marginBottom: 'var(--s4)' }}>Dashboard</h1>
+                <div className="card" style={{ color: 'var(--err)' }}>{error}</div>
+            </div>
+        );
+    }
+
+    if (!data) {
+        return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--s4)' }}>
+                <Shimmer height="120px" />
+                <Shimmer height="220px" />
+            </div>
+        );
+    }
+
+    const daily = data.activity14Days || [];
+    const maxTotal = Math.max(...daily.map((d) => d.total), 1);
+    const hour = new Date().getHours();
+    const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+
+    return (
+        <div>
+            <div style={{ marginBottom: 'var(--s6)' }}>
+                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-2xl)', fontWeight: 700, marginBottom: 4 }}>
+                    {greeting}, {user?.username}
+                </h1>
+                <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)' }}>Here's what you've processed with Reelytic.</p>
+            </div>
+
+            {/* Headline stats */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 'var(--s4)', marginBottom: 'var(--s6)' }}>
+                <div style={cardStyle}>
+                    <div style={labelStyle}>Reel Reports</div>
+                    <div style={{ fontFamily: 'var(--font-data)', fontSize: '30px', fontWeight: 700, marginTop: 6 }}>{data.reelCount.toLocaleString()}</div>
+                </div>
+                <div style={cardStyle}>
+                    <div style={labelStyle}>Profile Reports</div>
+                    <div style={{ fontFamily: 'var(--font-data)', fontSize: '30px', fontWeight: 700, marginTop: 6 }}>{data.profileCount.toLocaleString()}</div>
+                </div>
+                <div style={cardStyle}>
+                    <div style={labelStyle}>Total Processed</div>
+                    <div style={{ fontFamily: 'var(--font-data)', fontSize: '30px', fontWeight: 700, marginTop: 6 }}>{data.totalCount.toLocaleString()}</div>
+                </div>
+                <div style={cardStyle}>
+                    <div style={labelStyle}>Success Rate</div>
+                    <div style={{ fontFamily: 'var(--font-data)', fontSize: '30px', fontWeight: 700, marginTop: 6, color: data.successRate >= 90 ? 'var(--ok)' : data.successRate >= 70 ? 'var(--warn)' : 'var(--err)' }}>
+                        {data.successRate}%
+                    </div>
+                </div>
+            </div>
+
+            {/* Quick actions */}
+            <div style={{ display: 'flex', gap: 'var(--s3)', marginBottom: 'var(--s6)', flexWrap: 'wrap' }}>
+                <button type="button" className="btn btn-primary" onClick={() => navigate('/reels')}>+ New Reel Report</button>
+                <button type="button" className="btn btn-secondary" onClick={() => navigate('/profiles')}>+ New Profile Report</button>
+                <button type="button" className="btn btn-ghost" onClick={() => navigate('/history')}>View full history</button>
+            </div>
+
+            {/* 14-day activity chart */}
+            <div style={{ ...cardStyle, marginBottom: 'var(--s6)' }}>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 700, marginBottom: 'var(--s4)' }}>
+                    Activity (last 14 days)
+                </h3>
+                {daily.every((d) => d.total === 0) ? (
+                    <div style={{ color: 'var(--text-3)', textAlign: 'center', padding: 'var(--s6)' }}>No activity yet -- run your first report to see it here.</div>
+                ) : (
+                    <div className="rl-chart-track" style={{ width: '100%', height: '180px', display: 'flex', alignItems: 'flex-end', gap: '8px', paddingBottom: '24px', borderBottom: '1px solid var(--border)' }}>
+                        {daily.map((d, i) => {
+                            const heightPct = (d.total / maxTotal) * 130;
+                            return (
+                                <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }} title={`${d.date}: ${d.total} processed (${d.reels} reels, ${d.profiles} profiles)`}>
+                                    <div style={{ width: '100%', maxWidth: '28px', height: `${Math.max(heightPct, d.total > 0 ? 4 : 1)}px`, backgroundColor: d.total > 0 ? 'var(--accent)' : 'var(--border)', borderRadius: '3px 3px 0 0', transition: 'height 300ms ease' }} />
+                                    <div style={{ fontFamily: 'var(--font-data)', fontSize: '9px', color: 'var(--text-3)', transform: 'rotate(-45deg)', whiteSpace: 'nowrap', marginTop: '10px' }}>{d.date.slice(5)}</div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+
+            {/* Recent reports */}
+            <div style={cardStyle}>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 700, marginBottom: 'var(--s4)' }}>Recent reports</h3>
+                {(!data.recentJobs || data.recentJobs.length === 0) ? (
+                    <div style={{ color: 'var(--text-3)', textAlign: 'center', padding: 'var(--s5)' }}>No reports yet.</div>
+                ) : (
+                    <div className="rl-table-scroll"><table className="data-table">
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>File</th>
+                                <th className="numeric">Rows</th>
+                                <th>Status</th>
+                                <th>Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {data.recentJobs.map((j) => (
+                                <tr key={j.id} style={{ cursor: 'pointer' }} onClick={() => navigate(j.type === 'reel' ? '/reels' : '/profiles')}>
+                                    <td><span className="chip" style={{ textTransform: 'uppercase' }}>{j.type}</span></td>
+                                    <td style={{ color: 'var(--text-2)' }}>{j.fileName || 'Pasted links'}</td>
+                                    <td className="numeric mono">{j.counts?.total ?? '--'}</td>
+                                    <td>
+                                        <span className={`chip ${j.status === 'done' ? 'ok' : j.status === 'failed' ? 'err' : 'warn'}`}>
+                                            {j.status}
+                                        </span>
+                                    </td>
+                                    <td className="mono" style={{ color: 'var(--text-3)' }}>{new Date(j.createdAt).toLocaleDateString()}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table></div>
+                )}
+            </div>
+        </div>
+    );
+}

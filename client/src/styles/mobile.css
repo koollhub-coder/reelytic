@@ -1,0 +1,142 @@
+/* =====================================================================
+   mobile.css  —  Additive mobile responsiveness layer for Reelytic.
+
+   Rules of engagement (do not violate):
+   - This file NEVER changes a single value in tokens.css and NEVER touches
+     the data-theme mechanism. Every color/space/radius below is read from an
+     existing token, so it auto-themes in light AND dark exactly like the rest
+     of the app.
+   - Everything is gated behind @media (max-width: 768px) EXCEPT one rule that
+     hides brand-new, mobile-only elements (.rl-mobile-only). Those elements do
+     not exist in the desktop layout at all, so hiding them is a no-op for
+     desktop. => Above 768px this file contributes ZERO layout/paint changes.
+   - Where a rule must beat an inline style (inline styles always win the
+     cascade), !important is used, but ONLY on uniquely-prefixed .rl-* classes
+     inside the media query, on a single named element — never a broad selector.
+     This is the one contained pattern needed to make responsive overrides win
+     against the codebase's heavy inline-style usage.
+   ===================================================================== */
+
+/* Brand-new elements (mobile top bar, drawer backdrop). They render in the
+   DOM at all widths but are only meant for phones, so they stay hidden until
+   the breakpoint. On desktop this is the only rule that applies from this file
+   and it only hides elements the desktop design never had. */
+.rl-mobile-only { display: none; }
+
+@media (max-width: 768px) {
+  /* ---- Safety net: the page itself must never scroll sideways. Any single
+     missed inline width is absorbed here instead of shifting the whole app. */
+  body { overflow-x: hidden; }
+
+  /* =================================================================
+     App chrome: fixed sidebar  ->  slide-in drawer + top bar
+     ================================================================= */
+
+  /* Reveal the mobile-only chrome (top bar, hamburger, backdrop). */
+  .rl-mobile-only { display: flex; }
+
+  .rl-topbar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 56px;
+    z-index: 60;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s3);
+    padding: 0 var(--s4);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .rl-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: var(--r-sm);
+    color: var(--text);
+    background: none;
+    border: none;
+    cursor: pointer;
+  }
+  .rl-icon-btn:active { background: var(--surface-2); }
+  .rl-hamburger { margin-left: -10px; font-size: 20px; }
+
+  /* The existing <aside> is reused verbatim (so dark mode stays correct — it
+     was a rebuilt drawer that broke theming last time). We only slide it. */
+  .rl-shell-sidebar {
+    width: min(84vw, 300px) !important;   /* beats inline 232px */
+    z-index: 70 !important;               /* beats inline 50; sits above backdrop */
+    transform: translateX(-100%);         /* off-canvas by default */
+    transition: transform var(--t-base), box-shadow var(--t-base);
+    box-shadow: none;
+  }
+  .rl-shell-sidebar.rl-open {
+    transform: translateX(0);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .rl-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 65;
+    background: rgba(0, 0, 0, 0.45);
+    border: none;
+    cursor: default;
+    display: block;
+  }
+
+  /* Comfortable tap targets inside the drawer. */
+  .rl-shell-sidebar nav button { min-height: 44px; }
+
+  /* Main column: reclaim full width and clear the fixed top bar. */
+  .rl-shell-main { margin-left: 0 !important; }
+  .rl-shell-content {
+    max-width: 100% !important;
+    padding: var(--s5) var(--s4) !important;
+    padding-top: calc(56px + var(--s4)) !important;   /* room for .rl-topbar */
+  }
+
+  /* =================================================================
+     Page-level fixes (opt-in via .rl-* hooks added on specific nodes)
+     ================================================================= */
+
+  /* Grids whose desktop minmax()/fixed columns are wider than a phone.
+     Collapsing to one column is the intended wrap behaviour. */
+  .rl-stack-mobile { grid-template-columns: 1fr !important; }
+
+  /* Bare <table>s that lack .data-table-container get their own bounded
+     horizontal scroll here, so a wide table never scrolls the whole page.
+     On desktop these wrappers are inert (overflow visible), so no visual
+     change above the breakpoint. */
+  .rl-table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Hand-rolled bar charts: instead of cramming 14 bars into ~310px, give each
+     bar column a legible fixed width and let the chart scroll within its own
+     card. Only the tagged chart row is affected; the columns are its direct
+     children, so the override is tightly bounded. */
+  .rl-chart-track {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: var(--s1);
+  }
+  .rl-chart-track > div { flex: 0 0 38px !important; }
+
+  /* Login split-screen -> single centered column (hide the marketing panel). */
+  .rl-login-grid { grid-template-columns: 1fr !important; }
+  .login-left-panel { display: none !important; }
+
+  /* Landing top nav: trim to logo + primary CTA on phones. */
+  .landing-nav { padding: var(--s3) var(--s4) !important; }
+  .rl-landing-navlink { display: none !important; }
+
+  /* ReportEngine live run stream: shrink the fixed columns so the results
+     text isn't clipped inside the virtualized rows. */
+  .rl-stream-sr { width: 30px !important; }
+  .rl-stream-status { width: 90px !important; }
+  .rl-stream-result { width: 148px !important; font-size: 11px !important; }
+}

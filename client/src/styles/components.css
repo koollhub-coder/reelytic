@@ -1,0 +1,245 @@
+@import './tokens.css';
+/* Mobile responsiveness layer. Imported here (in addition to App.jsx) so the
+   mobile styles load reliably even if App.jsx's import is missed. All of
+   mobile.css is gated to <=768px, so this adds nothing to desktop. */
+@import './mobile.css';
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  height: 36px;
+  padding: 0 var(--s4);
+  border-radius: var(--r-sm);
+  font-weight: 500;
+  font-size: var(--fs-base);
+  transition: transform var(--t-fast), background var(--t-fast), border-color var(--t-fast);
+  white-space: nowrap;
+}
+.btn:active {
+  transform: translateY(1px);
+}
+.btn-primary {
+  background-color: var(--accent);
+  color: #FFFFFF;
+}
+.btn-primary:hover {
+  background-color: var(--accent-hover);
+}
+.btn-secondary {
+  background-color: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+}
+.btn-secondary:hover {
+  background-color: var(--surface-2);
+}
+.btn-destructive {
+  background-color: var(--err);
+  color: #FFFFFF;
+}
+.btn-destructive:hover {
+  opacity: 0.9;
+}
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+/* Inputs */
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  margin-bottom: var(--s4);
+}
+.input-label {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  font-weight: 500;
+}
+.input-field {
+  height: 38px;
+  padding: 0 var(--s3);
+  background-color: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  transition: border-color var(--t-fast), box-shadow var(--t-fast);
+}
+.input-field:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  outline: none;
+}
+.input-error {
+  font-size: var(--fs-xs);
+  color: var(--err);
+  margin-top: var(--s1);
+}
+
+/* Cards */
+.card {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+  padding: var(--s5);
+}
+
+/* Data Table */
+.data-table-container {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background-color: var(--surface);
+}
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: var(--fs-base);
+}
+.data-table th {
+  background-color: var(--surface-2);
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: var(--s3) var(--s4);
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+}
+.data-table td {
+  padding: var(--s3) var(--s4);
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+.data-table tr:hover td {
+  background-color: var(--surface-2);
+}
+.data-table td.numeric, .data-table th.numeric {
+  text-align: right;
+  font-family: var(--font-data);
+}
+
+/* Toasts */
+.toast-container {
+  position: fixed;
+  bottom: var(--s5);
+  right: var(--s5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  z-index: 9999;
+}
+.toast {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  border-radius: var(--r-md);
+  padding: var(--s3) var(--s4);
+  min-width: 280px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  animation: toastSlideIn 200ms cubic-bezier(.4,0,.2,1);
+  border-left: 4px solid var(--accent);
+}
+.toast.ok { border-left-color: var(--ok); }
+.toast.err { border-left-color: var(--err); }
+@keyframes toastSlideIn {
+  from { transform: translateY(16px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* Shimmer */
+@keyframes shimmerSweep {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--border) 50%, var(--surface-2) 75%);
+  background-size: 200% 100%;
+  animation: shimmerSweep 1.4s infinite;
+  border-radius: var(--r-sm);
+}
+
+/* Badges & Chips */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  padding: 2px var(--s2);
+  border-radius: var(--r-full);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  background-color: var(--surface-2);
+  color: var(--text-2);
+}
+.chip.accent { background-color: var(--accent-soft); color: var(--accent); }
+.chip.ok { background-color: var(--ok-soft); color: var(--ok); }
+.chip.warn { background-color: var(--warn-soft); color: var(--warn); }
+.chip.err { background-color: var(--err-soft); color: var(--err); }
+.chip.locked { background-color: var(--locked); color: var(--text-3); }
+/* Themed chart tooltip -- replaces native browser title= tooltips (which
+   render as an ugly unstyled black box) with a real, theme-matched tooltip
+   that appears on hover, CSS-only, no JS state needed. */
+.chart-bar-wrap {
+  position: relative;
+}
+.chart-tooltip {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%) translateY(-6px);
+  background-color: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  padding: 10px 12px;
+  font-size: var(--fs-xs);
+  color: var(--text);
+  white-space: nowrap;
+  box-shadow: var(--shadow-lg);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 150ms ease, transform 150ms ease;
+  pointer-events: none;
+  z-index: 30;
+}
+.chart-bar-wrap:hover .chart-tooltip,
+.chart-bar-wrap:focus-within .chart-tooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(-10px);
+}
+.chart-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--border-strong);
+}
+.chart-tooltip-date {
+  font-weight: 700;
+  margin-bottom: 4px;
+  font-family: var(--font-data);
+}
+.chart-tooltip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-2);
+}
+.chart-tooltip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}

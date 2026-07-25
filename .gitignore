@@ -1,0 +1,10 @@
+node_modules/
+client/node_modules/
+.npm/
+.env
+client/.env
+data-store.json
+uploads/
+dist/
+client/dist/
+*.log
