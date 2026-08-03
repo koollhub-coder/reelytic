@@ -40,7 +40,7 @@ export function Clients() {
       fetchClients();
       addToast('Client created successfully', 'ok');
     } catch (err) {
-      addToast(err.message || 'Failed to create client', 'err');
+      addToast(err.message || "Couldn't create that client, try again", 'err');
     }
   };
 
@@ -86,11 +86,11 @@ export function Clients() {
         method: 'PATCH',
         body: JSON.stringify(body)
       });
-      addToast(`Credits updated — ${creditModal.username} now has ${res.credits?.toLocaleString?.() ?? res.credits}`, 'ok');
+      addToast(`Credits updated: ${creditModal.username} now has ${res.credits?.toLocaleString?.() ?? res.credits}`, 'ok');
       setCreditModal(null);
       fetchClients();
     } catch (err) {
-      addToast(err.message || 'Failed to update credits', 'err');
+      addToast(err.message || "Couldn't update credits, try again", 'err');
     }
   };
 
@@ -102,7 +102,7 @@ export function Clients() {
       });
       addToast('All sessions revoked for user', 'ok');
     } catch (err) {
-      addToast('Failed to revoke sessions', 'err');
+      addToast("Couldn't sign that client out everywhere, try again", 'err');
     }
   };
 
@@ -146,6 +146,22 @@ export function Clients() {
                     <button className="btn btn-secondary" style={{ height: '28px', fontSize: 'var(--fs-xs)' }} onClick={() => openCreditModal(c)}>Credits</button>
                     <button className="btn btn-secondary" style={{ height: '28px', fontSize: 'var(--fs-xs)' }} onClick={() => handleResetPassword(c.username)}>Reset Pwd</button>
                     <button className="btn btn-secondary" style={{ height: '28px', fontSize: 'var(--fs-xs)' }} onClick={() => handleRevokeSessions(c.username)}>Revoke</button>
+                    <a
+                      className="btn btn-secondary"
+                      style={{ height: '28px', fontSize: 'var(--fs-xs)', lineHeight: '28px', padding: '0 10px' }}
+                      href={`/api/admin/clients/${c.username}/export.xlsx`}
+                      title="Download this client's submitted links and metrics as Excel"
+                    >
+                      Download ↓ .xlsx
+                    </a>
+                    <a
+                      className="btn btn-secondary"
+                      style={{ height: '28px', fontSize: 'var(--fs-xs)', lineHeight: '28px', padding: '0 10px' }}
+                      href={`/api/admin/clients/${c.username}/export.csv`}
+                      title="Download this client's submitted links and metrics as CSV"
+                    >
+                      .csv
+                    </a>
                     <button
                       className={`btn ${c.disabled ? 'btn-secondary' : 'btn-destructive'}`}
                       style={{ height: '28px', fontSize: 'var(--fs-xs)' }}
@@ -230,7 +246,7 @@ export function Clients() {
       {/* Temp Password Modal Result */}
       <Modal isOpen={!!tempPasswordResult} onClose={() => setTempPasswordResult(null)} title="Temp Password Generated">
         <p style={{ color: 'var(--text-2)', marginBottom: 'var(--s3)' }}>
-          Temporary password for <strong>{tempPasswordResult?.username}</strong>. Save this now — it will never be shown again:
+          Temporary password for <strong>{tempPasswordResult?.username}</strong>. Save this now, it will never be shown again:
         </p>
         <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--surface-2)', marginBottom: 'var(--s5)' }}>
           <span className="mono" style={{ fontSize: 'var(--fs-md)', fontWeight: 600 }}>{tempPasswordResult?.tempPassword}</span>

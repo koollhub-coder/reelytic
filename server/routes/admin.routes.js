@@ -7,6 +7,11 @@ const { parseUserAgent } = require('../utils/ua');
 const config = require('../config');
 const { DEFAULT_PLANS } = require('./pricing.routes');
 const { defaultsForNewUser, adjustCredits, setCredits } = require('../services/credits.service');
+const { generateClientLedgerExcel, generateClientLedgerCsv } = require('../services/export.service');
+const { getProfilePipelineMode, setProfilePipelineMode, PROFILE_PIPELINE_INFO, getV2FetchDepth, setV2FetchDepth } = require('../services/profilePipeline.service');
+const { getCacheTtlDays, setProfileCacheTtlDays, DEFAULT_PROFILE_CACHE_TTL_DAYS } = require('../services/cache.service');
+const { getReelPipelineMode, setReelPipelineMode, REEL_PIPELINE_INFO } = require('../services/reelPipeline.service');
+const { fallbackCostUsd } = require('../services/costEstimate.service');
 
 router.get('/overview', requireAdmin, async (req, res, next) => {
   try {
@@ -26,10 +31,13 @@ router.get('/overview', requireAdmin, async (req, res, next) => {
       const d = new Date(now);
       d.setDate(d.getDate() - i);
       const dateStr = d.toISOString().split('T')[0];
-      const count = await db.collection('submittedLinks').countDocuments({
-        at: { $gte: new Date(dateStr + 'T00:00:00.000Z'), $lte: new Date(dateStr + 'T23:59:59.999Z') }
-      });
-      days14.push({ date: dateStr, count });
+      const dayStart = new Date(dateStr + 'T00:00:00.000Z');
+      const dayEnd = new Date(dateStr + 'T23:59:59.999Z');
+      const [reels, profiles] = await Promise.all([
+        db.collection('submittedLinks').countDocuments({ type: 'reel', at: { $gte: dayStart, $lte: dayEnd } }),
+        db.collection('submittedLinks').countDocuments({ type: 'profile', at: { $gte: dayStart, $lte: dayEnd } }),
+      ]);
+      days14.push({ date: dateStr, reels, profiles, count: reels + profiles });
     }
 
     res.json({
@@ -133,9 +141,37 @@ router.patch('/clients/:username', requireAdmin, async (req, res, next) => {
   }
 });
 
+// Every link this client has ever submitted, with resolved username + full
+// metrics, as a downloadable file (source: submittedLinks ledger).
+router.get('/clients/:username/export.:ext(csv|xlsx)', requireAdmin, async (req, res, next) => {
+  try {
+    const targetUser = req.params.username.toLowerCase();
+    const db = getDb();
+    const entries = await db.collection('submittedLinks').find({ username: targetUser }).sort({ at: -1 }).toArray();
+
+    const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
+    const filename = `reelytic-${targetUser}-links-${dateStr}`;
+
+    if (req.params.ext === 'csv') {
+      const csv = generateClientLedgerCsv(targetUser, entries);
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}.csv"`);
+      return res.send(csv);
+    }
+    const buffer = await generateClientLedgerExcel(targetUser, entries);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}.xlsx"`);
+    return res.send(Buffer.from(buffer));
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.get('/ledger', requireAdmin, async (req, res, next) => {
   try {
     const { user, type, from, to } = req.query;
+    const page = Math.max(1, parseInt(req.query.page || '1', 10));
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit || '50', 10)));
     const query = {};
     if (user) query.username = user;
     if (type) query.type = type;
@@ -146,8 +182,9 @@ router.get('/ledger', requireAdmin, async (req, res, next) => {
     }
 
     const db = getDb();
-    const links = await db.collection('submittedLinks').find(query).sort({ at: -1 }).limit(500).toArray();
-    res.json({ ledger: links });
+    const total = await db.collection('submittedLinks').countDocuments(query);
+    const links = await db.collection('submittedLinks').find(query).sort({ at: -1 }).skip((page - 1) * limit).limit(limit).toArray();
+    res.json({ ledger: links, total, page, limit });
   } catch (err) {
     next(err);
   }
@@ -155,9 +192,13 @@ router.get('/ledger', requireAdmin, async (req, res, next) => {
 
 router.get('/sessions', requireAdmin, async (req, res, next) => {
   try {
+    const page = Math.max(1, parseInt(req.query.page || '1', 10));
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit || '50', 10)));
+
     const db = getDb();
-    const logins = await db.collection('loginHistory').find({}).sort({ at: -1 }).limit(100).toArray();
-    res.json({ sessions: logins });
+    const total = await db.collection('loginHistory').countDocuments({});
+    const logins = await db.collection('loginHistory').find({}).sort({ at: -1 }).skip((page - 1) * limit).limit(limit).toArray();
+    res.json({ sessions: logins, total, page, limit });
   } catch (err) {
     next(err);
   }
@@ -206,8 +247,158 @@ router.put('/pricing-plans', requireAdmin, async (req, res, next) => {
 });
 
 // ============================================================
-// APIFY SPEND
+// PROFILE REPORT DATA SOURCE (pipeline toggle)
 // ============================================================
+// Global, not per-client -- every client's NEXT profile report uses whichever
+// mode is active at start time. See profilePipeline.service.js.
+
+router.get('/settings/profile-pipeline', requireAdmin, async (req, res, next) => {
+  try {
+    const mode = await getProfilePipelineMode();
+    res.json({ mode, info: PROFILE_PIPELINE_INFO });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch('/settings/profile-pipeline', requireAdmin, async (req, res, next) => {
+  try {
+    const { mode } = req.body || {};
+    if (mode !== 'legacy' && mode !== 'v2') {
+      return res.status(400).json({ error: 'mode must be "legacy" or "v2"' });
+    }
+    const updated = await setProfilePipelineMode(mode, req.currentUser.username);
+    res.json({ success: true, mode: updated });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/settings/profile-pipeline/log', requireAdmin, async (req, res, next) => {
+  try {
+    const db = getDb();
+    const log = await db.collection('pipelineToggleLog').find({ setting: 'profileReportPipeline' }).sort({ at: -1 }).limit(50).toArray();
+    res.json({ log });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ============================================================
+// REEL REPORT PIPELINE -- same pattern as profile-pipeline above, separate
+// setting so toggling one report type never affects the other.
+// ============================================================
+
+router.get('/settings/reel-pipeline', requireAdmin, async (req, res, next) => {
+  try {
+    const mode = await getReelPipelineMode();
+    res.json({ mode, info: REEL_PIPELINE_INFO });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch('/settings/reel-pipeline', requireAdmin, async (req, res, next) => {
+  try {
+    const { mode } = req.body || {};
+    if (mode !== 'standard' && mode !== 'express') {
+      return res.status(400).json({ error: 'mode must be "standard" or "express"' });
+    }
+    const updated = await setReelPipelineMode(mode, req.currentUser.username);
+    res.json({ success: true, mode: updated });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/settings/reel-pipeline/log', requireAdmin, async (req, res, next) => {
+  try {
+    const db = getDb();
+    const log = await db.collection('pipelineToggleLog').find({ setting: 'reelReportPipeline' }).sort({ at: -1 }).limit(50).toArray();
+    res.json({ log });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ============================================================
+// EXPRESS (V2) TUNING -- fetch depth + cache TTL. Both apply to Express
+// mode's next report immediately, no restart. These are intentionally
+// separate settings from the pipeline mode toggle above so tuning Express
+// doesn't require flipping any client-visible switch.
+// ============================================================
+
+router.get('/settings/profile-v2-tuning', requireAdmin, async (req, res, next) => {
+  try {
+    const [fetchDepth, cacheTtlDays] = await Promise.all([
+      getV2FetchDepth(),
+      getCacheTtlDays('profile'),
+    ]);
+    res.json({ fetchDepth, cacheTtlDays, defaultCacheTtlDays: DEFAULT_PROFILE_CACHE_TTL_DAYS });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch('/settings/profile-v2-tuning', requireAdmin, async (req, res, next) => {
+  try {
+    const { fetchDepth, cacheTtlDays } = req.body || {};
+    const updated = {};
+    if (fetchDepth !== undefined) {
+      updated.fetchDepth = await setV2FetchDepth(fetchDepth, req.currentUser.username);
+    }
+    if (cacheTtlDays !== undefined) {
+      updated.cacheTtlDays = await setProfileCacheTtlDays(cacheTtlDays);
+    }
+    res.json({ success: true, ...updated });
+  } catch (err) {
+    if (err.message && (err.message.includes('must be') )) {
+      return res.status(400).json({ error: err.message });
+    }
+    next(err);
+  }
+});
+
+// ============================================================
+// USAGE & SPEND
+// ============================================================
+// Talks to the scraping provider's billing API server-side only. The
+// provider's identity, actor ids, and raw actor names must never reach the
+// client (response body, error text, or otherwise) -- competitors and
+// technical visitors inspecting network traffic must not be able to tell
+// which scraping platform powers this. Everything below maps provider-side
+// ids to internal, generic labels before anything is sent back.
+
+// The provider's usage/actor-runs API reports actors by their opaque
+// canonical id, not the "owner~name" slug used to call them -- so resolving
+// a human label requires one extra provider-side lookup per distinct actor
+// (cached, so it only happens once per actor per server process). The
+// resolved owner~name is matched against this table and ONLY the mapped
+// neutral label is ever kept; the raw id/name is discarded immediately
+// after matching and never stored or returned.
+const KNOWN_ACTOR_SLUGS = {
+  'apify~instagram-reel-scraper': { slug: 'reel-scrape', label: 'Reel scraper' },
+  'patient_discovery~instagram-reel-analytics-by-url': { slug: 'reel-analytics', label: 'Reel analytics' },
+  'apify~instagram-post-scraper': { slug: 'profile-post', label: 'Profile post scraper' },
+  'apify~instagram-followers-count-scraper': { slug: 'follower-lookup', label: 'Follower lookup' },
+  'instagram-scraper~instagram-profile-reels-scraper': { slug: 'profile-reels', label: 'Profile reels scraper' },
+};
+const OTHER_ACTOR = { slug: 'other', label: 'Other scan call' };
+const _actorResolveCache = new Map();
+async function resolveActor(actId, apiKey) {
+  if (_actorResolveCache.has(actId)) return _actorResolveCache.get(actId);
+  let resolved = OTHER_ACTOR;
+  try {
+    const res = await fetch(`https://api.apify.com/v2/acts/${actId}?token=${apiKey}`);
+    if (res.ok) {
+      const json = await res.json();
+      const ownerSlug = `${json.data.username}~${json.data.name}`;
+      resolved = KNOWN_ACTOR_SLUGS[ownerSlug] || OTHER_ACTOR;
+    }
+  } catch (e) { /* keep the neutral fallback */ }
+  _actorResolveCache.set(actId, resolved);
+  return resolved;
+}
 
 let _inrRateCache = { rate: null, fetchedAt: 0 };
 async function getUsdToInrRate() {
@@ -224,32 +415,16 @@ async function getUsdToInrRate() {
   }
 }
 
-const _actorNameCache = new Map();
-async function getActorName(actId, apiKey) {
-  if (_actorNameCache.has(actId)) return _actorNameCache.get(actId);
-  try {
-    const res = await fetch(`https://api.apify.com/v2/acts/${actId}?token=${apiKey}`);
-    if (!res.ok) throw new Error('actor fetch failed');
-    const json = await res.json();
-    const label = `${json.data.username}/${json.data.name}`;
-    _actorNameCache.set(actId, label);
-    return label;
-  } catch (e) {
-    _actorNameCache.set(actId, actId);
-    return actId;
-  }
-}
-
-router.get('/apify-usage', requireAdmin, async (req, res, next) => {
+router.get('/usage', requireAdmin, async (req, res, next) => {
   try {
     const apiKey = config.apifyApiKey;
     const usageRes = await fetch(`https://api.apify.com/v2/users/me/usage/monthly?token=${apiKey}`);
-    if (!usageRes.ok) throw new Error(`Apify usage API error ${usageRes.status}`);
+    if (!usageRes.ok) throw new Error('Usage data is unavailable right now');
     const usageJson = await usageRes.json();
     const u = usageJson.data;
 
     const meRes = await fetch(`https://api.apify.com/v2/users/me?token=${apiKey}`);
-    if (!meRes.ok) throw new Error(`Apify account API error ${meRes.status}`);
+    if (!meRes.ok) throw new Error('Account data is unavailable right now');
     const meJson = await meRes.json();
     const plan = meJson.data.plan || {};
     const monthlyCredits = plan.monthlyUsageCreditsUsd != null ? plan.monthlyUsageCreditsUsd : null;
@@ -270,14 +445,49 @@ router.get('/apify-usage', requireAdmin, async (req, res, next) => {
         cur.runs += 1;
         totals.set(run.actId, cur);
       }
+      const byLabel = new Map();
       for (const [actId, val] of totals.entries()) {
-        const name = await getActorName(actId, apiKey);
-        byActor.push({ actId, name, usd: val.usd, runs: val.runs });
+        const { label } = await resolveActor(actId, apiKey);
+        const cur = byLabel.get(label) || { usd: 0, runs: 0 };
+        cur.usd += val.usd;
+        cur.runs += val.runs;
+        byLabel.set(label, cur);
       }
+      byActor = [...byLabel.entries()].map(([label, val]) => ({ label, usd: val.usd, runs: val.runs }));
       byActor.sort((a, b) => b.usd - a.usd);
     }
 
     const usdToInr = await getUsdToInrRate();
+    const profilePipelineMode = await getProfilePipelineMode();
+
+    // Per-client attribution: Apify bills the whole account, not any one
+    // Reelytic user, so there is no literal per-request invoice to read --
+    // this sums each successful item's estimatedCostUsd (stamped on the
+    // ledger entry at scrape time using whichever pipeline was actually
+    // active then, see costEstimate.service.js), falling back to a flat
+    // rate for older entries recorded before that field existed. The gap
+    // between this sum and the real Apify total above is shown separately
+    // as "unattributed" rather than hidden -- covers admin-side testing,
+    // direct API calls, or anything else that never went through a report.
+    const db = getDb();
+    const entries = await db.collection('submittedLinks').find(
+      { result: 'success', at: { $gte: new Date(cycleStart) } },
+      { projection: { username: 1, type: 1, estimatedCostUsd: 1 } }
+    ).toArray();
+
+    const byUserMap = new Map();
+    let attributedUsd = 0;
+    for (const e of entries) {
+      const cost = e.estimatedCostUsd != null ? e.estimatedCostUsd : fallbackCostUsd(e.type);
+      attributedUsd += cost;
+      const key = e.username || 'unknown';
+      if (!byUserMap.has(key)) byUserMap.set(key, { username: key, reelCount: 0, reelUsd: 0, profileCount: 0, profileUsd: 0, totalUsd: 0 });
+      const row = byUserMap.get(key);
+      if (e.type === 'reel') { row.reelCount++; row.reelUsd += cost; } else { row.profileCount++; row.profileUsd += cost; }
+      row.totalUsd += cost;
+    }
+    const byUser = [...byUserMap.values()].sort((a, b) => b.totalUsd - a.totalUsd);
+    const unattributedUsd = Math.max(0, spent - attributedUsd);
 
     res.json({
       cycleStart: u.usageCycle.startAt,
@@ -286,12 +496,56 @@ router.get('/apify-usage', requireAdmin, async (req, res, next) => {
       monthlyCreditsUsd: monthlyCredits,
       remainingBalanceUsd: remainingBalance,
       byActor,
+      byUser,
+      attributedUsd,
+      unattributedUsd,
       usdToInr,
+      // Historical runs already reflect whichever actors were actually
+      // called at the time -- this just tells the UI which mode is live NOW,
+      // so nobody looking at a spend number wonders which pipeline it's from.
+      profilePipelineMode,
+      profilePipelineInfo: PROFILE_PIPELINE_INFO[profilePipelineMode],
       daily: (u.dailyServiceUsages || []).map((day) => ({
         date: day.date.slice(0, 10),
         usd: day.totalUsageCreditsUsd,
       })),
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Drill-down for the "Spend by client" table -- every individual item a
+// user was billed for this cycle, real reel-analytics cost where it's been
+// captured (see scrapeReels' costPerRequestedUsd), estimated otherwise.
+router.get('/usage/by-user/:username', requireAdmin, async (req, res, next) => {
+  try {
+    const apiKey = config.apifyApiKey;
+    const usageRes = await fetch(`https://api.apify.com/v2/users/me/usage/monthly?token=${apiKey}`);
+    if (!usageRes.ok) throw new Error('Usage data is unavailable right now');
+    const cycleStart = (await usageRes.json()).data.usageCycle.startAt;
+
+    const db = getDb();
+    const entries = await db.collection('submittedLinks').find(
+      { username: req.params.username, result: 'success', at: { $gte: new Date(cycleStart) } },
+      { projection: { url: 1, type: 1, resolvedUsername: 1, estimatedCostUsd: 1, pipelineMode: 1, at: 1 } }
+    ).sort({ at: -1 }).toArray();
+
+    const usdToInr = await getUsdToInrRate();
+    const items = entries.map((e) => ({
+      url: e.url,
+      type: e.type,
+      resolvedUsername: e.resolvedUsername,
+      pipelineMode: e.pipelineMode,
+      costUsd: e.estimatedCostUsd != null ? e.estimatedCostUsd : fallbackCostUsd(e.type),
+      // true = recorded at scrape time (reel items include a real, measured
+      // analytics cost; see scrapeReels' costPerRequestedUsd). false = this
+      // entry predates cost tracking and is backfilled with a flat rate.
+      recordedLive: e.estimatedCostUsd != null,
+      at: e.at,
+    }));
+
+    res.json({ username: req.params.username, items, usdToInr });
   } catch (err) {
     next(err);
   }
@@ -303,17 +557,41 @@ router.get('/apify-usage', requireAdmin, async (req, res, next) => {
 
 const DEFAULT_COST_MODEL = {
   usdPerReel: 0.004,
+  // Batched analytics-actor cost per reel (start fee amortized across a batch run).
+  // This is what actually powers reel reports today (REEL_ACTOR=analytics default).
+  usdPerReelAnalytics: 0.0025,
+  // Legacy profile pipeline (2 calls: post-scraper + followers-scraper).
   usdPerProfilePost: 0.0027,
   profilePostsPerReport: 6,
   usdPerFollowerLookup: 0.0036,
+  // V2 profile pipeline (1 call, bundled followers) -- verified via Apify's
+  // pricing API, Bronze tier, no actor-start fee.
+  usdPerProfileReelResult: 0.00059,
+  profilePostsFetchedV2: 12,
   creditsPerReel: 1,
   creditsPerProfile: 5,
 };
 
-const COST_ACTORS = [
-  { key: 'usdPerReel', id: 'apify~instagram-reel-scraper', label: 'Reel scraper', unit: 'per reel' },
-  { key: 'usdPerProfilePost', id: 'apify~instagram-post-scraper', label: 'Profile post scraper', unit: 'per post' },
-  { key: 'usdPerFollowerLookup', id: 'apify~instagram-followers-count-scraper', label: 'Followers scraper', unit: 'per profile' },
+// `actorId` is the real provider-side id, used ONLY server-side to match
+// against live usage data -- it must never appear in a response. `slug` is
+// the neutral internal id sent to the client instead.
+// Reel-report actors always show, unaffected by the profile pipeline toggle.
+const REEL_COST_ACTORS = [
+  { key: 'usdPerReel', actorId: 'apify~instagram-reel-scraper', slug: 'reel-scrape', label: 'Reel scraper', unit: 'per reel' },
+  {
+    key: 'usdPerReelAnalytics', actorId: 'patient_discovery~instagram-reel-analytics-by-url', slug: 'reel-analytics',
+    label: 'Reel analytics (shares/reposts)', unit: 'per reel'
+  },
+];
+// Which profile-pipeline actors show depends on the active mode (see
+// profilePipeline.service.js) -- never show both at once, that would make it
+// ambiguous which numbers are actually live.
+const PROFILE_COST_ACTORS_LEGACY = [
+  { key: 'usdPerProfilePost', actorId: 'apify~instagram-post-scraper', slug: 'profile-post', label: 'Profile post scraper', unit: 'per post' },
+  { key: 'usdPerFollowerLookup', actorId: 'apify~instagram-followers-count-scraper', slug: 'follower-lookup', label: 'Follower lookup', unit: 'per profile' },
+];
+const PROFILE_COST_ACTORS_V2 = [
+  { key: 'usdPerProfileReelResult', actorId: 'instagram-scraper~instagram-profile-reels-scraper', slug: 'profile-reels', label: 'Profile reels scraper (Express)', unit: 'per result' },
 ];
 
 async function liveActorAverages(apiKey) {
@@ -334,9 +612,19 @@ async function liveActorAverages(apiKey) {
       cur.runs += 1;
       totals.set(run.actId, cur);
     }
-    const out = {};
+    // Aggregate by neutral slug (not the raw actId) so the caller can match
+    // against REEL_COST_ACTORS/PROFILE_COST_ACTORS_* by slug directly.
+    const bySlug = new Map();
     for (const [actId, v] of totals.entries()) {
-      out[actId] = v.runs > 0 ? v.usd / v.runs : null;
+      const { slug } = await resolveActor(actId, apiKey);
+      const cur = bySlug.get(slug) || { usd: 0, runs: 0 };
+      cur.usd += v.usd;
+      cur.runs += v.runs;
+      bySlug.set(slug, cur);
+    }
+    const out = {};
+    for (const [slug, v] of bySlug.entries()) {
+      out[slug] = v.runs > 0 ? v.usd / v.runs : null;
     }
     return out;
   } catch (e) {
@@ -352,9 +640,16 @@ router.get('/cost-monitor', requireAdmin, async (req, res, next) => {
 
     const rate = await getUsdToInrRate();
     const liveAverages = await liveActorAverages(config.apifyApiKey);
+    const profilePipelineMode = await getProfilePipelineMode();
 
-    const reelCostUsd = model.usdPerReel;
-    const profileCostUsd = (model.usdPerProfilePost * model.profilePostsPerReport) + model.usdPerFollowerLookup;
+    // Reel reports run on the analytics actor by default (see apify.service.js
+    // REEL_MODE) -- its batched per-reel cost is the real driver of margin now.
+    const reelCostUsd = model.usdPerReelAnalytics != null ? model.usdPerReelAnalytics : model.usdPerReel;
+    // Whichever profile pipeline is currently active is what actually runs
+    // for the next report -- margin math must match that, not both at once.
+    const profileCostUsd = profilePipelineMode === 'v2'
+      ? model.usdPerProfileReelResult * model.profilePostsFetchedV2
+      : (model.usdPerProfilePost * model.profilePostsPerReport) + model.usdPerFollowerLookup;
 
     const plansDoc = await db.collection('settings').findOne({ key: 'pricingPlans' });
     const plans = (plansDoc && plansDoc.value && plansDoc.value.length > 0) ? plansDoc.value : DEFAULT_PLANS;
@@ -382,17 +677,22 @@ router.get('/cost-monitor', requireAdmin, async (req, res, next) => {
       };
     });
 
-    const actors = COST_ACTORS.map((a) => ({
-      id: a.id,
+    const profileCostActors = profilePipelineMode === 'v2' ? PROFILE_COST_ACTORS_V2 : PROFILE_COST_ACTORS_LEGACY;
+    const actors = [...REEL_COST_ACTORS, ...profileCostActors].map((a) => ({
+      id: a.slug,
       label: a.label,
       unit: a.unit,
       baselineUsd: model[a.key],
-      liveAvgUsd: liveAverages[a.id] != null ? liveAverages[a.id] : null,
+      liveAvgUsd: liveAverages[a.slug] != null ? liveAverages[a.slug] : null,
     }));
 
     res.json({
       model,
       usdToInr: rate,
+      // No caching lag: read fresh every request, so flipping the toggle and
+      // reloading this page immediately shows the new mode's actors/numbers.
+      profilePipelineMode,
+      profilePipelineInfo: PROFILE_PIPELINE_INFO[profilePipelineMode],
       costPerReport: { reelUsd: reelCostUsd, profileUsd: profileCostUsd },
       per1kReelsUsd: reelCostUsd * 1000,
       per1kProfilesUsd: profileCostUsd * 1000,

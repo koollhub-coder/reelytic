@@ -34,7 +34,7 @@ async function startServer() {
   app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 
   // Session configuration with bulletproof store fallback
-  // Session store mirrors whatever connectDb() actually landed on —
+  // Session store mirrors whatever connectDb() actually landed on:
   // no point pointing sessions at Mongo if the app DB already gave up on it.
   const sessionStore = isUsingFallback()
     ? new session.MemoryStore()
@@ -61,6 +61,7 @@ async function startServer() {
   app.use('/api/billing', require('./routes/billing.routes'));
   app.use('/api/pricing', require('./routes/pricing.routes'));
   app.use('/api/me', require('./routes/me.routes'));
+  app.use('/api/campaigns', require('./routes/campaigns.routes'));
 
   // Static client build in production
   const clientDist = path.join(__dirname, '../client/dist');

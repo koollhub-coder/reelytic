@@ -12,6 +12,15 @@ const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 */
 export function GoogleSignInButton({ onGoogle, label = 'Continue with Google' }) {
   const holderRef = useRef(null);
+  // The page passing us onGoogle re-creates that function on every render,
+  // which used to be in this effect's dependency array -- re-running
+  // initialize()/renderButton() on every render. Google's own SDK only
+  // honors the LAST initialize() call, so the very first rendered button
+  // was live for a moment then silently replaced; a click on it before that
+  // happened did nothing, which is why it took two clicks after a refresh.
+  // A ref keeps the callback fresh without ever re-initializing the SDK.
+  const onGoogleRef = useRef(onGoogle);
+  onGoogleRef.current = onGoogle;
 
   useEffect(() => {
     if (!CLIENT_ID) return;
@@ -20,7 +29,7 @@ export function GoogleSignInButton({ onGoogle, label = 'Continue with Google' })
       if (!window.google || !holderRef.current) return;
       window.google.accounts.id.initialize({
         client_id: CLIENT_ID,
-        callback: (resp) => resp && resp.credential && onGoogle({ credential: resp.credential }),
+        callback: (resp) => resp && resp.credential && onGoogleRef.current({ credential: resp.credential }),
       });
       holderRef.current.innerHTML = '';
       window.google.accounts.id.renderButton(holderRef.current, {
@@ -36,7 +45,7 @@ export function GoogleSignInButton({ onGoogle, label = 'Continue with Google' })
     }
     s.addEventListener('load', render);
     return () => s && s.removeEventListener('load', render);
-  }, [onGoogle]);
+  }, []);
 
   if (CLIENT_ID) {
     return <div ref={holderRef} style={{ display: 'flex', justifyContent: 'center' }} />;
@@ -44,9 +53,9 @@ export function GoogleSignInButton({ onGoogle, label = 'Continue with Google' })
 
   // ---- Dummy mode ----
   const handleDummy = () => {
-    const email = window.prompt('Demo Google sign-in — enter an email to continue as', 'demo.google.user@gmail.com');
+    const email = window.prompt('Demo Google sign-in: enter an email to continue as', 'demo.google.user@gmail.com');
     if (!email) return;
-    const name = window.prompt('Demo Google sign-in — display name', 'Demo Agency');
+    const name = window.prompt('Demo Google sign-in: display name', 'Demo Agency');
     if (!name || name.trim().length < 2) return;
     onGoogle({ email: email.trim(), name: name.trim(), dummy: true });
   };

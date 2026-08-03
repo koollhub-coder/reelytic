@@ -51,7 +51,7 @@ export function Checkout() {
 
         let createdOrder;
         try {
-            // Real backend call — today this returns a mock order (see server/routes/billing.routes.js).
+            // Real backend call: today this returns a mock order (see server/routes/billing.routes.js).
             // Once real Razorpay keys are in .env, this same call starts returning a real order id.
             createdOrder = await apiFetch('/billing/create-order', {
                 method: 'POST',
@@ -78,7 +78,7 @@ export function Checkout() {
             amount: createdOrder.amount, // paise
             currency: 'INR',
             name: 'Reelytic',
-            description: `${order.plan} plan — ${order.billing}`,
+            description: `${order.plan} plan, ${order.billing}`,
             order_id: createdOrder.id,
             handler: function () {
                 grantAndSucceed();
@@ -94,7 +94,7 @@ export function Checkout() {
 
         const rzp = new window.Razorpay(options);
         rzp.on('payment.failed', function () {
-            setError('Payment failed. No charge was made — try again.');
+            setError('Payment failed. No charge was made, try again.');
             setStatus('idle');
         });
         rzp.open();
@@ -116,7 +116,7 @@ export function Checkout() {
                     {order.credits.toLocaleString('en-IN')} credits will be added to your account.
                 </p>
                 <p style={{ color: 'var(--warn)', fontSize: 'var(--fs-xs)', marginBottom: 'var(--s5)' }}>
-                    Dev note: this was a simulated payment. No real charge occurred, and credits aren't actually applied to your account yet — that wiring comes with the real Razorpay keys.
+                    Dev note: this was a simulated payment. No real charge occurred, and credits aren't actually applied to your account yet. That wiring comes with the real payment gateway keys.
                 </p>
                 <button type="button" className="btn btn-primary" onClick={() => navigate('/reels')}>
                     Back to Reelytic
@@ -179,7 +179,7 @@ export function Checkout() {
                             <span style={{ marginLeft: 'auto', fontSize: 11, background: '#FEF3C7', color: '#92400E', padding: '2px 8px', borderRadius: 999 }}>TEST MODE</span>
                         </div>
                         <p style={{ fontSize: 13, color: '#5D6169', marginBottom: 16 }}>
-                            Reelytic — {order.plan} plan ({order.billing})
+                            Reelytic: {order.plan} plan ({order.billing})
                         </p>
                         <div style={{ fontSize: 28, fontWeight: 700, marginBottom: 20 }}>
                             {'₹'}{order.price.toLocaleString('en-IN')}
@@ -196,7 +196,7 @@ export function Checkout() {
                             Cancel
                         </button>
                         <p style={{ fontSize: 11, color: '#8B8F98', textAlign: 'center', marginTop: 12 }}>
-                            Simulated checkout — no real Razorpay key configured yet.
+                            Simulated checkout, no real payment key configured yet.
                         </p>
                     </div>
                 </div>

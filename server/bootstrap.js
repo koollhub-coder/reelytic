@@ -48,7 +48,7 @@ async function runBootstrap() {
     });
 
     console.log('\n================================================================');
-    console.log(`===== INITIAL ADMIN LOGIN: ${adminUser} / ${adminPass} — change this now =====`);
+    console.log(`===== INITIAL ADMIN LOGIN: ${adminUser} / ${adminPass}, change this now =====`);
     console.log('================================================================\n');
   }
 

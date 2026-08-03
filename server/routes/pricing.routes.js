@@ -54,7 +54,7 @@ router.get('/plans', async (req, res, next) => {
     try {
         const db = getDb();
         const doc = await db.collection('settings').findOne({ key: 'pricingPlans' });
-        // IMPORTANT: must check length > 0 — an empty array [] is truthy in JS
+        // IMPORTANT: must check length > 0, an empty array [] is truthy in JS
         // and would bypass the fallback, leaving the pricing page blank.
         const plans = (doc && doc.value && doc.value.length > 0) ? doc.value : DEFAULT_PLANS;
         res.json({ plans });

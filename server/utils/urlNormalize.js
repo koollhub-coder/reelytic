@@ -50,6 +50,17 @@ function normalizeUrl(rawUrl, type = 'reel') {
     const pathname = parsed.pathname.replace(/\/+$/, '');
 
     if (type === 'reel') {
+      // /share/{code} or /share/reel/{code} - a redirect wrapper. The code after
+      // /share/ is NOT the real shortcode, so it cannot be derived by string parsing.
+      // Pass the share URL through as-is and let the scraper (which follows redirects)
+      // resolve it; only reject at scrape time if the actor returns nothing.
+      const shareRegex = /^\/share\/(?:(?:reel|reels|p)\/)?([a-zA-Z0-9_-]+)$/;
+      const shareMatch = pathname.match(shareRegex);
+      if (shareMatch) {
+        const normalized = `https://www.instagram.com${pathname}`;
+        return { valid: true, normalized, shortcode: shareMatch[1], isShareLink: true };
+      }
+
       // Matches /reel/{code}, /reels/{code}, /p/{code}
       const reelRegex = /^\/(reel|reels|p)\/([a-zA-Z0-9_-]+)$/;
       const match = pathname.match(reelRegex);
@@ -58,21 +69,29 @@ function normalizeUrl(rawUrl, type = 'reel') {
       }
       const shortcode = match[2];
       const normalized = `https://www.instagram.com/reel/${shortcode}`;
-      return { valid: true, normalized, shortcode };
+      return { valid: true, normalized, shortcode, isShareLink: false };
     } else if (type === 'profile') {
-      // Matches /{username} or /{username}/...
+      // Matches /{username} or /{username}/... (e.g. /{username}/profilecard/)
       const segments = pathname.split('/').filter(Boolean);
       if (segments.length === 0) {
         return { valid: false, reason: 'Invalid profile username' };
       }
       const username = segments[0];
       // Exclude generic paths like explore, p, reel, direct, accounts
-      const reserved = ['explore', 'p', 'reel', 'reels', 'direct', 'accounts', 'stories', 'tv'];
+      const reserved = ['explore', 'p', 'reel', 'reels', 'direct', 'accounts', 'stories', 'tv', 'share'];
       if (reserved.includes(username.toLowerCase())) {
         return { valid: false, reason: 'Not a valid creator profile link' };
       }
-      const normalized = `https://www.instagram.com/${username}`;
-      return { valid: true, normalized, username };
+      if (!/^[a-zA-Z0-9._]+$/.test(username)) {
+        return { valid: false, reason: 'Invalid characters in username' };
+      }
+      // Instagram usernames are case-insensitive, but this string also
+      // becomes the cache key and the duplicate-detection key downstream --
+      // lowercasing here means "Nike" and "nike" are recognized as the same
+      // profile everywhere, instead of silently missing each other.
+      const normalizedUsername = username.toLowerCase();
+      const normalized = `https://www.instagram.com/${normalizedUsername}`;
+      return { valid: true, normalized, username: normalizedUsername, isShareLink: false };
     }
 
     return { valid: false, reason: 'Unknown link type' };

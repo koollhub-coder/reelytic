@@ -29,7 +29,7 @@ export function Logo() {
         R
       </div>
       <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '20px', color: 'var(--text)', letterSpacing: '-0.02em' }}>
-        R<span style={{ fontFamily: 'var(--font-data)', color: 'var(--accent)' }}>e</span>elytic<span style={{ fontFamily: 'var(--font-data)', color: 'var(--accent)' }}>e</span>
+        R<span style={{ fontFamily: 'var(--font-data)', color: 'var(--accent)' }}>e</span>elytic
       </span>
     </a>
   );

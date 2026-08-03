@@ -129,6 +129,55 @@ router.post('/change-password', requireLogin, async (req, res, next) => {
   }
 });
 
+const USERNAME_RE = /^[a-z0-9](?:[a-z0-9._-]{1,30}[a-z0-9])?$/;
+
+router.patch('/username', requireLogin, async (req, res, next) => {
+  try {
+    const requested = ((req.body && req.body.username) || '').trim().toLowerCase();
+    if (!USERNAME_RE.test(requested)) {
+      return res.status(400).json({ error: '3-32 characters: letters, numbers, dots, underscores, or hyphens. Must start and end with a letter or number.' });
+    }
+    if (requested === req.currentUser.username) {
+      return res.json({ user: publicUser(req.currentUser) });
+    }
+
+    const db = getDb();
+    const existing = await db.collection('users').findOne({
+      _id: { $ne: req.currentUser._id },
+      $or: [{ username: requested }, { email: requested }],
+    });
+    if (existing) {
+      return res.status(409).json({ error: 'That username is already taken.' });
+    }
+
+    const previousUsername = req.currentUser.username;
+    await db.collection('users').updateOne({ _id: req.currentUser._id }, { $set: { username: requested } });
+
+    // Every report, submitted-link, campaign, and usage-stat row is keyed by
+    // username (not user._id), because that's what the rest of the app looks
+    // things up by. Without this, changing your username silently orphans
+    // every one of your existing reports under the old name -- they don't
+    // get deleted, but they vanish from your own dashboard/history, which
+    // looks and feels exactly like data loss. Real incident, fixed 2026-08-03.
+    for (const [coll, field] of [
+      ['jobs', 'ownerUsername'],
+      ['submittedLinks', 'username'],
+      ['campaigns', 'ownerUsername'],
+      ['usageStats', 'username'],
+      ['loginHistory', 'username'],
+    ]) {
+      await db.collection(coll).updateMany({ [field]: previousUsername }, { $set: { [field]: requested } });
+    }
+
+    req.session.username = requested;
+    req.currentUser.username = requested;
+
+    res.json({ user: publicUser(req.currentUser) });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.post('/dev-unlock', requireLogin, async (req, res, next) => {
   try {
     const { password } = req.body;
@@ -231,7 +280,7 @@ router.post('/google', async (req, res, next) => {
       name = payload.name;
       googleId = payload.sub;
     } else {
-      // DUMMY MODE — no GOOGLE_CLIENT_ID configured. Trust the posted email so
+      // DUMMY MODE: no GOOGLE_CLIENT_ID configured. Trust the posted email so
       // the demo works. This branch is disabled automatically once the env var
       // is set, because a real `credential` is then required above.
       email = (req.body && req.body.email) || 'demo.google.user@gmail.com';

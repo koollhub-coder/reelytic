@@ -48,10 +48,17 @@ export function AuthProvider({ children }) {
     return data.user;
   };
 
-  const logout = async () => {
+  // Deliberately does NOT call setUser(null) before navigating. Doing so used
+  // to trigger an SPA re-render mid-logout: ProtectedRoute would see user go
+  // null and instantly client-side-navigate to /login for a frame, before the
+  // hard window.location.href redirect below finished landing on its real
+  // target -- a visible login-page flash on every logout. The hard navigation
+  // remounts the whole app anyway, which re-checks /auth/me and lands on
+  // "logged out" cleanly, so the extra state update was redundant as well as
+  // buggy.
+  const logout = async (redirectTo = '/') => {
     await apiFetch('/auth/logout', { method: 'POST' }).catch(() => { });
-    setUser(null);
-    window.location.href = '/';
+    window.location.href = redirectTo;
   };
 
   const refreshUser = async () => {

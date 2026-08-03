@@ -255,7 +255,7 @@ export function AdminPricingEditor() {
     if (!plans) return <Shimmer height="500px" />;
 
     return (
-        <div style={{ maxWidth: 1200 }}>
+        <div>
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--s6)' }}>
                 <div>

@@ -1,6 +1,28 @@
 const ExcelJS = require('exceljs');
 const { normalizeUrl } = require('../utils/urlNormalize');
 
+// exceljs doesn't hand back a plain string for every cell -- a cell that's a
+// clickable hyperlink (which is what Excel auto-creates the instant you type
+// or paste a bare URL into a cell, the single most common way a links sheet
+// gets built) comes back as { text, hyperlink }, not a string. A rich-text
+// cell comes back as { richText: [...] }, and a formula cell as { formula,
+// result }. Left unhandled, those objects get silently coerced to the
+// literal string "[object Object]" downstream, which is why every row in an
+// affected sheet used to show as an invalid link. This unwraps all of those
+// back down to the plain text a person actually typed.
+function cellToString(value) {
+  if (value == null) return '';
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === 'object') {
+    if (value.text != null) return String(value.text);
+    if (Array.isArray(value.richText)) return value.richText.map((r) => r.text || '').join('');
+    if (value.result != null) return String(value.result);
+    if (value.hyperlink != null) return String(value.hyperlink);
+    return '';
+  }
+  return String(value);
+}
+
 async function parseSpreadsheetBuffer(buffer, filename, type = 'reel') {
   const ext = filename.split('.').pop().toLowerCase();
   let rawRows = [];
@@ -16,12 +38,12 @@ async function parseSpreadsheetBuffer(buffer, filename, type = 'reel') {
     worksheet.eachRow((row, rowNumber) => {
       const values = row.values.slice(1);
       if (rowNumber === 1) {
-        headers = values.map(v => String(v || '').trim());
+        headers = values.map(v => cellToString(v).trim());
         originalColumns = headers.map(h => ({ name: h, renamedTo: h }));
       } else {
         const rowObj = {};
         headers.forEach((h, idx) => {
-          rowObj[h] = values[idx] !== undefined ? values[idx] : '';
+          rowObj[h] = values[idx] !== undefined ? cellToString(values[idx]) : '';
         });
         rawRows.push(rowObj);
       }
@@ -132,7 +154,9 @@ async function parseSpreadsheetBuffer(buffer, filename, type = 'reel') {
     counts: {
       total: rows.length,
       processed: 0,
-      failed: invalidCount + duplicateCount,
+      // `failed` tracks real scrape failures only -- invalid/duplicate rows
+      // are their own buckets below and are never sent to the scraper at all.
+      failed: 0,
       success: 0,
       skipped: 0,
       valid: validCount,

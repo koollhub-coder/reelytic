@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Logo } from '../components/Logo';
 import { PasswordInput } from '../components/PasswordInput';
 import { GoogleSignInButton } from '../components/GoogleSignInButton';
+import { AuthLoadingOverlay } from '../components/AuthLoadingOverlay';
 import { useAuth } from '../context/AuthContext';
 import { LedgerHero } from '../components/LedgerHero';
 
@@ -15,6 +16,7 @@ export function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [carouselSlide, setCarouselSlide] = useState(0);
 
   const reason = searchParams.get('reason');
@@ -54,13 +56,17 @@ export function Login() {
 
   const handleGoogle = async (payload) => {
     setError('');
+    setGoogleLoading(true);
     try {
       const user = await googleLogin(payload);
       navigate(user.mustChangePassword ? '/change-password' : redirectTarget);
     } catch (err) {
       setError(err.message || 'Google sign-in failed.');
+      setGoogleLoading(false);
     }
   };
+
+  if (googleLoading) return <AuthLoadingOverlay />;
 
   return (
     <div className="rl-login-grid" style={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: '1fr 1fr', backgroundColor: 'var(--bg)' }}>
@@ -83,7 +89,7 @@ export function Login() {
           </div>
         </div>
         <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>
-          © 2026 Reelytic · Audited Creator Intelligence
+          © {new Date().getFullYear()} Reelytic · Audited Creator Intelligence
         </div>
       </div>
 

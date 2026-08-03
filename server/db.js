@@ -1,7 +1,19 @@
 const { MongoClient } = require('mongodb');
+const dns = require('dns');
 const config = require('./config');
 const fs = require('fs');
 const path = require('path');
+
+// On some machines Node picks up a local loopback DNS proxy (127.0.0.1)
+// instead of the OS's real resolver -- often a VPN client, Docker Desktop,
+// or antivirus DNS filtering. That breaks the SRV lookup mongodb+srv://
+// needs even though the OS's own DNS resolves it fine. If every configured
+// server is loopback, fall back to a public resolver so the SRV lookup can
+// actually succeed; a real, working resolver (any deployed environment) is
+// left untouched.
+if (dns.getServers().every((s) => s === '127.0.0.1' || s === '::1')) {
+  dns.setServers(['1.1.1.1', '8.8.8.8']);
+}
 
 let dbInstance = null;
 let isFallback = false;
@@ -30,32 +42,25 @@ class MemoryCollection {
   find(query = {}) {
     const items = this.getData();
     const matched = items.filter(item => matchQuery(item, query));
-    return {
+    // Mirrors the real driver's cursor chain closely enough for this app's
+    // usage (find/sort/skip/limit/project/toArray, in that order) -- project
+    // is attachable at any point since it just narrows what toArray returns.
+    const cursor = (list) => ({
+      skip: (n) => cursor(list.slice(n)),
+      limit: (l) => cursor(list.slice(0, l)),
       sort: (sortObj) => {
-        let res = [...matched];
+        const res = [...list];
         const sortKey = Object.keys(sortObj)[0];
         if (sortKey) {
           const dir = sortObj[sortKey];
           res.sort((a, b) => (a[sortKey] > b[sortKey] ? dir : a[sortKey] < b[sortKey] ? -dir : 0));
         }
-        return {
-          skip: (n) => {
-            res = res.slice(n);
-            return {
-              limit: (l) => ({
-                toArray: async () => JSON.parse(JSON.stringify(res.slice(0, l)))
-              }),
-              toArray: async () => JSON.parse(JSON.stringify(res))
-            };
-          },
-          limit: (l) => ({
-            toArray: async () => JSON.parse(JSON.stringify(res.slice(0, l)))
-          }),
-          toArray: async () => JSON.parse(JSON.stringify(res))
-        };
+        return cursor(res);
       },
-      toArray: async () => JSON.parse(JSON.stringify(matched))
-    };
+      project: (projection) => cursor(list.map(item => applyProjection(item, projection))),
+      toArray: async () => JSON.parse(JSON.stringify(list)),
+    });
+    return cursor(matched);
   }
 
   async insertOne(doc) {
@@ -140,6 +145,29 @@ class MemoryCollection {
     const items = this.getData();
     return items.filter(item => matchQuery(item, query)).length;
   }
+}
+
+// Supports the inclusion-mode projections this app actually uses (e.g.
+// { type: 1, status: 1 }) as well as plain exclusion mode -- mixing both in
+// one projection is invalid in real Mongo too, so that case isn't handled.
+function applyProjection(item, projection) {
+  if (!projection) return item;
+  const keys = Object.keys(projection);
+  if (keys.length === 0) return item;
+  const isInclusion = keys.some((k) => k !== '_id' && projection[k]);
+  if (isInclusion) {
+    const out = {};
+    if (projection._id !== 0) out._id = item._id;
+    for (const k of keys) {
+      if (k !== '_id' && projection[k]) out[k] = item[k];
+    }
+    return out;
+  }
+  const out = { ...item };
+  for (const k of keys) {
+    if (!projection[k]) delete out[k];
+  }
+  return out;
 }
 
 function matchQuery(item, query) {

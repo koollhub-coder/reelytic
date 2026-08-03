@@ -6,7 +6,29 @@
       "Bash(git reset *)",
       "Bash(git rm *)",
       "Bash(git config *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(node \"C:\\\\Users\\\\91892\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-91892-Downloads-reelytic\\\\e8b51bb1-c7f5-4047-b47b-6b436e373337\\\\scratchpad\\\\test_urlnormalize.js\")",
+      "Bash(MONGODB_URI=\"mongodb://localhost:1/doesnotexist\" timeout 12 node server/index.js)",
+      "Bash(MONGODB_URI=\"mongodb://localhost:1/doesnotexist\" PORT=3999 timeout 12 node server/index.js)",
+      "Bash(node -e \"require\\('./server/routes/jobs.routes.js'\\); console.log\\('OK'\\)\")",
+      "Bash(node -e ' *)",
+      "Bash(node -e \"console.log\\(require\\('express/package.json'\\).version\\)\")",
+      "Bash(node -e \"const r = require\\('./server/routes/admin.routes.js'\\); console.log\\('route registered OK'\\); const layer = r.stack.find\\(l => l.route && l.route.path && l.route.path.includes\\('export'\\)\\); console.log\\(layer.route.path\\);\")",
+      "Bash(node -e \"const d=require\\('./data-store.json'\\); console.log\\(Object.keys\\(d\\)\\); console.log\\('users:', \\(d.users||[]\\).map\\(u=>u.username\\)\\);\")",
+      "Bash(timeout 20 node \"C:\\\\Users\\\\91892\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-91892-Downloads-reelytic\\\\e8b51bb1-c7f5-4047-b47b-6b436e373337\\\\scratchpad\\\\smoketest.js\")",
+      "Bash(netstat -ano)",
+      "Bash(powershell -Command \"Get-Process -Id 10656 | Select-Object Id,ProcessName,Path,StartTime\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3000/api/auth/me)",
+      "Bash(curl -s http://localhost:3000/api/auth/me)",
+      "Bash(powershell -Command \"Stop-Process -Id 10656 -Force\")",
+      "Bash(powershell -Command \"Get-Process -Id 11152 | Select-Object Id,ProcessName,Path,StartTime\")",
+      "Bash(curl -s -o /dev/null -w \"http_code=%{http_code}\\\\n\" http://localhost:5173/)",
+      "Bash(powershell -Command 'Get-Process node -ErrorAction SilentlyContinue | Where-Object {$_.Path -like '\\\\''*node.exe*'\\\\''} | Select-Object Id,StartTime')",
+      "Bash(powershell -Command \"Stop-Process -Id 11920 -Force\")",
+      "Bash(cp data-store.json data-store.json.bak2)",
+      "Bash(powershell -Command \"Stop-Process -Id 25272 -Force -ErrorAction SilentlyContinue\")",
+      "Bash(rm -f data-store.json.bak2)",
+      "Bash(mv -f data-store.json.bak data-store.json)"
     ]
   }
 }

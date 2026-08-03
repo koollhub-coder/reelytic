@@ -127,6 +127,26 @@
   font-family: var(--font-data);
 }
 
+/* ReportEngine live run stream / results: scrolls within its own bounded
+   height with the header pinned, so column labels stay visible while rows
+   stream in and the values scroll underneath -- values always land directly
+   under their header. Scoped to this class only; the base .data-table rules
+   above are untouched everywhere else they're used (admin tables, etc). */
+.rl-live-table-container {
+  max-height: 420px;
+  overflow-y: auto;
+  overflow-x: auto;
+  max-width: 100%;
+}
+.rl-live-table-container table {
+  min-width: 720px;
+}
+.rl-live-table-container thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
 /* Toasts */
 .toast-container {
   position: fixed;
@@ -167,6 +187,28 @@
   background-size: 200% 100%;
   animation: shimmerSweep 1.4s infinite;
   border-radius: var(--r-sm);
+}
+
+/* Spinners */
+@keyframes rlSpin {
+  to { transform: rotate(360deg); }
+}
+.rl-auth-spinner {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  animation: rlSpin 700ms linear infinite;
+}
+.btn-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
+  animation: rlSpin 700ms linear infinite;
 }
 
 /* Badges & Chips */

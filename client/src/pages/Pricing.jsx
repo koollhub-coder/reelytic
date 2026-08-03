@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../api/client';
 import { Shimmer } from '../components/Shimmer';
 import { Logo } from '../components/Logo';
+import { useAuth } from '../context/AuthContext';
 
-const ANNUAL_DISCOUNT = 0.9; // -10%, mirrors Apify's own annual convention
+const ANNUAL_DISCOUNT = 0.9; // -10% for annual billing
 
 function useCountUp(value) {
     const [display, setDisplay] = useState(value);
@@ -75,7 +76,7 @@ function PlanCard({ plan, annual, index, onChoose }) {
             </div>
             {annual && (
                 <p style={{ color: 'var(--ok)', fontSize: 'var(--fs-xs)', marginBottom: 'var(--s4)' }}>
-                    Billed {'₹'}{(price * 12).toLocaleString('en-IN')} / year — save 10%
+                    Billed {'₹'}{(price * 12).toLocaleString('en-IN')} / year, save 10%
                 </p>
             )}
             {!annual && <div style={{ marginBottom: 'var(--s4)' }} />}
@@ -102,6 +103,7 @@ function PlanCard({ plan, annual, index, onChoose }) {
 
 export function Pricing() {
     const navigate = useNavigate();
+    const { user } = useAuth();
     const [annual, setAnnual] = useState(false);
     const [plans, setPlans] = useState(null);
 
@@ -130,9 +132,15 @@ export function Pricing() {
                 <div style={{ cursor: 'pointer' }} onClick={() => navigate('/')}>
                     <Logo />
                 </div>
-                <button type="button" className="btn btn-primary" onClick={() => navigate('/login')}>
-                    Log in
-                </button>
+                {user ? (
+                    <button type="button" className="btn btn-primary" onClick={() => navigate('/reels')}>
+                        Continue as {user.username}
+                    </button>
+                ) : (
+                    <button type="button" className="btn btn-primary" onClick={() => navigate('/login')}>
+                        Log in
+                    </button>
+                )}
             </nav>
 
             <div style={{ maxWidth: 1080, margin: '0 auto', padding: 'var(--s6) var(--s4)' }}>
@@ -210,13 +218,15 @@ export function Pricing() {
                         Simple credits. No surprise bills.
                     </h1>
                     <p style={{ color: 'var(--text-2)', maxWidth: 480, margin: '0 auto' }}>
-                        One credit pool for reel and profile reports — use it however your month actually looks.
+                        One credit pool for reel and profile reports. Use it however your month actually looks.
                     </p>
                 </div>
 
-                <div className="trial-banner">
-                    <strong>New here?</strong> Start with <strong>10 free reel reports + 5 free profile reports</strong> — no card required.
-                </div>
+                {!user && (
+                    <div className="trial-banner">
+                        <strong>New here?</strong> Start with <strong>10 free reel reports + 5 free profile reports</strong>, no card required.
+                    </div>
+                )}
 
                 <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 'var(--s6)' }}>
                     <div className="billing-toggle">
@@ -247,7 +257,7 @@ export function Pricing() {
                         </div>
                         <div>
                             <p style={{ fontWeight: 600, marginBottom: 4 }}>What happens if I run out mid-month?</p>
-                            <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)' }}>You can top up instantly or wait for your credits to reset next cycle — unused credits don't roll over, same as most usage-based platforms.</p>
+                            <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)' }}>You can top up instantly or wait for your credits to reset next cycle. Unused credits don't roll over, same as most usage-based platforms.</p>
                         </div>
                         <div>
                             <p style={{ fontWeight: 600, marginBottom: 4 }}>Can I change plans later?</p>

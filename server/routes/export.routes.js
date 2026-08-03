@@ -12,7 +12,10 @@ router.get('/:jobId', requireLogin, async (req, res, next) => {
 
     const db = getDb();
     const job = await db.collection('jobs').findOne({ _id: queryId(jobId) });
-    if (!job) return res.status(404).json({ error: 'Job not found' });
+    if (!job) return res.status(404).json({ error: 'Report not found' });
+    if (job.ownerUsername !== req.currentUser.username && req.currentUser.role !== 'admin') {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
 
     const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
     const filename = `reelytic-${job.type}-${dateStr}`;

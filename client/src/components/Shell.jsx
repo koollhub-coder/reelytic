@@ -14,28 +14,57 @@ export function Shell() {
 
   const isActive = (path) => location.pathname.startsWith(path);
 
+  const isAdmin = user?.role === 'admin';
+
+  // Admin has its own "Admin Dashboard" below -- showing the client-usage
+  // "Dashboard" too just duplicates it with nothing an admin actually needs.
   const navItems = [
     { label: 'Reel Report', path: '/reels', icon: '🎬' },
     { label: 'Profile Report', path: '/profiles', icon: '👤' },
-    { label: 'Dashboard', path: '/dashboard', icon: '📊' },
+    ...(isAdmin ? [] : [{ label: 'Dashboard', path: '/dashboard', icon: '📊' }]),
     { label: 'History', path: '/history', icon: '⏱️' },
+    { label: 'How Is This Calculated?', path: '/how-it-works', icon: 'ℹ️' },
     { label: 'Settings', path: '/settings', icon: '⚙️' }
   ];
 
-  const adminItems = [
-    { label: 'Admin Dashboard', path: '/admin/dashboard', icon: '📈' },
-    { label: 'Clients', path: '/admin/clients', icon: '👥' },
-    { label: 'Ledger', path: '/admin/ledger', icon: '📖' },
-    { label: 'Sessions Log', path: '/admin/sessions', icon: '🔐' },
-    { label: 'Apify Spend', path: '/admin/apify-usage', icon: '💸' },
-    { label: 'Pricing Editor', path: '/admin/pricing', icon: '💰' },
-    { label: 'Cost Monitor', path: '/admin/cost-monitor', icon: '📊' },
+  // Grouped by real admin workflow (overview, then people, then money,
+  // then scan configuration) rather than the order features were built in.
+  const adminGroups = [
+    {
+      heading: 'Overview',
+      items: [
+        { label: 'Admin Dashboard', path: '/admin/dashboard', icon: '📈' },
+      ],
+    },
+    {
+      heading: 'Clients & Access',
+      items: [
+        { label: 'Clients', path: '/admin/clients', icon: '👥' },
+        { label: 'Sessions Log', path: '/admin/sessions', icon: '🔐' },
+      ],
+    },
+    {
+      heading: 'Billing & Costs',
+      items: [
+        { label: 'Ledger', path: '/admin/ledger', icon: '📖' },
+        { label: 'Pricing Editor', path: '/admin/pricing', icon: '💰' },
+        { label: 'Cost Monitor', path: '/admin/cost-monitor', icon: '📊' },
+        { label: 'Usage & Spend', path: '/admin/usage', icon: '💸' },
+      ],
+    },
+    {
+      heading: 'Scan Configuration',
+      items: [
+        { label: 'Scan Settings', path: '/admin/scan-settings', icon: '🔀' },
+        { label: 'How It\'s Calculated', path: '/admin/profile-methodology', icon: 'ℹ️' },
+      ],
+    },
   ];
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: 'var(--bg)' }}>
       {/* Sidebar Desktop */}
-      {/* Mobile top bar — only visible <=768px (display:none on desktop via .rl-mobile-only) */}
+      {/* Mobile top bar, only visible <=768px (display:none on desktop via .rl-mobile-only) */}
       <header className="rl-mobile-only rl-topbar">
         <button className="rl-icon-btn rl-hamburger" aria-label="Open navigation menu" onClick={() => setMobileOpen(true)}>☰</button>
         <Logo />
@@ -82,31 +111,35 @@ export function Shell() {
 
           {user && user.role === 'admin' && (
             <>
-              <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.05em', padding: 'var(--s4) var(--s3) var(--s2) var(--s3)', fontWeight: 600, marginTop: 'var(--s3)' }}>
-                Admin Controls
-              </div>
-              {adminItems.map(item => (
-                <button
-                  key={item.path}
-                  onClick={() => { navigate(item.path); setMobileOpen(false); }}
-                  style={{
-                    display: 'flex',
-                    alignItem: 'center',
-                    gap: '12px',
-                    width: '100%',
-                    padding: '10px var(--s3)',
-                    borderRadius: 'var(--r-sm)',
-                    backgroundColor: isActive(item.path) ? 'var(--accent-soft)' : 'transparent',
-                    color: isActive(item.path) ? 'var(--accent)' : 'var(--text)',
-                    fontWeight: isActive(item.path) ? 600 : 500,
-                    textAlign: 'left',
-                    border: 'none',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <span>{item.icon}</span>
-                  <span>{item.label}</span>
-                </button>
+              {adminGroups.map(group => (
+                <React.Fragment key={group.heading}>
+                  <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.05em', padding: 'var(--s4) var(--s3) var(--s2) var(--s3)', fontWeight: 600, marginTop: 'var(--s2)' }}>
+                    {group.heading}
+                  </div>
+                  {group.items.map(item => (
+                    <button
+                      key={item.path}
+                      onClick={() => { navigate(item.path); setMobileOpen(false); }}
+                      style={{
+                        display: 'flex',
+                        alignItem: 'center',
+                        gap: '12px',
+                        width: '100%',
+                        padding: '10px var(--s3)',
+                        borderRadius: 'var(--r-sm)',
+                        backgroundColor: isActive(item.path) ? 'var(--accent-soft)' : 'transparent',
+                        color: isActive(item.path) ? 'var(--accent)' : 'var(--text)',
+                        fontWeight: isActive(item.path) ? 600 : 500,
+                        textAlign: 'left',
+                        border: 'none',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <span>{item.icon}</span>
+                      <span>{item.label}</span>
+                    </button>
+                  ))}
+                </React.Fragment>
               ))}
             </>
           )}
@@ -117,7 +150,7 @@ export function Shell() {
           <div
             onClick={() => { if (user?.role !== 'admin') { navigate('/pricing'); setMobileOpen(false); } }}
             style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', padding: '10px 12px', borderRadius: 'var(--r-md)', backgroundColor: 'var(--surface-2)', cursor: user?.role === 'admin' ? 'default' : 'pointer' }}
-            title={user?.role === 'admin' ? 'Admin — unlimited credits' : 'View plans & top up'}
+            title={user?.role === 'admin' ? 'Admin: unlimited credits' : 'View plans & top up'}
           >
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Credits</div>
@@ -133,6 +166,12 @@ export function Shell() {
         <div style={{ padding: 'var(--s4)', borderTop: '1px solid var(--border)', position: 'relative' }}>
           {userMenuOpen && (
             <div style={{ position: 'absolute', bottom: '100%', left: 'var(--s4)', right: 'var(--s4)', marginBottom: '8px', backgroundColor: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', boxShadow: 'var(--shadow-lg)', padding: 'var(--s2)', zIndex: 100 }}>
+              <button
+                onClick={() => { setUserMenuOpen(false); logout('/login'); }}
+                style={{ width: '100%', padding: '8px var(--s3)', textAlign: 'left', borderRadius: 'var(--r-sm)', color: 'var(--text)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}
+              >
+                Switch account
+              </button>
               <button
                 onClick={() => { setUserMenuOpen(false); logout(); }}
                 style={{ width: '100%', padding: '8px var(--s3)', textAlign: 'left', borderRadius: 'var(--r-sm)', color: 'var(--err)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}
@@ -179,7 +218,7 @@ export function Shell() {
 
       {/* Main Content Area */}
       <main className="rl-shell-main" style={{ flex: 1, marginLeft: 'var(--sidebar-w)', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-        <div className="rl-shell-content" style={{ padding: 'var(--s6) var(--s7)', flex: 1, maxWidth: '1400px', width: '100%', margin: '0 auto' }}>
+        <div className="rl-shell-content" style={{ padding: 'var(--s6) var(--s7)', flex: 1, maxWidth: '1600px', width: '100%', margin: '0 auto' }}>
           <Outlet />
         </div>
       </main>

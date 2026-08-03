@@ -1,109 +1,196 @@
 const ExcelJS = require('exceljs');
 
+const ER_FORMULA_NOTE = 'ER = (Likes + Comments) / Views x 100';
+
+const CANDIDATE_REASON_LABELS = {
+  included: 'Included',
+  outlier_high: 'Outlier - too high',
+  outlier_low: 'Outlier - too low',
+  pinned: 'Pinned',
+  not_a_reel: 'Not a Reel',
+  not_own: "Not this creator's post",
+  sponsored: 'Sponsored / paid partnership',
+  collab: 'Collab post',
+  missing_views: 'Missing view data',
+  beyond_top_6: 'Beyond top 6',
+};
+
+// Rows in the export: duplicates are excluded entirely (never scraped, never
+// billed -- including them would double-count a creator/reel already in the
+// sheet). Invalid/failed rows ARE included so the client can see exactly
+// which submitted links didn't make it into the report, with zeroed metrics
+// and the raw link -- never a fabricated name.
+function exportableRows(job) {
+  return job.rows.filter(r => r.state !== 'duplicate');
+}
+
+// Job report exports (reel/profile) are meant to be handed straight to a
+// client as the deliverable -- no metadata preamble, no Status column, no
+// formula footnote. Just the sheet. (The admin per-client ledger export
+// below is a different audience/purpose and keeps all of that.)
 async function generateExcelExport(job) {
   const workbook = new ExcelJS.Workbook();
   const isReel = job.type === 'reel';
+  const rows = exportableRows(job);
 
   if (isReel) {
-    const sheet = workbook.addWorksheet('Reel Report');
+    const sheet = workbook.addWorksheet('Reelytic Reel Report');
     const origCols = job.originalColumns || [];
 
     const headers = [
       'SR No.',
       ...origCols.map(c => c.renamedTo || c.name),
-      'Name',
-      'Profile Link',
+      'Username',
+      'Profile URL',
+      'Reel URL',
       'Followers',
-      'Reel Link',
       'Views',
       'Likes',
       'Comments',
       'Shares',
       'Reposts',
       'Saves',
-      'Engagement Rate (%)'
+      'ER (%)'
     ];
+    const headerRow = sheet.addRow(headers);
+    styleHeaderRow(headerRow);
 
-    sheet.addRow(headers);
-    styleHeaderRow(sheet.getRow(1));
-
-    job.rows.forEach((row, idx) => {
+    let sr = 0;
+    rows.forEach((row) => {
+      sr += 1;
       const origData = origCols.map(c => row.input.original[c.name] ?? '');
+      const isOk = row.state === 'done' && row.result;
       const res = row.result || {};
+
       const rRow = [
-        idx + 1,
+        sr,
         ...origData,
-        res.name || '',
-        res.profileLink || '',
-        res.followers !== undefined ? res.followers : '',
-        res.reelLink || row.input.url,
-        res.views !== undefined ? res.views : '',
-        res.likes !== undefined ? res.likes : '',
-        res.comments !== undefined ? res.comments : '',
-        res.shares !== undefined ? res.shares : '',
-        res.reposts !== undefined ? res.reposts : '',
-        res.saves !== undefined ? res.saves : '',
-        res.er !== undefined ? res.er : ''
+        isOk ? (res.username || '') : '',
+        isOk ? (res.profileLink || '') : '',
+        isOk ? (res.reelLink || row.input.url) : row.input.url,
+        isOk ? (res.followers || 0) : 0,
+        isOk ? (res.views || 0) : 0,
+        isOk ? (res.likes || 0) : 0,
+        isOk ? (res.comments || 0) : 0,
+        isOk ? (res.shares || 0) : 0,
+        isOk ? (res.reposts || 0) : 0,
+        isOk ? (res.saves || 0) : 0,
+        isOk ? (res.er || 0) : 0,
       ];
       const addedRow = sheet.addRow(rRow);
-      styleDataRow(addedRow, row.state);
+      styleDataRow(addedRow, isOk ? 'success' : row.state);
     });
 
+    // Header layout: SR No., ...origCols, Username, Profile URL, Reel URL,
+    // Followers, Views, Likes, Comments, Shares, Reposts, Saves, ER (%)
+    const base = 1 + origCols.length;
+    applyNumberFormats(sheet, {
+      thousands: [base + 4, base + 5, base + 6, base + 7, base + 8, base + 9, base + 10],
+      percent: [base + 11],
+    });
     autoFitColumns(sheet);
+    sheet.views = [{ state: 'frozen', ySplit: 1 }];
   } else {
-    const summarySheet = workbook.addWorksheet('Profile Summary');
+    const summarySheet = workbook.addWorksheet('Reelytic Profile Report');
     const origCols = job.originalColumns || [];
 
     const sumHeaders = [
       'SR No.',
       ...origCols.map(c => c.renamedTo || c.name),
-      'Name',
-      'Profile Link',
+      'Username',
+      'Profile URL',
       'Followers',
       'Average Views',
-      'Average ER (%)'
+      'Average ER (%)',
     ];
-    summarySheet.addRow(sumHeaders);
-    styleHeaderRow(summarySheet.getRow(1));
+    const sumHeaderRow = summarySheet.addRow(sumHeaders);
+    styleHeaderRow(sumHeaderRow);
 
     const breakdownSheet = workbook.addWorksheet('Reel Breakdown');
-    const bdHeaders = ['Profile Name', 'Profile Link', 'Reel Link', 'Shortcode', 'Views', 'Likes', 'Comments', 'Engagement Rate (%)'];
-    breakdownSheet.addRow(bdHeaders);
-    styleHeaderRow(breakdownSheet.getRow(1));
+    const bdHeaders = ['Username', 'Profile URL', 'Reel URL', 'Date', 'Shortcode', 'Views', 'Likes', 'Comments', 'ER (%)', 'Status'];
+    const bdHeaderRow = breakdownSheet.addRow(bdHeaders);
+    styleHeaderRow(bdHeaderRow);
 
-    job.rows.forEach((row, idx) => {
+    let sr = 0;
+    rows.forEach((row) => {
+      sr += 1;
       const origData = origCols.map(c => row.input.original[c.name] ?? '');
+      const isOk = row.state === 'done' && row.result;
       const res = row.result || {};
+
       const sumRow = [
-        idx + 1,
+        sr,
         ...origData,
-        res.name || '',
-        res.profileLink || '',
-        res.followers !== undefined ? res.followers : '',
-        res.avgViews !== undefined ? res.avgViews : '',
-        res.avgEr !== undefined ? res.avgEr : ''
+        isOk ? (res.username || '') : '',
+        isOk ? (res.profileLink || '') : '',
+        isOk ? (res.followers || 0) : 0,
+        isOk ? (res.avgViews || 0) : 0,
+        isOk ? (res.avgEr || 0) : 0,
       ];
       const addedSum = summarySheet.addRow(sumRow);
-      styleDataRow(addedSum, row.state);
+      styleDataRow(addedSum, isOk ? 'success' : row.state);
 
-      if (res.perReel && Array.isArray(res.perReel)) {
+      if (!isOk) return;
+
+      // Every fetched candidate, not just the ones averaged in -- a client
+      // should be able to see exactly which of a creator's recent posts were
+      // considered and why each was or wasn't included. Falls back to the
+      // older perReel-only shape for results computed before this field existed.
+      if (res.candidates && Array.isArray(res.candidates) && res.candidates.length > 0) {
+        const perReelByCode = new Map((res.perReel || []).map(r => [r.shortcode, r]));
+        res.candidates.forEach(c => {
+          const detail = perReelByCode.get(c.shortCode);
+          const bdRow = breakdownSheet.addRow([
+            res.username || '',
+            res.profileLink || '',
+            c.url || '',
+            c.timestamp ? new Date(c.timestamp).toLocaleDateString('en-IN') : '',
+            c.shortCode || '',
+            c.views ?? '',
+            detail ? (detail.likes ?? 0) : '',
+            detail ? (detail.comments ?? 0) : '',
+            detail ? (detail.er ?? 0) : '',
+            CANDIDATE_REASON_LABELS[c.reason] || c.reason,
+          ]);
+          if (!c.included) {
+            bdRow.font = { name: 'Inter', size: 10, color: { argb: '9CA3AF' } };
+          }
+        });
+      } else if (res.perReel && Array.isArray(res.perReel)) {
         res.perReel.forEach(reel => {
           breakdownSheet.addRow([
-            res.name || '',
+            res.username || '',
             res.profileLink || '',
             reel.link || '',
+            '',
             reel.shortcode || '',
             reel.views || 0,
             reel.likes || 0,
             reel.comments || 0,
-            reel.er || 0
+            reel.er || 0,
+            'Included',
           ]);
         });
       }
     });
 
+    // Header layout: SR No., ...origCols, Username, Profile URL, Followers,
+    // Average Views, Average ER (%)
+    const sumBase = 1 + origCols.length;
+    applyNumberFormats(summarySheet, {
+      thousands: [sumBase + 3, sumBase + 4],
+      percent: [sumBase + 5],
+    });
     autoFitColumns(summarySheet);
+    summarySheet.views = [{ state: 'frozen', ySplit: 1 }];
+
+    // Breakdown header layout: Username, Profile URL, Reel URL, Shortcode,
+    // Views, Likes, Comments, ER (%)
+    // Header layout: Username, Profile URL, Reel URL, Date, Shortcode, Views,
+    // Likes, Comments, ER (%), Status
+    applyNumberFormats(breakdownSheet, { thousands: [6, 7, 8], percent: [9] });
     autoFitColumns(breakdownSheet);
+    breakdownSheet.views = [{ state: 'frozen', ySplit: 1 }];
   }
 
   return await workbook.xlsx.writeBuffer();
@@ -112,23 +199,133 @@ async function generateExcelExport(job) {
 function generateCsvExport(job) {
   const isReel = job.type === 'reel';
   const origCols = job.originalColumns || [];
+  const rows = exportableRows(job);
+
   const headers = isReel
-    ? ['SR No.', ...origCols.map(c => c.renamedTo || c.name), 'Views', 'Likes', 'Comments', 'Shares', 'Engagement Rate']
-    : ['SR No.', ...origCols.map(c => c.renamedTo || c.name), 'Followers', 'Average Views', 'Average ER'];
+    ? ['SR No.', ...origCols.map(c => c.renamedTo || c.name), 'Username', 'Profile URL', 'Reel URL', 'Followers', 'Views', 'Likes', 'Comments', 'Shares', 'Reposts', 'Saves', 'ER (%)']
+    : ['SR No.', ...origCols.map(c => c.renamedTo || c.name), 'Username', 'Profile URL', 'Followers', 'Average Views', 'Average ER (%)'];
 
-  let csv = headers.map(h => `"${String(h).replace(/"/g, '""')}"`).join(',') + '\n';
+  const csvRow = (vals) => vals.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',') + '\n';
 
-  job.rows.forEach((row, idx) => {
+  let csv = csvRow(headers);
+  let sr = 0;
+
+  rows.forEach((row) => {
+    sr += 1;
     const origData = origCols.map(c => row.input.original[c.name] ?? '');
+    const isOk = row.state === 'done' && row.result;
     const res = row.result || {};
-    const line = isReel
-      ? [idx + 1, ...origData, res.views ?? '', res.likes ?? '', res.comments ?? '', res.shares ?? '', res.er ?? '']
-      : [idx + 1, ...origData, res.followers ?? '', res.avgViews ?? '', res.avgEr ?? ''];
 
-    csv += line.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',') + '\n';
+    const line = isReel
+      ? [sr, ...origData, isOk ? (res.username || '') : '', isOk ? (res.profileLink || '') : '', isOk ? (res.reelLink || row.input.url) : row.input.url, isOk ? (res.followers || 0) : 0, isOk ? (res.views || 0) : 0, isOk ? (res.likes || 0) : 0, isOk ? (res.comments || 0) : 0, isOk ? (res.shares || 0) : 0, isOk ? (res.reposts || 0) : 0, isOk ? (res.saves || 0) : 0, isOk ? (res.er || 0) : 0]
+      : [sr, ...origData, isOk ? (res.username || '') : '', isOk ? (res.profileLink || '') : '', isOk ? (res.followers || 0) : 0, isOk ? (res.avgViews || 0) : 0, isOk ? (res.avgEr || 0) : 0];
+
+    csv += csvRow(line);
   });
 
   return csv;
+}
+
+// Admin per-client export: every link ever submitted by this client (across
+// all their jobs), from the submittedLinks ledger rather than a single job
+// doc -- ledger.service.js stamps resolvedUsername + a flattened metrics
+// snapshot on every entry (see recordLedgerEntry), so no join back to the
+// original job is needed here.
+function clientLedgerHeaders() {
+  return ['#', 'Date', 'Type', 'Result', 'Username', 'Submitted URL', 'Views', 'Likes', 'Comments', 'Shares', 'Reposts', 'Saves', 'ER (%)', 'Followers'];
+}
+
+function clientLedgerRow(entry, idx) {
+  const m = entry.metrics || {};
+  const dateStr = entry.at ? new Date(entry.at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '';
+  return [
+    idx + 1,
+    dateStr,
+    entry.type === 'profile' ? 'Profile' : 'Reel',
+    entry.result === 'success' ? 'Success' : (entry.result === 'invalid' ? 'Invalid' : 'Failed'),
+    entry.resolvedUsername || '',
+    entry.url || '',
+    m.views || 0,
+    m.likes || 0,
+    m.comments || 0,
+    m.shares || 0,
+    m.reposts || 0,
+    m.saves || 0,
+    m.er || 0,
+    m.followers || 0,
+  ];
+}
+
+async function generateClientLedgerExcel(username, entries) {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet(`Reelytic - ${username}`.slice(0, 31));
+
+  const successCount = entries.filter(e => e.result === 'success').length;
+  writeMetadataBlock(sheet, {
+    title: `Reelytic - ${username}'s links`,
+    generatedAt: new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }),
+    counts: { total: entries.length, success: successCount, failed: entries.length - successCount, invalid: 0, duplicates: 0 },
+    procTime: null,
+  });
+
+  const headerRowIndex = sheet.lastRow.number + 1;
+  const headerRow = sheet.addRow(clientLedgerHeaders());
+  styleHeaderRow(headerRow);
+
+  entries.forEach((entry, idx) => {
+    const row = sheet.addRow(clientLedgerRow(entry, idx));
+    styleDataRow(row, entry.result === 'success' ? 'success' : 'failed');
+  });
+
+  applyNumberFormats(sheet, { thousands: [7, 8, 9, 10, 11, 12, 14], percent: [13] });
+  writeFooter(sheet);
+  autoFitColumns(sheet);
+  sheet.views = [{ state: 'frozen', ySplit: headerRowIndex }];
+
+  return await workbook.xlsx.writeBuffer();
+}
+
+function generateClientLedgerCsv(username, entries) {
+  const csvRow = (vals) => vals.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',') + '\n';
+  let csv = csvRow(clientLedgerHeaders());
+  entries.forEach((entry, idx) => { csv += csvRow(clientLedgerRow(entry, idx)); });
+  csv += '\n';
+  csv += csvRow([`Generated by Reelytic on ${new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })} for ${username}`]);
+  csv += csvRow([ER_FORMULA_NOTE]);
+  return csv;
+}
+
+function writeMetadataBlock(sheet, { title, generatedAt, counts, procTime }) {
+  const titleRow = sheet.addRow([title]);
+  titleRow.font = { bold: true, size: 14, name: 'Inter', color: { argb: 'C4225A' } };
+  sheet.mergeCells(titleRow.number, 1, titleRow.number, 4);
+
+  const metaParts = [
+    `Generated ${generatedAt}`,
+    `Items: ${counts.total}`,
+    `Success: ${counts.success}`,
+    `Failed/Invalid: ${(counts.failed || 0) + (counts.invalid || 0)}`,
+    `Duplicates excluded: ${counts.duplicates || 0}`,
+  ];
+  if (procTime) metaParts.push(`Processing time: ${procTime}`);
+  const metaRow = sheet.addRow([metaParts.join('   •   ')]);
+  metaRow.font = { size: 9, name: 'Inter', color: { argb: '5B5F66' } };
+  sheet.mergeCells(metaRow.number, 1, metaRow.number, 4);
+
+  sheet.addRow([]);
+}
+
+function writeFooter(sheet) {
+  sheet.addRow([]);
+  const note = sheet.addRow([ER_FORMULA_NOTE]);
+  note.font = { italic: true, size: 9, name: 'Inter', color: { argb: '5B5F66' } };
+}
+
+// Applies number formatting to absolute (1-based) column indices computed by
+// each call site from its own known header layout.
+function applyNumberFormats(sheet, { thousands = [], percent = [] } = {}) {
+  for (const colIdx of thousands) sheet.getColumn(colIdx).numFmt = '#,##0';
+  for (const colIdx of percent) sheet.getColumn(colIdx).numFmt = '0.00"%"';
 }
 
 function styleHeaderRow(row) {
@@ -140,10 +337,8 @@ function styleHeaderRow(row) {
 
 function styleDataRow(row, state) {
   row.font = { name: 'Inter', size: 10 };
-  if (state === 'invalid') {
+  if (state === 'invalid' || state === 'failed') {
     row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FBE7E7' } };
-  } else if (state === 'duplicate') {
-    row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FAF0DF' } };
   }
 }
 
@@ -160,4 +355,4 @@ function autoFitColumns(sheet) {
   });
 }
 
-module.exports = { generateExcelExport, generateCsvExport };
+module.exports = { generateExcelExport, generateCsvExport, generateClientLedgerExcel, generateClientLedgerCsv };

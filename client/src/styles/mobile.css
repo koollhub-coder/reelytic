@@ -1,5 +1,5 @@
 /* =====================================================================
-   mobile.css  —  Additive mobile responsiveness layer for Reelytic.
+   mobile.css: Additive mobile responsiveness layer for Reelytic.
 
    Rules of engagement (do not violate):
    - This file NEVER changes a single value in tokens.css and NEVER touches
@@ -12,7 +12,7 @@
      desktop. => Above 768px this file contributes ZERO layout/paint changes.
    - Where a rule must beat an inline style (inline styles always win the
      cascade), !important is used, but ONLY on uniquely-prefixed .rl-* classes
-     inside the media query, on a single named element — never a broad selector.
+     inside the media query, on a single named element, never a broad selector.
      This is the one contained pattern needed to make responsive overrides win
      against the codebase's heavy inline-style usage.
    ===================================================================== */
@@ -63,7 +63,7 @@
   .rl-icon-btn:active { background: var(--surface-2); }
   .rl-hamburger { margin-left: -10px; font-size: 20px; }
 
-  /* The existing <aside> is reused verbatim (so dark mode stays correct — it
+  /* The existing <aside> is reused verbatim (so dark mode stays correct; it
      was a rebuilt drawer that broke theming last time). We only slide it. */
   .rl-shell-sidebar {
     width: min(84vw, 300px) !important;   /* beats inline 232px */
@@ -134,9 +134,8 @@
   .landing-nav { padding: var(--s3) var(--s4) !important; }
   .rl-landing-navlink { display: none !important; }
 
-  /* ReportEngine live run stream: shrink the fixed columns so the results
-     text isn't clipped inside the virtualized rows. */
-  .rl-stream-sr { width: 30px !important; }
-  .rl-stream-status { width: 90px !important; }
-  .rl-stream-result { width: 148px !important; font-size: 11px !important; }
+  /* ReportEngine results/live-stream: the desktop aligned table can't fit a
+     375px screen, so it's hidden in favour of the stacked label:value cards
+     (.rl-mobile-only) rendered alongside it for the same rows. */
+  .rl-hide-mobile { display: none !important; }
 }

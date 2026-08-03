@@ -1,73 +1,138 @@
-# Reelytic — Campaign Reports in Minutes, Not Workdays
+# Reelytic
 
-> Reelytic turns messy influencer-marketing creator data into an auditable ledger. Designed for elite influencer-marketing agencies.
+Reelytic turns a sheet of Instagram reel links or creator profiles into a filled-in engagement report: views, likes, comments, shares, reposts, saves, and engagement rate, delivered as a styled Excel/CSV export. Built for influencer-marketing agencies reporting to brands every week.
 
----
-
-## Architecture & Tech Stack
-- **Backend:** Node.js 20 + Express 4
-- **Database:** MongoDB Atlas (native `mongodb` driver v6, no Mongoose) + robust auto-fallback in-memory/JSON store
-- **Frontend:** React 18 + Vite, plain CSS with design tokens (`--surface`, `--accent`, JetBrains Mono for all numeric/tabular data)
-- **Spreadsheets:** `exceljs` for server-side parsing and professional styled exports
-- **Scraping:** Apify REST API (Actor for Reels & Profiles) with smart caching, retries, and concurrency control. Includes automated simulation/mock fallback when Apify API key is missing or in test mode.
+This file is written so a fresh session (human or AI) can get productive in minutes. Read the **Rules that must never be broken** section before touching anything.
 
 ---
 
-## Quick Start
+## Rules that must never be broken
 
-1. **Clone & Install:**
-   ```bash
-   git clone <repo-url> reelytic
-   cd reelytic
-   npm install
-   ```
+These come from explicit, repeated product direction. Breaking any of them is a regression, not a style choice.
 
-2. **Configure Environment:**
-   Copy `.env.example` to `.env` and configure your credentials:
-   ```env
-   MONGODB_URI=mongodb://localhost:27017/reelytic
-   APIFY_API_KEY=your_apify_api_key_here
-   SESSION_SECRET=your_super_secret_key
-   PORT=3000
-   ```
-   *(Note: If MongoDB is not running locally, Reelytic automatically falls back to an embedded high-performance storage engine so the app works instantly without configuration friction).*
-
-3. **Run Development Server:**
-   ```bash
-   npm run dev
-   ```
-   This concurrently starts the Express backend (port 3000) and Vite dev server (port 5173 with `/api` proxy).
-
-4. **Production Build:**
-   ```bash
-   npm run build
-   npm start
-   ```
+1. **The scraping provider (Apify) must never be visible to a client, in the UI, in an exported file, in a network response, or in an error message shown to a user.** Server code and comments may reference it freely (`server/services/apify.service.js`, `APIFY_API_KEY`, etc.) since that's internal and never shipped to the browser. But nothing that reaches `res.json(...)`, a toast, a page, or an export may contain the word "Apify," a raw actor id, or a vendor-specific name. See `server/routes/admin.routes.js` (`ACTOR_LABELS` / `resolveActor`) for the pattern: resolve real provider ids server-side, map them to neutral internal labels, and only ever send the label. This is a competitive-moat requirement, treat it as a security boundary, not cosmetics.
+2. **No AI-sounding language anywhere in the app.** No em dashes (`—`, or `--` used as one), no ellipsis character (`…`, use `...`), no hedging/disclaimer paragraphs, no "as an AI" tells. Every string should read like a human product copywriter wrote it. The person running this business does not want any of their business partners or clients to suspect AI was involved in building it.
+3. **No jargon that leaks implementation details to end users.** Internal terms like "job" (the code and API routes say `job`/`jobId` throughout, that's fine internally) must never appear in user-facing text, buttons, toasts, or error messages. Say "report" or "run" instead. Same idea applies broadly: if a term would make sense to the person who *built* the feature but not to a marketer using it, rewrite it.
+4. Never touch the hidden-likes estimation formula (`resolveLikes` in `server/services/metrics.service.js`) without being explicitly asked. It intentionally returns a plain estimated number when Instagram hides a like count, no "estimated" flag is exposed anywhere downstream. Do not add one unless asked.
 
 ---
 
-## Default Admin Access
-Upon first boot, if no users exist, Reelytic automatically creates an initial admin account:
-- **Username:** `admin`
-- **Password:** Printed in server startup logs (or auto-generated secure 16-character string).
-- **First Login:** You will be prompted to set your permanent secure password.
+## Tech stack (verified against actual code, not the original plan)
+
+- **Backend:** Node.js + Express 4, session auth (`express-session` + `connect-mongo`), `bcrypt` for passwords.
+- **Database:** MongoDB Atlas via the native `mongodb` driver (no Mongoose). If the connection fails for any reason, `server/db.js` transparently falls back to an in-process JSON-file store (`data-store.json`) that mimics the same collection API, the app never hard-fails on a DB outage. See "The Mongo fallback" below, this bit the project for a while.
+- **Frontend:** React 18 + Vite, plain CSS with design tokens (no component library, no Tailwind). `react-window` is listed in `client/package.json` but is **not actually used anywhere** in the code, the live results table is a plain HTML table with manual scroll, not virtualized. Don't assume otherwise.
+- **Spreadsheets:** `exceljs` for parsing uploads and generating styled `.xlsx` exports; CSV is generated by hand.
+- **Scraping:** Apify REST API called directly via `fetch` (see rule #1 above for how this must stay invisible client-side).
+- **Auth:** username/password plus Google Sign-In (real GSI when `VITE_GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_ID` are set, a demo prompt-based fallback otherwise).
 
 ---
 
-## Core Features & Design Principles
-- **The Ledger Design System:** Typography-driven UI using Space Grotesk, Inter, and JetBrains Mono with tabular numerals. Every metric, URL, and timestamp is clearly formatted.
-- **2,000-Link Hard Cap:** Enforced server-side and client-side for predictable job duration and cost control.
-- **Live Delta Polling:** Virtualized `react-window` run table updating every 2 seconds with lightweight delta payloads.
-- **Estimated Likes Honesty Rule:** Hidden likes on reels are explicitly flagged as `Hidden`, with statistical estimations (`estLikes`) calculated separately. Estimates never contaminate the real Likes column or exports.
-- **Instant Revocation:** Revoking or disabling a user session immediately invalidates their session across all devices on their next request.
+## Running it locally
+
+```bash
+npm install          # installs root + client (postinstall)
+npm run dev           # server on :3000, Vite dev server on :5173 with /api proxy
+```
+
+Production-style single-process run:
+```bash
+npm run build          # builds client/dist
+npm start               # node server/index.js, serves client/dist + /api
+```
+
+### Environment variables (`.env`)
+```env
+MONGODB_URI=mongodb+srv://...
+MONGODB_DB_NAME=reelytic
+APIFY_API_KEY=...
+SESSION_SECRET=...
+PORT=3000
+GOOGLE_CLIENT_ID=...          # optional, enables real Google Sign-In
+VITE_GOOGLE_CLIENT_ID=...      # same value, client-side build-time env
+ADMIN_USERNAME=...             # optional, overrides the default first-boot admin
+ADMIN_PASSWORD=...             # optional
+```
+If `MONGODB_URI` is missing or unreachable, the app still boots and runs entirely on the JSON fallback, no configuration needed to try it locally.
+
+### The Mongo fallback and a real DNS gotcha
+On Windows, Node's own DNS resolver can end up pointing at `127.0.0.1` (nothing listening there) even when the OS's real resolver works fine, typically caused by a VPN client, Docker Desktop, or antivirus DNS filtering installed on the machine. This breaks the SRV lookup that `mongodb+srv://` needs and silently drops the app onto the JSON fallback with no obvious error besides a log line. `server/db.js` now detects this specific case (`dns.getServers()` is all-loopback) and overrides to a public resolver before connecting. If you ever see `[Reelytic DB] Switching to ... fallback` unexpectedly, check `require('dns').getServers()` first.
+
+### First login
+On first boot with no users in the database, an admin account is created automatically. Credentials are printed to the server console (`ADMIN_USERNAME`/`ADMIN_PASSWORD` env vars if set, otherwise a generated username and a random password). You're forced to set a real password on first login.
 
 ---
+
+## Core concepts
+
+- **Two report types:** Reel Report (per-link metrics: views, likes, comments, shares, reposts, saves, ER) and Profile Report (a creator's recent-post average, with statistical outliers automatically excluded, see `selectProfileReels` / `computeProfileMetrics`).
+- **Credits:** 1 credit per reel processed, ~5 credits per profile processed (`server/services/credits.service.js`, `CREDIT_COST`). Free signups get 10 credits; admins have an effectively unlimited pool. The credit cost is now shown to the user in the preview screen before they start a report, and the run is blocked server-side with a clear error if the balance is insufficient.
+- **A report's lifecycle:** `upload → preview → running → (paused ⇄ running) → done`. Reports live entirely server-side (`jobs` collection) and survive tab close, refresh, and logout/login. Only an explicit "start a new report" clears which report is considered "active" for that report type and user, the old one stays fully visible and downloadable in History, it is never deleted.
+- **The active-report pointer:** `server/services/activeJob.service.js` tracks, per user and per report type, which single report is "the one you land on" when you open Reel Report or Profile Report. This is deliberately a pointer, not a "most recent" query, so an old report can never resurface just because a newer one was discarded.
+- **Two profile-scraping methods ("Standard" and "Express"):** a global admin toggle (`server/services/profilePipeline.service.js`, `/admin/scan-settings`) switches which underlying method is used for every client's next profile report. Both are treated as equally valid in the UI, neither gets a warning styling. Changing this is a real cost/data decision, it's logged with who/when.
+- **Admin vs client:** admins get their own nav section (Clients, Ledger, Sessions Log, Pricing Editor, Cost Monitor, Usage & Spend, Scan Settings, How It's Calculated) and unlimited credits. Regular users only see Reel Report, Profile Report, History, and Settings.
+
+---
+
+## Feature list
+
+### Client-facing
+- Upload a spreadsheet (`.xlsx`/`.xls`/`.csv`/`.txt`) or paste links directly.
+- Preview screen before anything is charged: rename, delete, or drag-reorder your original spreadsheet columns; see exactly which Reelytic columns will be added and how many credits the run will cost.
+- Live-updating results table while a report runs (2-second polling with delta updates, not full re-fetches), with pause/resume, a live ETA that learns from your account's actual historical timing, and an optional "notify me when done" browser notification.
+- Duplicate and invalid links are flagged in the preview and excluded from processing and from the export, never silently miscounted.
+- Download partial results mid-run (disabled until at least one link has actually finished, so there's never an empty download), or the full styled Excel/CSV once done.
+- Full History page across sessions, filterable by report type, showing status, time taken, and one-click re-download for any past report.
+- Dashboard with headline stats, a 14-day activity chart (stacked by report type, with a summary line), and recent reports.
+- Account switcher and log out from the sidebar user menu; a full-screen loader covers the gap during Google sign-in so the app never looks frozen or flashes the wrong screen.
+
+### Admin-facing
+- Client management: create clients, issue temporary passwords, adjust credits, force sign-out everywhere.
+- Ledger: every processed link across all clients, filterable, paginated.
+- Sessions Log: login history.
+- Pricing Editor: live-editable plans shown on the public `/pricing` page.
+- Cost Monitor: real per-report cost vs. what's charged, baseline vs. live-average drift per scan step, per-plan margin health, with a USD/INR toggle.
+- Usage & Spend: billing-cycle spend, daily spend chart, cost broken down by scan step (all through the vendor-neutral label mapping described in rule #1).
+- Scan Settings: switch between Standard/Express profile scraping, with a full change history.
+- "How It's Calculated": the same plain-language ER/outlier-rule explanation clients see, plus which method is currently active.
+
+---
+
+## Directory structure
+
+```
+reelytic/
+├── server/
+│   ├── index.js, config.js, db.js, bootstrap.js
+│   ├── middleware/        auth.js (requireLogin/requireAdmin), errors.js
+│   ├── routes/            auth, jobs, upload, export, admin, settings, me, pricing
+│   └── services/          apify, jobEngine, parse, export, cache, metrics, ledger,
+│                          credits, activeJob, profilePipeline, learnedTiming
+└── client/src/
+    ├── pages/              Landing, Login, Signup, Pricing, Dashboard, History,
+    │                       ReportEngine (shared by both report types), Settings,
+    │                       admin/ (Clients, Ledger, SessionsLog, AdminPricingEditor,
+    │                       CostMonitor, UsageSpend, ScanSettings, ProfileMethodology)
+    ├── components/         Shell (sidebar/layout), FileDrop, ConfirmDialog, Modal,
+    │                       AuthLoadingOverlay, GoogleSignInButton, StatCard, etc.
+    ├── context/            AuthContext, ThemeContext, ToastContext
+    ├── api/client.js       fetch wrapper; redirects to /login on a real 401, but
+    │                       exempts known public routes (/, /login, /signup, /pricing)
+    │                       so a logged-out visitor's routine auth check never yanks
+    │                       them off a public page
+    └── styles/              tokens.css, base.css, components.css, mobile.css, landing.css
+```
+
+`BLUEPRINT.md` is the original pre-build plan and has drifted from what actually shipped in places (e.g. it mandates `react-window`, which was never used), treat it as historical context, not a source of truth. This README is the source of truth for current behavior.
+
+---
+
+## Known constraints
+- 2,000 valid links per report (hard cap, enforced both client and server side).
+- 15 MB upload limit (`multer` memory storage).
+- Reel-report links resolve `/share/` redirect links to their canonical `/reel/` URL before scraping (Instagram serves those as opaque redirects, not real shortcodes).
 
 ## Deployment
-- **Docker:**
-  ```bash
-  docker build -t reelytic .
-  docker run -p 3000:3000 --env-file .env reelytic
-  ```
-- **Railway / Render:** Connect your GitHub repo, set root directory `./`, add environment variables (`MONGODB_URI`, `APIFY_API_KEY`), and deploy.
-- **VPS (PM2 + Nginx):** Run `npm run build`, start with `pm2 start server/index.js --name reelytic`, and configure Nginx reverse proxy to port 3000.
+- **Docker:** `docker build -t reelytic .` then `docker run -p 3000:3000 --env-file .env reelytic`.
+- **Railway / Render:** connect the repo, root directory `./`, set the env vars above, deploy.
+- **VPS:** `npm run build`, then `pm2 start server/index.js --name reelytic` behind an Nginx reverse proxy to port 3000.

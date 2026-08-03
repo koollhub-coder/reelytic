@@ -17,6 +17,12 @@ const labelStyle = {
     color: 'var(--text-3)',
     fontWeight: 600,
 };
+const STATUS_LABELS = {
+    preview: 'Not started',
+    running: 'Running',
+    paused: 'Paused',
+    done: 'Complete',
+};
 
 export function Dashboard() {
     const navigate = useNavigate();
@@ -50,6 +56,9 @@ export function Dashboard() {
 
     const daily = data.activity14Days || [];
     const maxTotal = Math.max(...daily.map((d) => d.total), 1);
+    const periodTotal = daily.reduce((sum, d) => sum + d.total, 0);
+    const activeDays = daily.filter((d) => d.total > 0).length;
+    const busiestDay = daily.reduce((best, d) => (d.total > (best?.total || 0) ? d : best), null);
     const hour = new Date().getHours();
     const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
@@ -57,7 +66,7 @@ export function Dashboard() {
         <div>
             <div style={{ marginBottom: 'var(--s6)' }}>
                 <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-2xl)', fontWeight: 700, marginBottom: 4 }}>
-                    {greeting}, {user?.username}
+                    {greeting}, {user?.name || user?.username}
                 </h1>
                 <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)' }}>Here's what you've processed with Reelytic.</p>
             </div>
@@ -93,23 +102,49 @@ export function Dashboard() {
 
             {/* 14-day activity chart */}
             <div style={{ ...cardStyle, marginBottom: 'var(--s6)' }}>
-                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 700, marginBottom: 'var(--s4)' }}>
-                    Activity (last 14 days)
-                </h3>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 'var(--s3)', marginBottom: 'var(--s4)' }}>
+                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 700 }}>
+                        Activity (last 14 days)
+                    </h3>
+                    {periodTotal > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s4)', fontSize: 'var(--fs-xs)', color: 'var(--text-2)' }}>
+                            <span><strong style={{ color: 'var(--text)', fontFamily: 'var(--font-data)' }}>{periodTotal.toLocaleString()}</strong> processed</span>
+                            <span>Active <strong style={{ color: 'var(--text)', fontFamily: 'var(--font-data)' }}>{activeDays}/14</strong> days</span>
+                            {busiestDay && busiestDay.total > 0 && (
+                                <span>Busiest: <strong style={{ color: 'var(--text)', fontFamily: 'var(--font-data)' }}>{new Date(busiestDay.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</strong></span>
+                            )}
+                        </div>
+                    )}
+                </div>
                 {daily.every((d) => d.total === 0) ? (
-                    <div style={{ color: 'var(--text-3)', textAlign: 'center', padding: 'var(--s6)' }}>No activity yet -- run your first report to see it here.</div>
+                    <div style={{ color: 'var(--text-3)', textAlign: 'center', padding: 'var(--s6)' }}>No activity yet, run your first report to see it here.</div>
                 ) : (
-                    <div className="rl-chart-track" style={{ width: '100%', height: '180px', display: 'flex', alignItems: 'flex-end', gap: '8px', paddingBottom: '24px', borderBottom: '1px solid var(--border)' }}>
-                        {daily.map((d, i) => {
-                            const heightPct = (d.total / maxTotal) * 130;
-                            return (
-                                <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }} title={`${d.date}: ${d.total} processed (${d.reels} reels, ${d.profiles} profiles)`}>
-                                    <div style={{ width: '100%', maxWidth: '28px', height: `${Math.max(heightPct, d.total > 0 ? 4 : 1)}px`, backgroundColor: d.total > 0 ? 'var(--accent)' : 'var(--border)', borderRadius: '3px 3px 0 0', transition: 'height 300ms ease' }} />
-                                    <div style={{ fontFamily: 'var(--font-data)', fontSize: '9px', color: 'var(--text-3)', transform: 'rotate(-45deg)', whiteSpace: 'nowrap', marginTop: '10px' }}>{d.date.slice(5)}</div>
-                                </div>
-                            );
-                        })}
-                    </div>
+                    <>
+                        <div style={{ display: 'flex', gap: 'var(--s4)', marginBottom: 'var(--s3)', fontSize: 'var(--fs-xs)', color: 'var(--text-2)' }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: 'var(--accent)', display: 'inline-block' }} /> Reel reports
+                            </span>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: 'var(--ok)', display: 'inline-block' }} /> Profile reports
+                            </span>
+                        </div>
+                        <div className="rl-chart-track" style={{ width: '100%', height: '180px', display: 'flex', alignItems: 'flex-end', gap: '8px', paddingBottom: '24px', borderBottom: '1px solid var(--border)' }}>
+                            {daily.map((d, i) => {
+                                const reelPct = (d.reels / maxTotal) * 130;
+                                const profilePct = (d.profiles / maxTotal) * 130;
+                                return (
+                                    <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }} title={`${d.date}: ${d.total} processed (${d.reels} reels, ${d.profiles} profiles)`}>
+                                        <div style={{ width: '100%', maxWidth: '28px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+                                            {d.profiles > 0 && <div style={{ width: '100%', height: `${Math.max(profilePct, 3)}px`, backgroundColor: 'var(--ok)', borderRadius: '3px 3px 0 0', transition: 'height 300ms ease' }} />}
+                                            {d.reels > 0 && <div style={{ width: '100%', height: `${Math.max(reelPct, 3)}px`, backgroundColor: 'var(--accent)', borderRadius: d.profiles > 0 ? 0 : '3px 3px 0 0', transition: 'height 300ms ease' }} />}
+                                            {d.total === 0 && <div style={{ width: '100%', height: '2px', backgroundColor: 'var(--border)' }} />}
+                                        </div>
+                                        <div style={{ fontFamily: 'var(--font-data)', fontSize: '9px', color: 'var(--text-3)', transform: 'rotate(-45deg)', whiteSpace: 'nowrap', marginTop: '10px' }}>{d.date.slice(5)}</div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </>
                 )}
             </div>
 
@@ -134,10 +169,10 @@ export function Dashboard() {
                                 <tr key={j.id} style={{ cursor: 'pointer' }} onClick={() => navigate(j.type === 'reel' ? '/reels' : '/profiles')}>
                                     <td><span className="chip" style={{ textTransform: 'uppercase' }}>{j.type}</span></td>
                                     <td style={{ color: 'var(--text-2)' }}>{j.fileName || 'Pasted links'}</td>
-                                    <td className="numeric mono">{j.counts?.total ?? '--'}</td>
+                                    <td className="numeric mono">{j.counts?.total ?? '-'}</td>
                                     <td>
-                                        <span className={`chip ${j.status === 'done' ? 'ok' : j.status === 'failed' ? 'err' : 'warn'}`}>
-                                            {j.status}
+                                        <span className={`chip ${j.status === 'done' ? 'ok' : j.status === 'running' ? 'accent' : 'warn'}`}>
+                                            {STATUS_LABELS[j.status] || j.status}
                                         </span>
                                     </td>
                                     <td className="mono" style={{ color: 'var(--text-3)' }}>{new Date(j.createdAt).toLocaleDateString()}</td>

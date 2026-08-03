@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Logo } from '../components/Logo';
 import { PasswordInput } from '../components/PasswordInput';
 import { GoogleSignInButton } from '../components/GoogleSignInButton';
+import { AuthLoadingOverlay } from '../components/AuthLoadingOverlay';
 import { useAuth } from '../context/AuthContext';
 import { LedgerHero } from '../components/LedgerHero';
 
@@ -15,6 +16,7 @@ export function Signup() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -32,13 +34,17 @@ export function Signup() {
 
   const handleGoogle = async (payload) => {
     setError('');
+    setGoogleLoading(true);
     try {
       await googleLogin(payload);
       navigate('/reels');
     } catch (err) {
       setError(err.message || 'Google sign-in failed.');
+      setGoogleLoading(false);
     }
   };
+
+  if (googleLoading) return <AuthLoadingOverlay />;
 
   return (
     <div className="rl-login-grid" style={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: '1fr 1fr', backgroundColor: 'var(--bg)' }}>
@@ -50,12 +56,12 @@ export function Signup() {
             Start free. 10 credits on the house.
           </div>
           <p style={{ color: 'var(--text-2)', marginBottom: 'var(--s6)' }}>
-            Turn a sheet of reel links into a full engagement report — no card required to try it.
+            Turn a sheet of reel links into a full engagement report, no card required to try it.
           </p>
           <LedgerHero />
         </div>
         <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>
-          © 2026 Reelytic · Audited Creator Intelligence
+          © {new Date().getFullYear()} Reelytic · Audited Creator Intelligence
         </div>
       </div>
 
@@ -95,7 +101,7 @@ export function Signup() {
               <PasswordInput id="password" value={password} onChange={e => setPassword(e.target.value)} showStrength={true} autoComplete="new-password" />
             </div>
             <button type="submit" className="btn btn-primary" style={{ width: '100%', height: '40px', marginTop: 'var(--s3)' }} disabled={loading}>
-              {loading ? 'Creating account…' : 'Create free account'}
+              {loading ? 'Creating account...' : 'Create free account'}
             </button>
           </form>
 

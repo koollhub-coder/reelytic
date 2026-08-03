@@ -6,6 +6,10 @@ const { requireLogin, requireChangePasswordCheck } = require('../middleware/auth
 const { parseSpreadsheetBuffer } = require('../services/parse.service');
 const { getDb } = require('../db');
 const { getLearnedAvgMs } = require('../services/learnedTiming.service');
+const { setActiveJobPointer } = require('../services/activeJob.service');
+const { getProfilePipelineMode } = require('../services/profilePipeline.service');
+const { getReelPipelineMode } = require('../services/reelPipeline.service');
+const { costPerItem } = require('../services/credits.service');
 
 const upload = multer({
   limits: { fileSize: 15 * 1024 * 1024 } // 15 MB
@@ -32,7 +36,14 @@ router.post('/:type(reel|profile)', requireLogin, requireChangePasswordCheck, up
 
     const jobId = new ObjectId().toHexString();
     const learnedAvgMs = await getLearnedAvgMs(type);
+    // Pinned at creation time, not re-read during processing -- if an admin
+    // flips the global toggle while this job is paused/resumed, this report
+    // stays internally consistent (all-legacy or all-v2) rather than mixing
+    // pipelines within one report.
+    const profilePipelineMode = type === 'profile' ? await getProfilePipelineMode() : undefined;
+    const reelPipelineMode = type === 'reel' ? await getReelPipelineMode() : undefined;
 
+    const creditsPerItem = costPerItem(type);
     const jobDoc = {
       _id: jobId,
       type,
@@ -44,11 +55,15 @@ router.post('/:type(reel|profile)', requireLogin, requireChangePasswordCheck, up
       avgRowMs: learnedAvgMs,
       counts: parsed.counts,
       cursor: 0,
+      profilePipelineMode,
+      reelPipelineMode,
+      creditsPerItem,
       createdAt: new Date(),
       updatedAt: new Date()
     };
 
     await db.collection('jobs').insertOne(jobDoc);
+    await setActiveJobPointer(req.currentUser.username, type, jobId);
 
     res.json({
       jobId,
@@ -57,7 +72,9 @@ router.post('/:type(reel|profile)', requireLogin, requireChangePasswordCheck, up
       totalRows: parsed.counts.total,
       validRows: parsed.counts.valid,
       counts: parsed.counts,
-      rowsSample: parsed.rows.slice(0, 100)
+      rowsSample: parsed.rows.slice(0, 100),
+      creditsPerItem,
+      estimatedCredits: creditsPerItem * parsed.counts.valid,
     });
   } catch (err) {
     next(err);

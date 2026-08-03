@@ -47,7 +47,7 @@ function computeReelMetrics(rawItem, followerInfo) {
 
   // Surface data-quality problems instead of silently reporting a real 0.
   if (!views) {
-    console.warn(`[Metrics] No view field found for ${rawItem.shortCode || rawItem.url || 'unknown'} — keys present:`, Object.keys(rawItem).join(','));
+    console.warn(`[Metrics] No view field found for ${rawItem.shortCode || rawItem.url || 'unknown'}, keys present:`, Object.keys(rawItem).join(','));
   }
 
   const likes = resolveLikes(views, rawLikes);
@@ -63,6 +63,7 @@ function computeReelMetrics(rawItem, followerInfo) {
 
   return {
     name: rawName,
+    username,
     profileLink: cleanInstagramUrl(`https://www.instagram.com/${username}`),
     followers,
     reelLink: rawItem.inputUrl || rawItem.url || '',
@@ -76,14 +77,15 @@ function computeReelMetrics(rawItem, followerInfo) {
   };
 }
 
-function computeProfileMetrics(posts, followerInfo) {
-  // `posts` comes from apify~instagram-post-scraper (array of post objects,
-  // no follower count in it). `followerInfo` comes from the separate
+function computeProfileMetrics(posts, followerInfo, meta = {}) {
+  // `posts` is the already-selected set of (up to 6) reels from
+  // apify.service.js's selectProfileReels() -- outlier removal and the
+  // recent-6/backfill logic already happened there, so this just averages
+  // over whatever it was given. `followerInfo` comes from the separate
   // apify~instagram-followers-count-scraper call in jobEngine.service.js --
   // it can be null if that call failed, in which case followers/avgEr
   // gracefully fall back to 0 rather than breaking the whole report.
-  const videoPosts = (posts || []).filter(p => p.videoPlayCount !== undefined || p.playCount !== undefined);
-  const sample = (videoPosts.length > 0 ? videoPosts : (posts || [])).slice(0, 6);
+  const sample = posts || [];
 
   let totalViews = 0;
   let totalLikes = 0;
@@ -130,12 +132,92 @@ function computeProfileMetrics(posts, followerInfo) {
 
   return {
     name: rawName,
+    username,
     profileLink,
     followers,
     avgViews,
     avgEr,
     reelsAnalyzed: sample.length,
-    perReel
+    reelsSkippedAsOutliers: meta.reelsSkippedAsOutliers || 0,
+    // Every fetched candidate (included or not) with a status/reason --
+    // powers the "show skipped reels" transparency view. Optional: older
+    // stored results predating this field simply won't have it.
+    candidates: meta.candidates || undefined,
+    perReel,
+    // Drives which plain-language explanation the "how is this calculated"
+    // view shows -- never a vendor/pipeline/cost label, just which averaging
+    // approach actually produced this specific report's numbers.
+    calcVariant: 'standard',
   };
 }
-module.exports = { computeReelMetrics, computeProfileMetrics, resolveLikes, round2 };
+
+/*
+  V2 (Express) equivalent of computeProfileMetrics() -- identical in every
+  respect (likes/comments/ER/name/perReel all still simple linear averages)
+  EXCEPT avgViews, which is computed in log space over `posts` (already
+  trimmed by selectProfileReelsV2 in apify.service.js) instead of a plain
+  arithmetic mean. View counts are approximately log-normal, so averaging in
+  log space keeps whatever's left near the trimmed edges from dominating the
+  number the same way a linear mean would. See selectProfileReelsV2 for why.
+*/
+function computeProfileMetricsV2(posts, followerInfo, meta = {}) {
+  const sample = posts || [];
+
+  let totalLikes = 0;
+  let totalComments = 0;
+  const logViews = [];
+  const perReel = [];
+
+  for (const p of sample) {
+    const views = Number(p.videoPlayCount ?? p.playCount ?? 0);
+    const rawLikes = p.likesCount;
+    const comments = Number(p.commentsCount || 0);
+    const likes = resolveLikes(views, rawLikes);
+    const er = views > 0 ? round2(((likes + comments) / views) * 100) : 0;
+
+    logViews.push(Math.log(views + 1));
+    totalLikes += (typeof likes === 'number' ? likes : 0);
+    totalComments += comments;
+
+    perReel.push({
+      link: p.url || '',
+      shortcode: p.shortCode || '',
+      views,
+      likes,
+      comments,
+      er
+    });
+  }
+
+  const n = sample.length || 1;
+  const avgViews = logViews.length > 0 ? Math.round(Math.exp(logViews.reduce((a, b) => a + b, 0) / logViews.length) - 1) : 0;
+  const avgLikes = totalLikes / n;
+  const avgComments = totalComments / n;
+
+  const followers = followerInfo ? Number(followerInfo.followersCount || 0) : 0;
+  const avgEr = followers > 0 ? round2(((avgLikes + avgComments) / followers) * 100) : 0;
+
+  const first = posts && posts[0];
+  const username = (followerInfo && followerInfo.userName) || (first && first.ownerUsername) || 'creator';
+  let rawName = (followerInfo && followerInfo.userFullName) || (first && first.ownerFullName);
+  if (!rawName || String(rawName).trim() === '') {
+    rawName = username.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  }
+  const profileLink = cleanInstagramUrl((followerInfo && followerInfo.userUrl) || `https://www.instagram.com/${username}`);
+
+  return {
+    name: rawName,
+    username,
+    profileLink,
+    followers,
+    avgViews,
+    avgEr,
+    reelsAnalyzed: sample.length,
+    reelsSkippedAsOutliers: meta.reelsSkippedAsOutliers || 0,
+    candidates: meta.candidates || undefined,
+    perReel,
+    calcVariant: 'refined',
+  };
+}
+
+module.exports = { computeReelMetrics, computeProfileMetrics, computeProfileMetricsV2, resolveLikes, round2 };

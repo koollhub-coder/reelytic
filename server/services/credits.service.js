@@ -1,7 +1,7 @@
 const { getDb } = require('../db');
 
 /* =====================================================================
-   credits.service.js — single source of truth for the credit system.
+   credits.service.js: single source of truth for the credit system.
 
    Change costs / free grant HERE and nowhere else.
    ===================================================================== */
@@ -67,7 +67,7 @@ async function chargeSuccess(username, type) {
 }
 
 // Backfill: stamp credits/plan onto any pre-existing user missing them.
-// Safe to run every boot — only touches users without a `credits` field.
+// Safe to run every boot, only touches users without a `credits` field.
 async function backfillCredits() {
   const db = getDb();
   const users = await db.collection('users').find({}).toArray();
