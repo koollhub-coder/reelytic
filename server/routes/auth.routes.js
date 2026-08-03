@@ -16,6 +16,10 @@ function publicUser(user) {
     plan: user.plan || 'free',
     email: user.email || null,
     name: user.name || null,
+    // Existing accounts predating this field never get a surprise tour --
+    // missing/undefined reads as "already seen", only an explicit false
+    // (new signups, see defaultsForNewUser) triggers it.
+    hasSeenTour: user.hasSeenTour !== false,
   };
 }
 
@@ -97,6 +101,18 @@ router.post('/logout', (req, res) => {
 
 router.get('/me', requireLogin, async (req, res) => {
   res.json({ user: publicUser(req.currentUser) });
+});
+
+// Marks the welcome tour as seen, whether the user finished it or skipped
+// it -- either way it should never show again unannounced.
+router.post('/tour-seen', requireLogin, async (req, res, next) => {
+  try {
+    const db = getDb();
+    await db.collection('users').updateOne({ _id: req.currentUser._id }, { $set: { hasSeenTour: true } });
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
 });
 
 router.post('/change-password', requireLogin, async (req, res, next) => {

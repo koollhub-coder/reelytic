@@ -28,11 +28,15 @@ function costForRun(type, itemCount) {
   return costPerItem(type) * itemCount;
 }
 
-// Default credit/plan fields stamped onto every new user document.
+// Default credit/plan fields stamped onto every new user document. Admins
+// skip the client-facing welcome tour -- they already know the product --
+// every new client account gets it on their first login, whether they
+// self-signed-up or an agency admin provisioned them.
 function defaultsForNewUser(role = 'client') {
   return {
     plan: role === 'admin' ? 'unlimited' : 'free',
     credits: role === 'admin' ? ADMIN_CREDITS : FREE_SIGNUP_CREDITS,
+    hasSeenTour: role === 'admin',
   };
 }
 

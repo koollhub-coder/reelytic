@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { PasswordInput } from '../components/PasswordInput';
+import { WelcomeTour } from '../components/WelcomeTour';
 import { apiFetch } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -7,6 +8,7 @@ import { useToast } from '../context/ToastContext';
 export function Settings() {
   const { user, refreshUser } = useAuth();
   const { addToast } = useToast();
+  const [showTour, setShowTour] = useState(false);
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -169,8 +171,19 @@ export function Settings() {
                 <span style={{ textTransform: 'uppercase', fontWeight: 600 }}>{user?.role}</span>
               </>
             )}
+            <div style={{ gridColumn: '1 / -1', marginTop: 'var(--s2)' }}>
+              <button
+                type="button"
+                onClick={() => setShowTour(true)}
+                style={{ background: 'none', border: 'none', padding: 0, color: 'var(--accent)', cursor: 'pointer', font: 'inherit', fontSize: 'var(--fs-sm)', textDecoration: 'underline' }}
+              >
+                Replay the welcome tour
+              </button>
+            </div>
           </div>
         </div>
+
+        {showTour && <WelcomeTour onDone={() => setShowTour(false)} />}
 
         <div className="card">
           <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 700, marginBottom: 'var(--s1)' }}>Change Password</h3>

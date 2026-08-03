@@ -106,6 +106,24 @@ export function Clients() {
     }
   };
 
+  // Re-arms the welcome tour for exactly one more login -- e.g. you tested
+  // the account yourself before handing off credentials, so the client's own
+  // first login should still feel like a first login. It's a one-time flag,
+  // not a standing "always show" mode: the moment they finish or skip it,
+  // it's marked seen again automatically, same as any brand-new signup.
+  const handleResetTour = async (username) => {
+    try {
+      await apiFetch(`/admin/clients/${username}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ resetTour: true })
+      });
+      addToast(`${username} will see the welcome tour on their next login`, 'ok');
+      fetchClients();
+    } catch (err) {
+      addToast("Couldn't reset the tour for that client, try again", 'err');
+    }
+  };
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--s6)' }}>
@@ -146,6 +164,15 @@ export function Clients() {
                     <button className="btn btn-secondary" style={{ height: '28px', fontSize: 'var(--fs-xs)' }} onClick={() => openCreditModal(c)}>Credits</button>
                     <button className="btn btn-secondary" style={{ height: '28px', fontSize: 'var(--fs-xs)' }} onClick={() => handleResetPassword(c.username)}>Reset Pwd</button>
                     <button className="btn btn-secondary" style={{ height: '28px', fontSize: 'var(--fs-xs)' }} onClick={() => handleRevokeSessions(c.username)}>Revoke</button>
+                    <button
+                      className="btn btn-secondary"
+                      style={{ height: '28px', fontSize: 'var(--fs-xs)' }}
+                      onClick={() => handleResetTour(c.username)}
+                      disabled={c.hasSeenTour === false}
+                      title={c.hasSeenTour === false ? 'Already queued for their next login' : "Show the welcome tour again on this client's next login"}
+                    >
+                      {c.hasSeenTour === false ? 'Tour queued' : 'Replay tour'}
+                    </button>
                     <a
                       className="btn btn-secondary"
                       style={{ height: '28px', fontSize: 'var(--fs-xs)', lineHeight: '28px', padding: '0 10px' }}

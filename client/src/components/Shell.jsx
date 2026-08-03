@@ -1,16 +1,26 @@
 import React, { useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Logo } from './Logo';
+import { WelcomeTour } from './WelcomeTour';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { apiFetch } from '../api/client';
 
 export function Shell() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout } = useAuth();
+  const { user, logout, refreshUser } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  // Only the automatic first-login show lives here. Settings' "Replay tour"
+  // renders its own independent WelcomeTour instance -- simpler than
+  // threading a trigger down through Outlet for what's just a modal toggle.
+  const showTour = user?.hasSeenTour === false;
+
+  const handleTourDone = () => {
+    apiFetch('/auth/tour-seen', { method: 'POST' }).then(refreshUser).catch(() => {});
+  };
 
   const isActive = (path) => location.pathname.startsWith(path);
 
@@ -222,6 +232,8 @@ export function Shell() {
           <Outlet />
         </div>
       </main>
+
+      {showTour && <WelcomeTour onDone={handleTourDone} />}
     </div>
   );
 }

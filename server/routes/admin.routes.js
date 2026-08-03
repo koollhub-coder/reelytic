@@ -96,7 +96,7 @@ router.post('/clients', requireAdmin, async (req, res, next) => {
 router.patch('/clients/:username', requireAdmin, async (req, res, next) => {
   try {
     const targetUser = req.params.username.toLowerCase();
-    const { disabled, resetPassword, revokeSessions, creditsDelta, setCredits: setCreditsTo, plan } = req.body;
+    const { disabled, resetPassword, revokeSessions, creditsDelta, setCredits: setCreditsTo, plan, resetTour } = req.body;
     const db = getDb();
 
     const update = {};
@@ -118,6 +118,14 @@ router.patch('/clients/:username', requireAdmin, async (req, res, next) => {
     }
     if (typeof plan === 'string' && plan) {
       update.plan = plan;
+    }
+    // One-shot re-arm, not a standing "always show" mode: this just puts the
+    // account back into the exact same state a brand-new signup starts in.
+    // The client's own next login-completion (POST /auth/tour-seen) flips it
+    // straight back to seen, same as any first-time user -- nothing here
+    // makes it show more than once.
+    if (resetTour) {
+      update.hasSeenTour = false;
     }
 
     if (Object.keys(update).length > 0) {
