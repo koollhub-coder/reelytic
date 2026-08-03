@@ -28,12 +28,16 @@ export function Shell() {
 
   // Admin has its own "Admin Dashboard" below -- showing the client-usage
   // "Dashboard" too just duplicates it with nothing an admin actually needs.
+  // Same reasoning for "How Is This Calculated?": admin already has a richer,
+  // pipeline-aware version of that page under Scan Configuration below, so
+  // showing the plain client-facing one too just reads as a copy-paste
+  // mistake (two near-identical ℹ️ items).
   const navItems = [
     { label: 'Reel Report', path: '/reels', icon: '🎬' },
     { label: 'Profile Report', path: '/profiles', icon: '👤' },
     ...(isAdmin ? [] : [{ label: 'Dashboard', path: '/dashboard', icon: '📊' }]),
     { label: 'History', path: '/history', icon: '⏱️' },
-    { label: 'How Is This Calculated?', path: '/how-it-works', icon: 'ℹ️' },
+    ...(isAdmin ? [] : [{ label: 'How Is This Calculated?', path: '/how-it-works', icon: 'ℹ️' }]),
     { label: 'Settings', path: '/settings', icon: '⚙️' }
   ];
 

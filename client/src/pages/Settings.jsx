@@ -171,13 +171,18 @@ export function Settings() {
                 <span style={{ textTransform: 'uppercase', fontWeight: 600 }}>{user?.role}</span>
               </>
             )}
-            <div style={{ gridColumn: '1 / -1', marginTop: 'var(--s2)' }}>
+            <div style={{ gridColumn: '1 / -1', marginTop: 'var(--s3)', paddingTop: 'var(--s4)', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 'var(--s3)' }}>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 'var(--fs-sm)' }}>Welcome tour</div>
+                <div style={{ color: 'var(--text-3)', fontSize: 'var(--fs-xs)', marginTop: 2 }}>A quick orientation to Reel Reports, Profile Reports, and where everything lives.</div>
+              </div>
               <button
                 type="button"
                 onClick={() => setShowTour(true)}
-                style={{ background: 'none', border: 'none', padding: 0, color: 'var(--accent)', cursor: 'pointer', font: 'inherit', fontSize: 'var(--fs-sm)', textDecoration: 'underline' }}
+                className="btn btn-secondary"
+                style={{ height: '34px', fontSize: 'var(--fs-xs)', padding: '0 var(--s4)', flexShrink: 0 }}
               >
-                Replay the welcome tour
+                Replay
               </button>
             </div>
           </div>
