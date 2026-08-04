@@ -1072,6 +1072,18 @@ export function ReportEngine({ type = 'reel' }) {
             </div>
             <ProgressBar percent={counts.total > 0 ? (counts.processed / counts.total) * 100 : 0} />
 
+            {/* Results land in groups, not one at a time -- without this note,
+                the first group can take a couple of minutes to appear (longer
+                on a cold start), and with the counters still sitting at zero
+                that silence reads as broken rather than working. Only shown
+                once it's actually been quiet a while, so a fast small report
+                never sees it flash by. */}
+            {jobState === 'running' && counts.processed === 0 && elapsedMs > 15000 && (
+              <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-2)', marginTop: 'var(--s3)', padding: 'var(--s3)', backgroundColor: 'var(--surface-2)', borderRadius: 'var(--r-md)' }}>
+                ⏳ Results come back in groups rather than one at a time, so the first group can take a couple of minutes to show up, longer for larger reports. Nothing's wrong, this is still running.
+              </div>
+            )}
+
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'var(--s4)', flexWrap: 'wrap', gap: 'var(--s3)' }}>
               <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>
                 🔒 This report keeps going even if you close the tab. Come back anytime.
