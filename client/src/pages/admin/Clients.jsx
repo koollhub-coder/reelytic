@@ -3,6 +3,7 @@ import { apiFetch } from '../../api/client';
 import { Modal } from '../../components/Modal';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { CopyButton } from '../../components/CopyButton';
+import { Shimmer } from '../../components/Shimmer';
 import { useToast } from '../../context/ToastContext';
 
 export function Clients() {
@@ -131,6 +132,9 @@ export function Clients() {
         <button className="btn btn-primary" onClick={() => setNewModal(true)}>+ New Client</button>
       </div>
 
+      {loading ? (
+        <Shimmer height="300px" />
+      ) : (
       <div className="data-table-container">
         <table className="data-table">
           <thead>
@@ -203,6 +207,7 @@ export function Clients() {
           </tbody>
         </table>
       </div>
+      )}
 
       {/* Adjust Credits Modal */}
       <Modal isOpen={!!creditModal} onClose={() => setCreditModal(null)} title="Adjust credits">
