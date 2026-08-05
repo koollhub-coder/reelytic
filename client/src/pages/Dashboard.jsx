@@ -132,8 +132,22 @@ export function Dashboard() {
                             {daily.map((d, i) => {
                                 const reelPct = (d.reels / maxTotal) * 130;
                                 const profilePct = (d.profiles / maxTotal) * 130;
+                                const dateLabel = new Date(d.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
                                 return (
-                                    <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }} title={`${d.date}: ${d.total} processed (${d.reels} reels, ${d.profiles} profiles)`}>
+                                    // Native title= tooltips don't theme (always the browser's own
+                                    // unstyled black box, wrong in dark mode) and effectively never
+                                    // show on touch devices at all -- chart-bar-wrap/chart-tooltip is
+                                    // the app's own themed equivalent (already defined in
+                                    // components.css, previously unused anywhere).
+                                    <div key={i} className="chart-bar-wrap" tabIndex={0} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end', outline: 'none' }}>
+                                        {d.total > 0 && (
+                                            <div className="chart-tooltip">
+                                                <div className="chart-tooltip-date">{dateLabel}</div>
+                                                <div className="chart-tooltip-row"><span className="chart-tooltip-dot" style={{ backgroundColor: 'var(--accent)' }} />{d.reels} reel {d.reels === 1 ? 'report' : 'reports'}</div>
+                                                <div className="chart-tooltip-row"><span className="chart-tooltip-dot" style={{ backgroundColor: 'var(--ok)' }} />{d.profiles} profile {d.profiles === 1 ? 'report' : 'reports'}</div>
+                                            </div>
+                                        )}
+                                        <div style={{ fontFamily: 'var(--font-data)', fontSize: '10px', color: 'var(--text-3)', marginBottom: '4px', minHeight: '13px' }}>{d.total || ''}</div>
                                         <div style={{ width: '100%', maxWidth: '28px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
                                             {d.profiles > 0 && <div style={{ width: '100%', height: `${Math.max(profilePct, 3)}px`, backgroundColor: 'var(--ok)', borderRadius: '3px 3px 0 0', transition: 'height 300ms ease' }} />}
                                             {d.reels > 0 && <div style={{ width: '100%', height: `${Math.max(reelPct, 3)}px`, backgroundColor: 'var(--accent)', borderRadius: d.profiles > 0 ? 0 : '3px 3px 0 0', transition: 'height 300ms ease' }} />}

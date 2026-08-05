@@ -158,7 +158,7 @@ export function Checkout() {
                 <button type="button" className="btn btn-primary btn-block" disabled={status === 'processing'} onClick={handlePay}>
                     {status === 'processing' ? <span className="btn-spinner" /> : 'Pay with Razorpay'}
                 </button>
-                <button type="button" className="btn btn-ghost btn-block" style={{ marginTop: 8 }} onClick={() => navigate('/pricing')}>
+                <button type="button" className="btn btn-ghost btn-block" style={{ marginTop: 8 }} onClick={() => navigate('/billing')}>
                     Choose a different plan
                 </button>
 

@@ -48,26 +48,36 @@ export function Signup() {
 
   return (
     <div className="rl-login-grid" style={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: '1fr 1fr', backgroundColor: 'var(--bg)' }}>
-      {/* Left marketing panel (hidden on mobile) */}
-      <div style={{ backgroundColor: 'var(--surface-2)', padding: 'var(--s8)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderRight: '1px solid var(--border)' }} className="login-left-panel">
-        <div><Logo /></div>
-        <div style={{ maxWidth: '440px', margin: 'auto 0' }}>
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-2xl)', fontWeight: 700, lineHeight: 1.2, marginBottom: 'var(--s4)' }}>
-            Start free. 10 credits on the house.
+      {/* Left marketing panel (hidden on mobile). See Login.jsx for why this
+          uses a flex:1 centered middle block instead of margin:auto -- the
+          auto-margin version let the gap under the logo collapse on a
+          shorter window. */}
+      <div style={{ backgroundColor: 'var(--surface-2)', padding: 'var(--s8)', display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--border)' }} className="login-left-panel">
+        <div style={{ flexShrink: 0 }}><Logo /></div>
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingTop: 'var(--s7)', paddingBottom: 'var(--s7)' }}>
+          <div style={{ maxWidth: '440px' }}>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-2xl)', fontWeight: 700, lineHeight: 1.2, marginBottom: 'var(--s4)' }}>
+              Start free. 10 credits on the house.
+            </div>
+            <p style={{ color: 'var(--text-2)', marginBottom: 'var(--s6)' }}>
+              Turn a sheet of reel links into a full engagement report, no card required to try it.
+            </p>
+            <LedgerHero />
           </div>
-          <p style={{ color: 'var(--text-2)', marginBottom: 'var(--s6)' }}>
-            Turn a sheet of reel links into a full engagement report, no card required to try it.
-          </p>
-          <LedgerHero />
         </div>
-        <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>
+        <div style={{ flexShrink: 0, fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>
           © {new Date().getFullYear()} Reelytic · Audited Creator Intelligence
         </div>
       </div>
 
-      {/* Right form panel */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'var(--s6)' }}>
+      {/* Right form panel. Mobile-only logo -- the left panel (the only
+          place Logo otherwise appears on this page) is hidden entirely on
+          mobile, which left this side with zero Reelytic branding. */}
+      <div className="rl-auth-panel" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'var(--s6)' }}>
         <div style={{ width: '100%', maxWidth: '380px' }}>
+          <div className="rl-mobile-only" style={{ justifyContent: 'center', marginBottom: 'var(--s6)' }}>
+            <Logo />
+          </div>
           <div style={{ marginBottom: 'var(--s6)' }}>
             <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-xl)', fontWeight: 700, marginBottom: 'var(--s1)' }}>Create your workspace</h2>
             <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-base)' }}>Free tier includes 10 credits to start.</p>

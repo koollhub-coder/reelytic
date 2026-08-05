@@ -38,7 +38,14 @@ export function Shell() {
     ...(isAdmin ? [] : [{ label: 'Dashboard', path: '/dashboard', icon: '📊' }]),
     { label: 'History', path: '/history', icon: '⏱️' },
     ...(isAdmin ? [] : [{ label: 'How Is This Calculated?', path: '/how-it-works', icon: 'ℹ️' }]),
-    { label: 'Settings', path: '/settings', icon: '⚙️' }
+    { label: 'Settings', path: '/settings', icon: '⚙️' },
+    // Previously the only way here was clicking the unlabeled credits box
+    // below -- not discoverable. Points at /billing (rendered inside this
+    // same Shell), not the public /pricing marketing page -- that page has
+    // its own separate nav bar and no sidebar, so routing here to it used to
+    // eject the user from their whole workspace for what looked like a
+    // different site. Admin has unlimited credits and never needs this.
+    ...(isAdmin ? [] : [{ label: 'Pricing & Plans', path: '/billing', icon: '💳' }]),
   ];
 
   // Grouped by real admin workflow (overview, then people, then money,
@@ -162,7 +169,7 @@ export function Shell() {
         {/* Credits panel */}
         <div style={{ padding: 'var(--s4)', borderTop: '1px solid var(--border)' }}>
           <div
-            onClick={() => { if (user?.role !== 'admin') { navigate('/pricing'); setMobileOpen(false); } }}
+            onClick={() => { if (user?.role !== 'admin') { navigate('/billing'); setMobileOpen(false); } }}
             style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', padding: '10px 12px', borderRadius: 'var(--r-md)', backgroundColor: 'var(--surface-2)', cursor: user?.role === 'admin' ? 'default' : 'pointer' }}
             title={user?.role === 'admin' ? 'Admin: unlimited credits' : 'View plans & top up'}
           >

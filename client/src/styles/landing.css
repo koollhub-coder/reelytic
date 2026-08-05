@@ -19,6 +19,13 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--s4) var(--s7);
+  /* Flex children default to min-width:auto, which refuses to shrink below
+     an unbreakable child (e.g. a long logged-in username in a nowrap pill
+     button) -- that forced the whole row, and with it the page, wider than
+     the viewport on narrow screens. flex-wrap lets the right-hand group drop
+     to its own line instead of blowing the row out. */
+  flex-wrap: wrap;
+  row-gap: var(--s2);
 }
 [data-theme="dark"] .landing-nav {
   background-color: rgba(16, 18, 22, 0.85);
@@ -32,6 +39,13 @@
   grid-template-columns: 1fr 1fr;
   gap: var(--s7);
   align-items: center;
+}
+/* Grid items default to min-width:auto (sized to their widest unbreakable
+   child), NOT 0 -- the classic "grid blowout" trap. A long logged-in
+   username inside a nowrap CTA button was forcing this column, and with it
+   the whole page, wider than the viewport. */
+.landing-hero > div {
+  min-width: 0;
 }
 @media (max-width: 960px) {
   .landing-hero {

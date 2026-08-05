@@ -73,8 +73,19 @@ export function AdminDashboard() {
               {activity.map((a, i) => {
                 const reelPct = (a.reels / maxCount) * 160;
                 const profilePct = (a.profiles / maxCount) * 160;
+                const dateLabel = new Date(a.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
                 return (
-                  <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }} title={`${a.date}: ${a.count} links (${a.reels} reel, ${a.profiles} profile)`}>
+                  // Themed tooltip (components.css) instead of a native title=
+                  // box, which never themes for dark mode and effectively
+                  // never shows on touch devices.
+                  <div key={i} className="chart-bar-wrap" tabIndex={0} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end', outline: 'none' }}>
+                    {a.count > 0 && (
+                      <div className="chart-tooltip">
+                        <div className="chart-tooltip-date">{dateLabel}</div>
+                        <div className="chart-tooltip-row"><span className="chart-tooltip-dot" style={{ backgroundColor: 'var(--accent)' }} />{a.reels} reel {a.reels === 1 ? 'report' : 'reports'}</div>
+                        <div className="chart-tooltip-row"><span className="chart-tooltip-dot" style={{ backgroundColor: 'var(--ok)' }} />{a.profiles} profile {a.profiles === 1 ? 'report' : 'reports'}</div>
+                      </div>
+                    )}
                     <div style={{ fontFamily: 'var(--font-data)', fontSize: '10px', color: 'var(--text-3)', marginBottom: '4px' }}>{a.count || ''}</div>
                     <div style={{ width: '100%', maxWidth: '36px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
                       {a.profiles > 0 && <div style={{ width: '100%', height: `${Math.max(profilePct, 3)}px`, backgroundColor: 'var(--ok)', borderRadius: '4px 4px 0 0', transition: 'height 300ms ease' }} />}

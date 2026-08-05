@@ -15,18 +15,27 @@
   border-radius: var(--r-sm);
   font-weight: 500;
   font-size: var(--fs-base);
-  transition: transform var(--t-fast), background var(--t-fast), border-color var(--t-fast);
+  transition: transform var(--t-fast), background var(--t-fast), border-color var(--t-fast), box-shadow var(--t-fast);
   white-space: nowrap;
 }
 .btn:active {
   transform: translateY(1px);
+  box-shadow: none !important;
 }
+/* Subtle lift-on-hover, not just a flat color swap -- this is the one
+   micro-interaction every "premium" SaaS button shares (Stripe, Linear,
+   Notion) that a flat color-only hover state is missing. color-mix keeps
+   the shadow tinted to whatever --accent/--err actually resolve to in the
+   active theme, instead of a hardcoded rgba that would drift from the
+   token in dark mode. */
 .btn-primary {
   background-color: var(--accent);
   color: #FFFFFF;
 }
 .btn-primary:hover {
   background-color: var(--accent-hover);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 35%, transparent);
+  transform: translateY(-1px);
 }
 .btn-secondary {
   background-color: transparent;
@@ -35,6 +44,8 @@
 }
 .btn-secondary:hover {
   background-color: var(--surface-2);
+  border-color: var(--text-3);
+  transform: translateY(-1px);
 }
 .btn-destructive {
   background-color: var(--err);
@@ -42,6 +53,24 @@
 }
 .btn-destructive:hover {
   opacity: 0.9;
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--err) 35%, transparent);
+  transform: translateY(-1px);
+}
+/* Referenced across the app (Checkout, Dashboard, WelcomeTour, Pricing
+   Editor, Pricing plan cards) but never defined -- those buttons were
+   rendering with only .btn's box-model rules and no color/background,
+   plain unstyled boxes with default browser button chrome. */
+.btn-ghost {
+  background-color: transparent;
+  border: 1px solid transparent;
+  color: var(--text-2);
+}
+.btn-ghost:hover {
+  background-color: var(--surface-2);
+  color: var(--text);
+}
+.btn-block {
+  width: 100%;
 }
 .btn:disabled {
   opacity: 0.6;

@@ -70,32 +70,47 @@ export function Login() {
 
   return (
     <div className="rl-login-grid" style={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: '1fr 1fr', backgroundColor: 'var(--bg)' }}>
-      {/* Left panel (≥960px) */}
-      <div style={{ backgroundColor: 'var(--surface-2)', padding: 'var(--s8)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderRight: '1px solid var(--border)' }} className="login-left-panel">
-        <div>
+      {/* Left panel (≥960px). Logo and copyright are flex-shrink:0 fixed
+          zones with their own guaranteed padding; only the middle content
+          block flexes to fill whatever's left. The previous version centered
+          the middle block with `margin: auto 0`, which distributes leftover
+          flex space proportionally -- on a shorter browser window there's
+          less space to go around, so the gap above/below it (including the
+          gap right under the logo) could shrink to almost nothing, reading
+          as the logo and headline being crammed together. */}
+      <div style={{ backgroundColor: 'var(--surface-2)', padding: 'var(--s8)', display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--border)' }} className="login-left-panel">
+        <div style={{ flexShrink: 0 }}>
           <Logo />
         </div>
-        <div style={{ maxWidth: '440px', margin: 'auto 0' }}>
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-2xl)', fontWeight: 700, lineHeight: 1.2, marginBottom: 'var(--s4)' }}>
-            {slides[carouselSlide]}
-          </div>
-          <div style={{ marginTop: 'var(--s6)' }}>
-            <LedgerHero />
-          </div>
-          <div style={{ display: 'flex', gap: '8px', marginTop: 'var(--s4)' }}>
-            {slides.map((_, i) => (
-              <div key={i} style={{ width: i === carouselSlide ? '24px' : '8px', height: '8px', borderRadius: '4px', backgroundColor: i === carouselSlide ? 'var(--accent)' : 'var(--border-strong)', transition: 'all 200ms ease' }} />
-            ))}
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingTop: 'var(--s7)', paddingBottom: 'var(--s7)' }}>
+          <div style={{ maxWidth: '440px' }}>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-2xl)', fontWeight: 700, lineHeight: 1.2, marginBottom: 'var(--s4)' }}>
+              {slides[carouselSlide]}
+            </div>
+            <div style={{ marginTop: 'var(--s6)' }}>
+              <LedgerHero />
+            </div>
+            <div style={{ display: 'flex', gap: '8px', marginTop: 'var(--s4)' }}>
+              {slides.map((_, i) => (
+                <div key={i} style={{ width: i === carouselSlide ? '24px' : '8px', height: '8px', borderRadius: '4px', backgroundColor: i === carouselSlide ? 'var(--accent)' : 'var(--border-strong)', transition: 'all 200ms ease' }} />
+              ))}
+            </div>
           </div>
         </div>
-        <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>
+        <div style={{ flexShrink: 0, fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>
           © {new Date().getFullYear()} Reelytic · Audited Creator Intelligence
         </div>
       </div>
 
-      {/* Right panel */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'var(--s6)' }}>
+      {/* Right panel. On mobile the left panel above is hidden entirely
+          (see mobile.css .login-left-panel), which was leaving this side as
+          the ONLY thing on screen with no Reelytic branding anywhere --
+          rl-mobile-only shows a logo here just for that breakpoint. */}
+      <div className="rl-auth-panel" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'var(--s6)' }}>
         <div style={{ width: '100%', maxWidth: '380px' }}>
+          <div className="rl-mobile-only" style={{ justifyContent: 'center', marginBottom: 'var(--s6)' }}>
+            <Logo />
+          </div>
           <div style={{ marginBottom: 'var(--s6)' }}>
             <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-xl)', fontWeight: 700, marginBottom: 'var(--s1)' }}>Welcome back</h2>
             <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-base)' }}>Log in to your Reelytic workspace</p>

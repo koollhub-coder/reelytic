@@ -126,9 +126,61 @@
   }
   .rl-chart-track > div { flex: 0 0 38px !important; }
 
+  /* =================================================================
+     Modal -> bottom sheet. Every dialog in the app (confirm, new
+     campaign, credit adjust, etc) goes through the shared Modal
+     component, so this one change gives every one of them the native
+     slide-up-from-bottom feel instead of a cramped centered card.
+     ================================================================= */
+  .rl-modal-overlay {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+  .rl-modal-sheet {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 85vh !important;
+    border-radius: var(--r-lg) var(--r-lg) 0 0 !important;
+    padding-bottom: calc(var(--s5) + env(safe-area-inset-bottom, 0px)) !important;
+    animation: rlSheetUp 220ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .rl-modal-handle {
+    display: block !important;
+    width: 36px;
+    height: 4px;
+    border-radius: var(--r-full);
+    background: var(--border-strong);
+    margin: 0 auto var(--s4) auto;
+  }
+  /* 44px minimum tap target (Apple HIG / WCAG), not just the glyph's own
+     18px box -- the close "X" is one of the most-tapped controls in the
+     whole app and was smaller than a fingertip. */
+  .rl-modal-close {
+    width: 44px !important;
+    height: 44px !important;
+    margin: -12px -12px -12px 0 !important;
+  }
+  @keyframes rlSheetUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+
   /* Login split-screen -> single centered column (hide the marketing panel). */
   .rl-login-grid { grid-template-columns: 1fr !important; }
   .login-left-panel { display: none !important; }
+  /* Desktop's 32px (--s6) side padding left a real ~9px horizontal overflow
+     on a 375px screen once the form's own maxWidth:380px content is
+     accounted for -- absorbed by the page-level overflow-x:hidden safety
+     net (no visible scrollbar), but still worth tightening: 32px padding on
+     a 375px-wide phone is also just more than mobile auth forms need.
+     Vertical centering (inherited, unchanged) is kept -- pinning to the top
+     with a fixed offset was tried and made it worse: cramped up top with an
+     even bigger dead zone left at the bottom below the short form. Centering
+     the logo+form as one block (see rl-mobile-only logo added above it)
+     reads as intentional now that it's not just a bare form floating alone. */
+  .rl-auth-panel {
+    padding: var(--s4) !important;
+  }
 
   /* Landing top nav: trim to logo + primary CTA on phones. */
   .landing-nav { padding: var(--s3) var(--s4) !important; }

@@ -52,8 +52,9 @@ export function WelcomeTour({ onDone }) {
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200, padding: 'var(--s4)' }}>
-      <div className="card" style={{ width: '480px', maxWidth: '100%', padding: 'var(--s7) var(--s6) var(--s6)', textAlign: 'center' }}>
+    <div className="rl-modal-overlay" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200, padding: 'var(--s4)' }}>
+      <div className="card rl-modal-sheet" style={{ width: '480px', maxWidth: '100%', padding: 'var(--s7) var(--s6) var(--s6)', textAlign: 'center' }}>
+        <div className="rl-modal-handle" style={{ display: 'none' }} aria-hidden="true" />
         <div style={{ fontSize: '44px', marginBottom: 'var(--s4)' }}>{current.icon}</div>
         <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-xl)', fontWeight: 700, marginBottom: 'var(--s3)' }}>
           {current.heading}

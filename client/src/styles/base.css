@@ -6,6 +6,16 @@
   padding: 0;
 }
 
+/* Also set on html, not just body: on iOS Safari/Chrome, overflow-x:hidden
+   on body alone doesn't reliably stop horizontal rubber-band scrolling when
+   a descendant briefly overflows -- the scroll container is the html
+   element, and body's overflow only propagates to it when html itself
+   leaves overflow at its initial value AND no intermediate box establishes
+   its own scrolling context. Belt-and-suspenders with the body rule below. */
+html {
+  overflow-x: hidden;
+}
+
 body {
   font-family: var(--font-body);
   background-color: var(--bg);

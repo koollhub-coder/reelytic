@@ -24,6 +24,7 @@ import { Shell } from './components/Shell';
 import { NotFound } from './components/NotFound';
 import { UsageSpend } from './pages/admin/UsageSpend';
 import { Pricing } from './pages/Pricing';
+import { BillingPlans } from './pages/BillingPlans';
 import { Checkout } from './pages/Checkout';
 import { AdminPricingEditor } from './pages/admin/AdminPricingEditor';
 import { CostMonitor } from './pages/admin/CostMonitor';
@@ -127,6 +128,7 @@ export function App() {
                 <Route path="/admin/sessions" element={<SessionsLog />} />
                 <Route path="/admin/usage" element={<UsageSpend />} />
                 <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/billing" element={<BillingPlans />} />
                 <Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
                 <Route path="/admin/pricing" element={<ProtectedRoute><AdminPricingEditor /></ProtectedRoute>} />
               </Route>
