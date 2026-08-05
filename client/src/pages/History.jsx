@@ -141,16 +141,16 @@ function CampaignCard({ campaign, jobs, campaigns, navigate, onReassign, expande
     <div className="card" style={{ marginBottom: 'var(--s4)', padding: 0, overflow: 'hidden' }}>
       <div
         onClick={onToggle}
-        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 'var(--s4) var(--s5)', cursor: 'pointer', borderLeft: '3px solid var(--accent)' }}
+        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', rowGap: 'var(--s3)', padding: 'var(--s4) var(--s5)', cursor: 'pointer', borderLeft: '3px solid var(--accent)' }}
       >
-        <div>
-          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 'var(--fs-md)' }}>{campaign.name}</div>
+        <div style={{ minWidth: 0, flex: '1 1 160px' }}>
+          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 'var(--fs-md)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{campaign.name}</div>
           <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', marginTop: 2 }}>
             {campaign.reportCount} {campaign.reportCount === 1 ? 'report' : 'reports'}
             {campaign.earliestAt ? ` · ${formatDateRange(campaign.earliestAt, campaign.latestAt)}` : ''}
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s5)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s5)', flexShrink: 0 }}>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontFamily: 'var(--font-data)', fontSize: 'var(--fs-md)', fontWeight: 700 }}>{formatViews(campaign.totalViews)}</div>
             <div style={{ fontSize: '10px', color: 'var(--text-3)', textTransform: 'uppercase' }}>Views</div>
@@ -400,7 +400,7 @@ export function History() {
             placeholder="Search by creator username"
             value={creatorSearch}
             onChange={(e) => setCreatorSearch(e.target.value)}
-            style={{ height: '32px', fontSize: 'var(--fs-sm)', width: '220px' }}
+            style={{ height: '32px', fontSize: 'var(--fs-sm)', flex: '1 1 200px', minWidth: 0, maxWidth: '220px' }}
           />
           <label style={{ fontSize: 'var(--fs-xs)', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', color: 'var(--text-2)', whiteSpace: 'nowrap' }}>
             <input type="checkbox" checked={groupByCampaign} onChange={(e) => setGroupByCampaign(e.target.checked)} />

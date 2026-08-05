@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../api/client';
 import { Shimmer } from '../components/Shimmer';
 import { Logo } from '../components/Logo';
+import { AccountMenu } from '../components/AccountMenu';
 import { useAuth } from '../context/AuthContext';
 
 const ANNUAL_DISCOUNT = 0.9; // -10% for annual billing
@@ -103,7 +104,7 @@ function PlanCard({ plan, annual, index, onChoose }) {
 
 export function Pricing() {
     const navigate = useNavigate();
-    const { user } = useAuth();
+    const { user, logout } = useAuth();
     const [annual, setAnnual] = useState(false);
     const [plans, setPlans] = useState(null);
 
@@ -128,14 +129,17 @@ export function Pricing() {
 
     return (
         <div>
-            <nav style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 'var(--s4) var(--s6)', borderBottom: '1px solid var(--border)' }}>
+            <nav style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 'var(--s3)', padding: 'var(--s4) var(--s6)', borderBottom: '1px solid var(--border)' }}>
                 <div style={{ cursor: 'pointer' }} onClick={() => navigate('/')}>
                     <Logo />
                 </div>
                 {user ? (
-                    <button type="button" className="btn btn-primary" onClick={() => navigate('/reels')}>
-                        Continue as {user.username}
-                    </button>
+                    <AccountMenu
+                        user={user}
+                        onGoToWorkspace={() => navigate('/reels')}
+                        onSwitchAccount={() => logout('/login')}
+                        onLogOut={() => logout()}
+                    />
                 ) : (
                     <button type="button" className="btn btn-primary" onClick={() => navigate('/login')}>
                         Log in

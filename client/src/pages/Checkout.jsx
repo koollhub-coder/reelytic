@@ -169,10 +169,12 @@ export function Checkout() {
 
             {status === 'dummy-modal' && (
                 <div
-                    style={{ position: 'fixed', inset: 0, background: 'rgba(16,18,22,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 900 }}
+                    style={{ position: 'fixed', inset: 0, background: 'rgba(16,18,22,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 900, padding: '16px' }}
                     onMouseDown={(e) => { if (e.target === e.currentTarget) setStatus('idle'); }}
                 >
-                    <div style={{ background: '#fff', color: '#1a1c20', borderRadius: 12, width: 360, padding: 24, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+                    {/* width, not a fixed 360px -- 360 alone overflows an iPhone
+                        SE (320px) with zero margin either side. */}
+                    <div style={{ background: '#fff', color: '#1a1c20', borderRadius: 12, width: '360px', maxWidth: '100%', padding: 24, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
                             <div style={{ width: 28, height: 28, borderRadius: 6, background: '#3395FF', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 14 }}>R</div>
                             <strong>Razorpay</strong>

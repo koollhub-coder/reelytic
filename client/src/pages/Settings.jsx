@@ -67,8 +67,14 @@ export function Settings() {
     <div>
       <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-2xl)', fontWeight: 700, marginBottom: 'var(--s6)' }}>Workspace Settings</h1>
 
-      {/* Profile header */}
-      <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 'var(--s5)', marginBottom: 'var(--s5)', padding: 'var(--s6)' }}>
+      {/* Profile header. flexWrap lets the chip group drop to its own line
+          when the avatar + name/email block don't leave room for it, instead
+          of forcing the row wider than the viewport. The name div previously
+          had no overflow/truncation of its own -- minWidth:0 on its
+          container let it shrink narrower than its text, but with nothing
+          clipping the text itself it just painted straight through whatever
+          sat to its right (the plan/credits chips) on a long username. */}
+      <div className="card" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--s5)', rowGap: 'var(--s3)', marginBottom: 'var(--s5)', padding: 'var(--s6)' }}>
         <div style={{
           width: '64px', height: '64px', borderRadius: '50%',
           background: 'linear-gradient(135deg, var(--accent), var(--accent-hover))',
@@ -78,8 +84,8 @@ export function Settings() {
         }}>
           {initial}
         </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-xl)', fontWeight: 700 }}>{displayName}</div>
+        <div style={{ flex: '1 1 160px', minWidth: 0 }}>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-xl)', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</div>
           <div style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {user?.email || user?.username}
           </div>

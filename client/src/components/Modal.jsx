@@ -12,11 +12,17 @@ export function Modal({ isOpen, onClose, title, children, width = '480px' }) {
   if (!isOpen) return null;
 
   return (
-    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '16px' }}>
-      <div className="card" style={{ width, maxWidth: '100%', maxHeight: '90vh', overflowY: 'auto', position: 'relative' }}>
+    // On mobile (see mobile.css .rl-modal-*), this becomes a bottom sheet --
+    // full-width, slides up, rounded top corners only -- instead of a small
+    // centered card, matching how Stripe/Linear/Notion handle dialogs on a
+    // phone screen. Desktop is completely untouched (those rules only exist
+    // under the <=768px media query).
+    <div className="rl-modal-overlay" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '16px' }}>
+      <div className="card rl-modal-sheet" style={{ width, maxWidth: '100%', maxHeight: '90vh', overflowY: 'auto', position: 'relative' }}>
+        <div className="rl-modal-handle" style={{ display: 'none' }} aria-hidden="true" />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 700 }}>{title}</h3>
-          <button onClick={onClose} aria-label="Close modal" style={{ fontSize: '18px', color: 'var(--text-3)', cursor: 'pointer', background: 'none', border: 'none' }}>✕</button>
+          <button onClick={onClose} aria-label="Close modal" className="rl-modal-close" style={{ fontSize: '18px', color: 'var(--text-3)', cursor: 'pointer', background: 'none', border: 'none' }}>✕</button>
         </div>
         {children}
       </div>

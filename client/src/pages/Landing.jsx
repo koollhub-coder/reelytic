@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Logo } from '../components/Logo';
 import { LedgerHero } from '../components/LedgerHero';
+import { AccountMenu } from '../components/AccountMenu';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import '../styles/landing.css';
@@ -22,25 +23,12 @@ export function Landing() {
             {theme === 'dark' ? '☀️' : '🌙'}
           </button>
           {user ? (
-            <>
-              <button className="btn btn-primary" onClick={() => navigate('/reels')} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{
-                  width: 20, height: 20, borderRadius: '50%', background: 'rgba(255,255,255,0.25)',
-                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 'var(--fs-xs)', fontWeight: 700,
-                }}>
-                  {(user.username || '?')[0].toUpperCase()}
-                </span>
-                {user.username}
-              </button>
-              <button
-                type="button"
-                onClick={() => logout('/login')}
-                style={{ background: 'none', border: 'none', color: 'var(--text-3)', fontSize: 'var(--fs-xs)', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
-              >
-                Not you?
-              </button>
-            </>
+            <AccountMenu
+              user={user}
+              onGoToWorkspace={() => navigate('/reels')}
+              onSwitchAccount={() => logout('/login')}
+              onLogOut={() => logout()}
+            />
           ) : (
             <button className="btn btn-primary" onClick={() => navigate('/login')}>
               Log in
@@ -57,13 +45,16 @@ export function Landing() {
             Upload your sheet of reels or creator profiles. Reelytic fetches views, likes, comments, and engagement rates, then hands the same sheet back, filled in.
           </p>
           <div className="hero-cta-group">
+            {/* Fixed, short label -- account identity/switching lives in the
+                nav's avatar menu, not spelled out here, so this button never
+                scales with username length. */}
             <button className="btn btn-primary" style={{ height: '44px', padding: '0 var(--s6)', fontSize: 'var(--fs-md)' }} onClick={() => navigate(user ? '/reels' : '/login')}>
-              {user ? `Continue as ${user.username}` : 'Log in to your workspace'}
+              {user ? 'Go to your workspace →' : 'Log in to your workspace'}
             </button>
           </div>
           <div className="hero-caption">
             {user ? (
-              <>Not {user.username}? <button type="button" onClick={() => logout('/login')} style={{ background: 'none', border: 'none', padding: 0, color: 'var(--accent)', cursor: 'pointer', font: 'inherit', textDecoration: 'underline' }}>Log in with a different account</button></>
+              <>Signed in. Not you? <button type="button" onClick={() => logout('/login')} style={{ background: 'none', border: 'none', padding: 0, color: 'var(--accent)', cursor: 'pointer', font: 'inherit', textDecoration: 'underline' }}>Switch account</button></>
             ) : (
               'Accounts are provisioned for agency clients.'
             )}
@@ -156,7 +147,7 @@ export function Landing() {
       <div className="landing-section" style={{ textAlign: 'center', paddingTop: 'var(--s5)' }}>
         <h2 className="section-title" style={{ marginBottom: 'var(--s4)' }}>Ready to see it on your own sheet?</h2>
         <button className="btn btn-primary" style={{ height: '44px', padding: '0 var(--s7)', fontSize: 'var(--fs-md)' }} onClick={() => navigate(user ? '/reels' : '/login')}>
-          {user ? `Continue as ${user.username}` : 'Log in to your workspace'}
+          {user ? 'Go to your workspace →' : 'Log in to your workspace'}
         </button>
       </div>
 

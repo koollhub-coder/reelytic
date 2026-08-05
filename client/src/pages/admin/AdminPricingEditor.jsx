@@ -257,7 +257,7 @@ export function AdminPricingEditor() {
     return (
         <div>
             {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--s6)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 'var(--s3)', marginBottom: 'var(--s6)' }}>
                 <div>
                     <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-2xl)', fontWeight: 700, marginBottom: 4 }}>Pricing Editor</h1>
                     <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)' }}>
