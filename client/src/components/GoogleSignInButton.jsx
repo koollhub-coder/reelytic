@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Modal } from './Modal';
+import { useTheme } from '../context/ThemeContext';
 
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
@@ -13,6 +14,7 @@ const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 */
 export function GoogleSignInButton({ onGoogle, label = 'Continue with Google' }) {
   const holderRef = useRef(null);
+  const { theme } = useTheme();
   // The page passing us onGoogle re-creates that function on every render,
   // which used to be in this effect's dependency array -- re-running
   // initialize()/renderButton() on every render. Google's own SDK only
@@ -22,6 +24,17 @@ export function GoogleSignInButton({ onGoogle, label = 'Continue with Google' })
   // A ref keeps the callback fresh without ever re-initializing the SDK.
   const onGoogleRef = useRef(onGoogle);
   onGoogleRef.current = onGoogle;
+
+  // Google's own button API doesn't accept a custom brand color -- only
+  // 'outline' (light), 'filled_black', 'filled_blue', deliberately, so the
+  // button stays recognizable as genuinely Google's on any site. What it WAS
+  // missing: it was hardcoded to the light 'outline' style regardless of the
+  // app's theme, so in dark mode it rendered as a stark white box while
+  // everything else on the page was black -- that mismatch, not the lack of
+  // a pink Google button, is what read as "black and white." Matching
+  // ThemeContext's own resolution of 'system' fixes that without touching
+  // anything Google-brand-restricted.
+  const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
 
   useEffect(() => {
     if (!CLIENT_ID) return;
@@ -34,7 +47,7 @@ export function GoogleSignInButton({ onGoogle, label = 'Continue with Google' })
       });
       holderRef.current.innerHTML = '';
       window.google.accounts.id.renderButton(holderRef.current, {
-        theme: 'outline', size: 'large', width: 320, text: 'continue_with',
+        theme: isDark ? 'filled_black' : 'outline', size: 'large', width: 320, text: 'continue_with',
       });
     }
     if (window.google) { render(); return; }
@@ -46,7 +59,7 @@ export function GoogleSignInButton({ onGoogle, label = 'Continue with Google' })
     }
     s.addEventListener('load', render);
     return () => s && s.removeEventListener('load', render);
-  }, []);
+  }, [isDark]);
 
   return CLIENT_ID
     ? <div ref={holderRef} style={{ display: 'flex', justifyContent: 'center' }} />
