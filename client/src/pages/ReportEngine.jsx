@@ -835,8 +835,11 @@ export function ReportEngine({ type = 'reel' }) {
 
   if (jobState === 'loading') {
     return (
-      <div className="card" style={{ textAlign: 'center', padding: 'var(--s8)' }}>
-        <Shimmer width="60px" height="60px" borderRadius="50%" style={{ margin: '0 auto var(--s4) auto' }} />
+      // minHeight + centering so the spinner sits in the middle of the space
+      // it occupies rather than pinned to the top of a short card, which on a
+      // phone reads as "the page half-loaded and stopped".
+      <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '55vh', textAlign: 'center', padding: 'var(--s8) var(--s5)' }}>
+        <Shimmer width="60px" height="60px" borderRadius="50%" style={{ marginBottom: 'var(--s4)' }} />
         <div style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)' }}>Checking for an existing report...</div>
       </div>
     );
@@ -879,7 +882,7 @@ export function ReportEngine({ type = 'reel' }) {
       {jobState === 'upload' && (
         <div>
           {loading ? (
-            <div className="card" style={{ textAlign: 'center', padding: 'var(--s8)' }}>
+            <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '55vh', textAlign: 'center', padding: 'var(--s8) var(--s5)' }}>
               <div style={{ marginBottom: 'var(--s4)' }}><Shimmer width="60px" height="60px" borderRadius="50%" style={{ margin: '0 auto' }} /></div>
               <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 600, marginBottom: 'var(--s2)' }}>{loadingMessage}</div>
               <div style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)' }}>Parsing sheet structure and validating links...</div>

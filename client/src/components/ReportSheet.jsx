@@ -67,6 +67,48 @@ export function ReportThemeStyles({ theme }) {
         --ok:#34B981; --warn:#E0A046; --err:#EF5A5A;
       }
       .rl-highlights-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s4); margin-bottom: var(--s6); }
+
+      /* Report page chrome (the bar above the sheet). Sticky so the actions
+         stay reachable on a long report, and it reads as an app header
+         rather than a pile of loose buttons -- which is exactly how it
+         looked stacked on a phone. */
+      /* Deliberately NOT position:sticky. html/body carry an app-wide
+         overflow-x:hidden safety net (see mobile.css) which silently makes
+         them the scroll container, and sticky inside that never engages --
+         it just scrolls away, which looks broken rather than absent. A
+         static header bar is honest and costs nothing. */
+      .rl-report-topbar {
+        max-width: 1000px;
+        margin-left: auto;
+        margin-right: auto;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--s3);
+        padding: var(--s3) var(--s4);
+        margin-bottom: var(--s5);
+        background-color: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--r-lg);
+        box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+      }
+      .rl-report-topbar-actions { display: flex; align-items: center; gap: var(--s2); flex-wrap: nowrap; }
+      .rl-report-brand { display: flex; align-items: center; gap: var(--s2); min-width: 0; }
+      .rl-report-brand-name { font-family: var(--font-display); font-weight: 700; font-size: var(--fs-md); color: var(--text); letter-spacing: -0.02em; }
+
+      @media (max-width: 640px) {
+        .rl-report-topbar { padding: var(--s2) var(--s3); border-radius: var(--r-md); gap: var(--s2); }
+        .rl-report-topbar-actions { gap: 6px; }
+        /* Long labels become icon-first on a phone so the row never wraps
+           into a three-deep stack of full-width buttons. */
+        .rl-label-full { display: none; }
+        .rl-report-brand-name { font-size: var(--fs-base); }
+      }
+      .rl-label-short { display: none; }
+      @media (max-width: 640px) {
+        .rl-label-short { display: inline; }
+      }
+
       @media (max-width: 560px) {
         .rl-highlights-grid { grid-template-columns: 1fr; }
         .rl-section-pad { padding: var(--s4) !important; }
@@ -78,6 +120,27 @@ export function ReportThemeStyles({ theme }) {
         body { background: ${theme === 'dark' ? '#101216' : '#F7F6F3'} !important; }
       }
     `}</style>
+  );
+}
+
+// Light/dark segmented control for the report chrome. Shared so the
+// authenticated preview and the public share view stay identical.
+export function ThemeToggle({ theme, setTheme }) {
+  const btn = (active) => ({
+    height: '30px', padding: '0 12px', fontSize: 'var(--fs-xs)',
+    fontWeight: active ? 700 : 500, borderRadius: 'var(--r-sm)', border: 'none',
+    cursor: 'pointer', backgroundColor: active ? 'var(--surface-2)' : 'transparent',
+    color: 'var(--text)', whiteSpace: 'nowrap',
+  });
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '2px', backgroundColor: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', padding: '3px', flexShrink: 0 }}>
+      <button type="button" onClick={() => setTheme('light')} style={btn(theme === 'light')} title="Light">
+        ☀<span className="rl-label-full"> Light</span>
+      </button>
+      <button type="button" onClick={() => setTheme('dark')} style={btn(theme === 'dark')} title="Dark">
+        ●<span className="rl-label-full"> Dark</span>
+      </button>
+    </div>
   );
 }
 

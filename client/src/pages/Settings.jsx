@@ -160,7 +160,11 @@ export function Settings() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 'var(--s5)' }}>
         <div className="card">
           <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 700, marginBottom: 'var(--s4)' }}>Account</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 'var(--s3)', fontSize: 'var(--fs-base)', rowGap: 'var(--s4)' }}>
+          {/* rl-stack-mobile collapses this to a single column under 768px.
+              A fixed 140px label column plus a long monospace email left the
+              value column too narrow on a phone, which is what pushed the
+              edit icon past the card's right padding. */}
+          <div className="rl-stack-mobile" style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 'var(--s3)', fontSize: 'var(--fs-base)', rowGap: 'var(--s4)' }}>
             {editingUsername ? (
               // Spans the full card width instead of sitting in the narrow
               // 1fr value column -- that column can be well under 200px on
@@ -203,8 +207,8 @@ export function Settings() {
             ) : (
               <>
               <span style={{ color: 'var(--text-2)' }}>Username</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s3)' }}>
-                <span className="mono" style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.username}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s3)', minWidth: 0 }}>
+                <span className="mono" style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{user?.username}</span>
                 <button
                   type="button"
                   onClick={startEditUsername}
@@ -225,7 +229,7 @@ export function Settings() {
               </>
             )}
             <span style={{ color: 'var(--text-2)' }}>Email</span>
-            <span style={{ fontFamily: 'var(--font-data)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.email || user?.username}</span>
+            <span style={{ fontFamily: 'var(--font-data)', fontWeight: 600, minWidth: 0, overflowWrap: 'anywhere' }}>{user?.email || user?.username}</span>
             <span style={{ color: 'var(--text-2)' }}>Plan</span>
             <span style={{ fontWeight: 600, textTransform: 'capitalize' }}>{user?.plan || 'free'}</span>
             <span style={{ color: 'var(--text-2)' }}>Credits</span>
@@ -236,7 +240,9 @@ export function Settings() {
                 <span style={{ textTransform: 'uppercase', fontWeight: 600 }}>{user?.role}</span>
               </>
             )}
-            <div style={{ gridColumn: '1 / -1', marginTop: 'var(--s3)', paddingTop: 'var(--s4)', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 'var(--s3)' }}>
+            {/* flexWrap so the button drops onto its own line on a phone
+                instead of being squeezed flat against the card edge. */}
+            <div style={{ gridColumn: '1 / -1', marginTop: 'var(--s3)', paddingTop: 'var(--s4)', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 'var(--s3)', flexWrap: 'wrap' }}>
               <div>
                 <div style={{ fontWeight: 600, fontSize: 'var(--fs-sm)' }}>Welcome tour</div>
                 <div style={{ color: 'var(--text-3)', fontSize: 'var(--fs-xs)', marginTop: 2 }}>A quick orientation to Reel Reports, Profile Reports, and where everything lives.</div>

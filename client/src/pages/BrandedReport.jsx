@@ -4,7 +4,7 @@ import { apiFetch } from '../api/client';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import { Shimmer } from '../components/Shimmer';
-import { ReportThemeStyles, ReportSheet } from '../components/ReportSheet';
+import { ReportThemeStyles, ReportSheet, ThemeToggle } from '../components/ReportSheet';
 import { ProBadge } from '../components/ProBadge';
 
 // Standalone route (no Shell sidebar) -- this page IS the preview: what's on
@@ -63,6 +63,17 @@ export function BrandedReport() {
     addToast('Link copied', 'ok');
   };
 
+  // Renamed from "Download PDF": this opens the browser's own print sheet
+  // with Save-as-PDF as the destination, which is not what "Download"
+  // promises -- clients reported being surprised by a printer dialog. The
+  // toast says up front what's about to happen so the dialog isn't a
+  // surprise, and doubles as the place to mention the headers/footers
+  // setting that otherwise stamps a URL on every page.
+  const handleSavePdf = () => {
+    addToast('Opening your browser\'s save sheet. Pick "Save as PDF" as the destination, and turn off "Headers and footers" under More settings for a clean file.', 'accent');
+    setTimeout(() => window.print(), 400);
+  };
+
   const handleRevoke = async () => {
     setShareBusy(true);
     try {
@@ -85,7 +96,12 @@ export function BrandedReport() {
     );
   }
   if (!job || !branding) {
-    return <div style={{ padding: 'var(--s6)', maxWidth: '1000px', margin: '0 auto' }}><Shimmer height="500px" /></div>;
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 'var(--s4)', padding: 'var(--s6)', backgroundColor: 'var(--bg)' }}>
+        <Shimmer width="56px" height="56px" borderRadius="50%" />
+        <div style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)' }}>Loading report...</div>
+      </div>
+    );
   }
 
   const hasBranding = !!(branding.agencyName || branding.logoDataUri);
@@ -94,21 +110,32 @@ export function BrandedReport() {
     <div className={theme === 'dark' ? 'rl-report-dark' : 'rl-report-light'} style={{ minHeight: '100vh', backgroundColor: 'var(--surface-2)', padding: 'var(--s6) var(--s4)' }}>
       <ReportThemeStyles theme={theme} />
 
-      <div className="rl-print-hide" style={{ maxWidth: '1000px', margin: '0 auto var(--s3)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 'var(--s3)', flexWrap: 'wrap' }}>
-        <button className="btn btn-secondary" onClick={() => navigate(-1)}>← Back to report</button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s3)', flexWrap: 'wrap' }}>
+      <div className="rl-print-hide rl-report-topbar">
+        <button className="btn btn-ghost" onClick={() => navigate(-1)} title="Back to report" style={{ padding: '0 var(--s3)', flexShrink: 0 }}>
+          ← <span className="rl-label-full">Back to report</span>
+        </button>
+
+        <div className="rl-report-topbar-actions">
+          <ThemeToggle theme={theme} setTheme={setTheme} />
+          <button className="btn btn-primary" onClick={handleSavePdf} style={{ flexShrink: 0 }}>
+            <span className="rl-label-full">Save as PDF</span>
+            <span className="rl-label-short">PDF</span> ↓
+          </button>
+        </div>
+      </div>
+
+      <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
+        <div className="rl-print-hide" style={{ display: 'flex', alignItems: 'center', gap: 'var(--s2)', flexWrap: 'wrap', marginBottom: 'var(--s4)' }}>
           {!hasBranding && (
             <a href="/settings" className="chip warn" style={{ textDecoration: 'none' }}>
               Add your logo and agency name in Settings
             </a>
           )}
           {shareToken ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s2)' }}>
+            <>
               <button className="btn btn-secondary" disabled={shareBusy} onClick={handleCopyLink}>Copy shareable link</button>
-              <button type="button" className="btn btn-ghost" onClick={handleRevoke} disabled={shareBusy}>
-                Turn off
-              </button>
-            </div>
+              <button type="button" className="btn btn-ghost" onClick={handleRevoke} disabled={shareBusy}>Turn off</button>
+            </>
           ) : user?.features?.shareableLinks ? (
             <button className="btn btn-secondary" disabled={shareBusy} onClick={handleGetShareLink}>
               {shareBusy ? 'Creating link...' : 'Get shareable link'}
@@ -125,28 +152,7 @@ export function BrandedReport() {
               Shareable links <ProBadge />
             </a>
           )}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '2px', backgroundColor: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', padding: '3px' }}>
-            <button
-              type="button"
-              onClick={() => setTheme('light')}
-              style={{ height: '28px', padding: '0 12px', fontSize: 'var(--fs-xs)', fontWeight: theme === 'light' ? 700 : 400, borderRadius: 'var(--r-sm)', border: 'none', cursor: 'pointer', backgroundColor: theme === 'light' ? 'var(--surface-2)' : 'transparent', color: 'var(--text)' }}
-            >
-              ☀ Light
-            </button>
-            <button
-              type="button"
-              onClick={() => setTheme('dark')}
-              style={{ height: '28px', padding: '0 12px', fontSize: 'var(--fs-xs)', fontWeight: theme === 'dark' ? 700 : 400, borderRadius: 'var(--r-sm)', border: 'none', cursor: 'pointer', backgroundColor: theme === 'dark' ? 'var(--surface-2)' : 'transparent', color: 'var(--text)' }}
-            >
-              ● Dark
-            </button>
-          </div>
-          <button className="btn btn-primary" onClick={() => window.print()}>Download PDF ↓</button>
         </div>
-      </div>
-
-      <div className="rl-print-hide" style={{ maxWidth: '1000px', margin: '0 auto var(--s4)', textAlign: 'right', fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>
-        Tip: in the print dialog, open "More settings" and turn off "Headers and footers" to remove the browser's own date/URL stamp from the PDF.
       </div>
 
       <ReportSheet job={job} branding={branding} maxWidth="1000px" />
