@@ -54,7 +54,7 @@ export function Landing() {
           </div>
           <div className="hero-caption">
             {user ? (
-              <>Signed in. Not you? <button type="button" onClick={() => logout('/login')} style={{ background: 'none', border: 'none', padding: 0, color: 'var(--accent)', cursor: 'pointer', font: 'inherit', textDecoration: 'underline' }}>Switch account</button></>
+              <>Signed in. Not you? <button type="button" onClick={() => logout('/login')} className="rl-text-link">Switch account</button></>
             ) : (
               'Accounts are provisioned for agency clients.'
             )}
@@ -64,6 +64,31 @@ export function Landing() {
           <LedgerHero />
         </div>
       </section>
+
+      <div className="landing-section whats-new">
+        <div className="whats-new-badge">
+          <img src="/logo-mark-128.png" alt="" className="whats-new-logo" />
+        </div>
+        <div className="hero-eyebrow" style={{ textAlign: 'center' }}>NEW IN REELYTIC</div>
+        <h2 className="section-title">Built for handing reports straight to your client</h2>
+        <p style={{ textAlign: 'center', color: 'var(--text-2)', maxWidth: '640px', margin: '0 auto var(--s6)' }}>
+          Every report now leaves your workspace looking like it came from your agency, not a tool.
+        </p>
+        <div className="features-grid">
+          <div className="feature-card whats-new-card">
+            <div className="feature-title">Your branding, on every report</div>
+            <div className="feature-desc">Add your logo, accent color, and layout once in Settings. Every report you generate after that uses it automatically, no re-uploading.</div>
+          </div>
+          <div className="feature-card whats-new-card">
+            <div className="feature-title">Shareable client links</div>
+            <div className="feature-desc">Send a client a link straight to their report. No login, no export, no back-and-forth over email.</div>
+          </div>
+          <div className="feature-card whats-new-card">
+            <div className="feature-title">Light and dark, both polished</div>
+            <div className="feature-desc">Preview and download either variant of the same branded report, matched to what your client actually sees.</div>
+          </div>
+        </div>
+      </div>
 
       <div id="how-it-works" className="landing-section">
         <h2 className="section-title">How Reelytic works</h2>

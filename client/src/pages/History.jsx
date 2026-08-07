@@ -92,6 +92,15 @@ function ReportRow({ job, campaigns, onReassign, navigate }) {
                 <a className="btn btn-secondary" style={{ height: '28px', fontSize: 'var(--fs-xs)', lineHeight: '28px', padding: '0 10px' }} href={`/api/export/${job.id}.csv`} download>
                   .csv
                 </a>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ height: '28px', fontSize: 'var(--fs-xs)', padding: '0 10px' }}
+                  onClick={() => navigate(`/reports/${job.id}/branded`)}
+                  title="Preview a branded client report"
+                >
+                  Branded report
+                </button>
               </>
             )}
           </div>

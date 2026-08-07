@@ -6,6 +6,7 @@ const { hashPassword, generateTempPassword } = require('../utils/password');
 const { parseUserAgent } = require('../utils/ua');
 const config = require('../config');
 const { DEFAULT_PLANS } = require('./pricing.routes');
+const { FEATURE_KEYS } = require('../services/features.service');
 const { defaultsForNewUser, adjustCredits, setCredits } = require('../services/credits.service');
 const { generateClientLedgerExcel, generateClientLedgerCsv } = require('../services/export.service');
 const { getProfilePipelineMode, setProfilePipelineMode, PROFILE_PIPELINE_INFO, getV2FetchDepth, setV2FetchDepth } = require('../services/profilePipeline.service');
@@ -96,7 +97,7 @@ router.post('/clients', requireAdmin, async (req, res, next) => {
 router.patch('/clients/:username', requireAdmin, async (req, res, next) => {
   try {
     const targetUser = req.params.username.toLowerCase();
-    const { disabled, resetPassword, revokeSessions, creditsDelta, setCredits: setCreditsTo, plan, resetTour } = req.body;
+    const { disabled, resetPassword, revokeSessions, creditsDelta, setCredits: setCreditsTo, plan, resetTour, featureOverrides } = req.body;
     const db = getDb();
 
     const update = {};
@@ -126,6 +127,28 @@ router.patch('/clients/:username', requireAdmin, async (req, res, next) => {
     // makes it show more than once.
     if (resetTour) {
       update.hasSeenTour = false;
+    }
+    // Per-account feature override, independent of plan (e.g. a sales trial
+    // for a Starter account without changing their billing plan). Merged
+    // shallowly against whatever's already set rather than replaced wholesale
+    // -- a request touching just one key must not wipe the other. Written as
+    // a plain top-level field ($set: { featureOverrides: {...} }), not Mongo
+    // dot-notation, because the in-memory DB fallback's updateOne only does a
+    // literal Object.assign and would create a bogus "featureOverrides.x" key
+    // instead of a nested field.
+    if (featureOverrides && typeof featureOverrides === 'object') {
+      const existing = await db.collection('users').findOne({ username: targetUser });
+      if (!existing) return res.status(404).json({ error: 'Client not found' });
+      const merged = { ...(existing.featureOverrides || {}) };
+      for (const key of Object.keys(featureOverrides)) {
+        if (!FEATURE_KEYS.includes(key)) continue;
+        const val = featureOverrides[key];
+        // null explicitly clears the override back to "use the plan default"
+        // -- hasFeature() only branches on === true/false, so null falls
+        // through to the plan lookup exactly like an absent key would.
+        if (val === true || val === false || val === null) merged[key] = val;
+      }
+      update.featureOverrides = merged;
     }
 
     if (Object.keys(update).length > 0) {

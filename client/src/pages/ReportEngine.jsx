@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../api/client';
 import { FileDrop } from '../components/FileDrop';
 import { Shimmer } from '../components/Shimmer';
@@ -176,8 +176,8 @@ function ReelsAnalyzedCell({ res, onViewReels }) {
     <button
       type="button"
       onClick={() => onViewReels({ username: res.username, candidates: res.candidates, perReel: res.perReel })}
-      className="mono"
-      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent)', fontWeight: 700, padding: 0, textDecoration: 'underline', font: 'inherit' }}
+      className="rl-text-link"
+      style={{ fontFamily: 'var(--font-data)', fontWeight: 700 }}
       title="See which posts were considered and why"
     >
       {res.reelsAnalyzed}
@@ -320,6 +320,7 @@ function ResultsTable({ rows, type, scrollRef, onViewReels, onEditNote }) {
 export function ReportEngine({ type = 'reel' }) {
   const { addToast } = useToast();
   const { refreshUser } = useAuth();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const viewJobId = searchParams.get('job'); // set when opened from History -- view a specific past report
   const [isHistoryView, setIsHistoryView] = useState(false);
@@ -1128,7 +1129,7 @@ export function ReportEngine({ type = 'reel' }) {
           <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', marginTop: 'var(--s2)' }}>
             {ER_FORMULA[type]}
             {' · '}
-            <button type="button" onClick={() => setShowMethodology(true)} style={{ background: 'none', border: 'none', padding: 0, color: 'var(--accent)', cursor: 'pointer', font: 'inherit', textDecoration: 'underline' }}>
+            <button type="button" onClick={() => setShowMethodology(true)} className="rl-text-link">
               How is this calculated?
             </button>
           </div>
@@ -1157,6 +1158,9 @@ export function ReportEngine({ type = 'reel' }) {
               <a href={`/api/export/${jobId}.csv`} className="btn btn-secondary" download>
                 Download CSV ↓
               </a>
+              <button type="button" className="btn btn-secondary" onClick={() => navigate(`/reports/${jobId}/branded`)}>
+                Preview branded report
+              </button>
               {counts.failed > 0 && (
                 <button className="btn btn-secondary" onClick={handleRetryFailed}>
                   Retry failed ({counts.failed})
@@ -1251,7 +1255,7 @@ export function ReportEngine({ type = 'reel' }) {
           <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', marginTop: 'var(--s2)' }}>
             {ER_FORMULA[type]}
             {' · '}
-            <button type="button" onClick={() => setShowMethodology(true)} style={{ background: 'none', border: 'none', padding: 0, color: 'var(--accent)', cursor: 'pointer', font: 'inherit', textDecoration: 'underline' }}>
+            <button type="button" onClick={() => setShowMethodology(true)} className="rl-text-link">
               How is this calculated?
             </button>
           </div>

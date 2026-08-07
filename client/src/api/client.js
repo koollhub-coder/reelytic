@@ -5,6 +5,15 @@
 // Pricing, and Signup entirely).
 const PUBLIC_PATHS = ['/', '/login', '/signup', '/pricing', '/dev-unlock'];
 
+// /share/<token> takes a dynamic token per link, so it can't live in the
+// exact-match list above -- without this, AuthContext's routine /auth/me
+// check 401s for every signed-out visitor (which is the entire point of a
+// share link) and this same redirect bounced them straight to /login before
+// PublicReport ever got a chance to render.
+function isPublicPath(pathname) {
+  return PUBLIC_PATHS.includes(pathname) || pathname.startsWith('/share/');
+}
+
 export async function apiFetch(endpoint, options = {}) {
   const headers = options.headers || {};
   if (!(options.body instanceof FormData)) {
@@ -18,7 +27,7 @@ export async function apiFetch(endpoint, options = {}) {
 
   if (res.status === 401) {
     const data = await res.json().catch(() => ({}));
-    if (!PUBLIC_PATHS.includes(window.location.pathname)) {
+    if (!isPublicPath(window.location.pathname)) {
       const suffix = data.code === 'REVOKED' ? '?reason=revoked' : '';
       window.location.href = `/login${suffix}`;
       throw new Error(data.error || 'Session expired');

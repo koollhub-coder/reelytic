@@ -31,6 +31,8 @@ import { CostMonitor } from './pages/admin/CostMonitor';
 import { ScanSettings } from './pages/admin/ScanSettings';
 import { ProfileMethodology } from './pages/admin/ProfileMethodology';
 import { Dashboard } from './pages/Dashboard';
+import { BrandedReport } from './pages/BrandedReport';
+import { PublicReport } from './pages/PublicReport';
 import './styles/base.css';
 import './styles/components.css';
 import './styles/mobile.css';
@@ -79,7 +81,8 @@ function AlreadySignedIn() {
         <button
           type="button"
           onClick={logout}
-          style={{ background: 'none', border: 'none', color: 'var(--text-3)', fontSize: 'var(--fs-xs)', cursor: 'pointer', textDecoration: 'underline' }}
+          className="rl-text-link"
+          style={{ color: 'var(--text-3)', fontSize: 'var(--fs-xs)' }}
         >
           Not {displayName}? Log out and use a different account
         </button>
@@ -112,6 +115,13 @@ export function App() {
               <Route path="/dev-unlock" element={<DevUnlock />} />
               <Route path="/pricing" element={<Pricing />} />
               <Route path="/change-password" element={<ProtectedRoute><ForceChangePassword /></ProtectedRoute>} />
+              {/* Standalone, no Shell sidebar -- this is meant to be viewed
+                  and printed as a clean document, not as an app screen. */}
+              <Route path="/reports/:jobId/branded" element={<ProtectedRoute><BrandedReport /></ProtectedRoute>} />
+              {/* Public, unauthenticated -- this is the "anyone with the
+                  link" view a client with no Reelytic account opens. Must
+                  stay outside ProtectedRoute. */}
+              <Route path="/share/:token" element={<PublicReport />} />
 
               <Route element={<ProtectedRoute><Shell /></ProtectedRoute>}>
                 <Route path="/reels" element={<ReelReport />} />

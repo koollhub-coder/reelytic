@@ -1,10 +1,12 @@
 const express = require('express');
+const crypto = require('crypto');
 const router = express.Router();
 const { requireLogin, requireChangePasswordCheck } = require('../middleware/auth');
 const { getDb, queryId } = require('../db');
 const { startJob, pauseJob, resetJob, retryFailedRows } = require('../services/jobEngine.service');
 const { costForRun, costPerItem } = require('../services/credits.service');
 const { getActiveJobPointer, clearActiveJobPointer } = require('../services/activeJob.service');
+const { hasFeature } = require('../services/features.service');
 
 // Escapes regex special characters in free-text search input before it's
 // used to build a MongoDB $regex -- otherwise a search term like "a.b*c"
@@ -342,6 +344,62 @@ router.post('/:id/discard', requireLogin, requireChangePasswordCheck, async (req
     if (pointerId === req.params.id) {
       await clearActiveJobPointer(job.ownerUsername, job.type);
     }
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Turns on the public, unauthenticated view of this report (see
+// public.routes.js) by minting an opaque token -- deliberately not the job's
+// own _id, so the link can be revoked independently of the report itself and
+// isn't tied to whatever ID scheme the authenticated app happens to use.
+// Idempotent: a link already handed to a client (email, Slack) must keep
+// working on repeat clicks instead of silently rotating under them.
+router.post('/:id/share', requireLogin, requireChangePasswordCheck, async (req, res, next) => {
+  try {
+    const db = getDb();
+    const job = await db.collection('jobs').findOne({ _id: queryId(req.params.id) });
+    if (!job) return res.status(404).json({ error: 'Report not found' });
+    if (job.ownerUsername !== req.currentUser.username && req.currentUser.role !== 'admin') {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    let shareToken = job.shareToken;
+    if (!shareToken) {
+      // Minting a brand-new link requires the feature; a report that
+      // already has one keeps working below regardless -- same
+      // grandfathering rule as report branding (see settings.routes.js).
+      if (!(await hasFeature(req.currentUser, 'shareableLinks'))) {
+        return res.status(403).json({ error: 'Shareable links aren\'t available on your current plan. Upgrade to share reports with clients.', code: 'FEATURE_LOCKED' });
+      }
+      shareToken = crypto.randomBytes(16).toString('hex');
+      await db.collection('jobs').updateOne(
+        { _id: queryId(req.params.id) },
+        { $set: { shareToken, updatedAt: new Date() } }
+      );
+    }
+    res.json({ success: true, shareToken });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/:id/share/revoke', requireLogin, requireChangePasswordCheck, async (req, res, next) => {
+  try {
+    const db = getDb();
+    const job = await db.collection('jobs').findOne({ _id: queryId(req.params.id) });
+    if (!job) return res.status(404).json({ error: 'Report not found' });
+    if (job.ownerUsername !== req.currentUser.username && req.currentUser.role !== 'admin') {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    // $set to null rather than $unset -- the in-memory DB fallback (see
+    // db.js MemoryCollection.updateOne) only implements $set/$inc/$push, so
+    // $unset would silently no-op there and leave the link live.
+    await db.collection('jobs').updateOne(
+      { _id: queryId(req.params.id) },
+      { $set: { shareToken: null, updatedAt: new Date() } }
+    );
     res.json({ success: true });
   } catch (err) {
     next(err);

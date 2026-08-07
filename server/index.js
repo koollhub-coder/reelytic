@@ -14,6 +14,7 @@ const jobsRoutes = require('./routes/jobs.routes');
 const exportRoutes = require('./routes/export.routes');
 const settingsRoutes = require('./routes/settings.routes');
 const adminRoutes = require('./routes/admin.routes');
+const publicRoutes = require('./routes/public.routes');
 
 async function startServer() {
   const db = await connectDb();
@@ -62,6 +63,7 @@ async function startServer() {
   app.use('/api/pricing', require('./routes/pricing.routes'));
   app.use('/api/me', require('./routes/me.routes'));
   app.use('/api/campaigns', require('./routes/campaigns.routes'));
+  app.use('/api/public', publicRoutes);
 
   // Static client build in production
   const clientDist = path.join(__dirname, '../client/dist');

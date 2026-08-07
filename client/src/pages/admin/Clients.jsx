@@ -4,7 +4,18 @@ import { Modal } from '../../components/Modal';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { CopyButton } from '../../components/CopyButton';
 import { Shimmer } from '../../components/Shimmer';
+import { Select } from '../../components/Select';
 import { useToast } from '../../context/ToastContext';
+
+// override value -> Select value, and back. null/undefined (key never
+// touched) reads as "plan", matching hasFeature()'s fallback-to-plan rule.
+const OVERRIDE_OPTIONS = [
+  { value: 'plan', label: 'Plan default' },
+  { value: 'on', label: 'On (override)' },
+  { value: 'off', label: 'Off (override)' },
+];
+function overrideToSelect(v) { return v === true ? 'on' : v === false ? 'off' : 'plan'; }
+function selectToOverride(v) { return v === 'on' ? true : v === 'off' ? false : null; }
 
 export function Clients() {
   const { addToast } = useToast();
@@ -16,6 +27,9 @@ export function Clients() {
   const [creditModal, setCreditModal] = useState(null); // the client being adjusted
   const [creditMode, setCreditMode] = useState('add'); // 'add' | 'set'
   const [creditAmount, setCreditAmount] = useState('');
+  const [featureModal, setFeatureModal] = useState(null); // the client being adjusted
+  const [featureDraft, setFeatureDraft] = useState({ reportBranding: 'plan', shareableLinks: 'plan' });
+  const [featureSaving, setFeatureSaving] = useState(false);
 
   const fetchClients = () => {
     apiFetch('/admin/clients')
@@ -125,6 +139,37 @@ export function Clients() {
     }
   };
 
+  const openFeatureModal = (client) => {
+    const overrides = client.featureOverrides || {};
+    setFeatureModal(client);
+    setFeatureDraft({
+      reportBranding: overrideToSelect(overrides.reportBranding),
+      shareableLinks: overrideToSelect(overrides.shareableLinks),
+    });
+  };
+
+  const handleSaveFeatures = async () => {
+    setFeatureSaving(true);
+    try {
+      await apiFetch(`/admin/clients/${featureModal.username}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          featureOverrides: {
+            reportBranding: selectToOverride(featureDraft.reportBranding),
+            shareableLinks: selectToOverride(featureDraft.shareableLinks),
+          },
+        }),
+      });
+      addToast(`Feature access updated for ${featureModal.username}`, 'ok');
+      setFeatureModal(null);
+      fetchClients();
+    } catch (err) {
+      addToast(err.message || "Couldn't update feature access, try again", 'err');
+    } finally {
+      setFeatureSaving(false);
+    }
+  };
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 'var(--s3)', marginBottom: 'var(--s6)' }}>
@@ -168,6 +213,7 @@ export function Clients() {
                     <button className="btn btn-secondary" style={{ height: '28px', fontSize: 'var(--fs-xs)' }} onClick={() => openCreditModal(c)}>Credits</button>
                     <button className="btn btn-secondary" style={{ height: '28px', fontSize: 'var(--fs-xs)' }} onClick={() => handleResetPassword(c.username)}>Reset Pwd</button>
                     <button className="btn btn-secondary" style={{ height: '28px', fontSize: 'var(--fs-xs)' }} onClick={() => handleRevokeSessions(c.username)}>Revoke</button>
+                    <button className="btn btn-secondary" style={{ height: '28px', fontSize: 'var(--fs-xs)' }} onClick={() => openFeatureModal(c)}>Features</button>
                     <button
                       className="btn btn-secondary"
                       style={{ height: '28px', fontSize: 'var(--fs-xs)' }}
@@ -251,6 +297,40 @@ export function Clients() {
             <button type="submit" className="btn btn-primary">Apply</button>
           </div>
         </form>
+      </Modal>
+
+      {/* Per-account feature override, independent of plan. "Plan default"
+          means this account just gets whatever its plan grants -- see
+          features.service.js on the server for how the two combine. */}
+      <Modal isOpen={!!featureModal} onClose={() => setFeatureModal(null)} title="Feature access">
+        <p style={{ color: 'var(--text-2)', marginBottom: 'var(--s4)' }}>
+          Override plan-gated features for <strong>{featureModal?.username}</strong> (currently on the{' '}
+          <span style={{ textTransform: 'capitalize' }}>{featureModal?.plan || 'free'}</span> plan).
+        </p>
+
+        <div className="input-group">
+          <label className="input-label">Report branding (custom logo/colors)</label>
+          <Select
+            value={featureDraft.reportBranding}
+            onChange={(v) => setFeatureDraft((d) => ({ ...d, reportBranding: v }))}
+            options={OVERRIDE_OPTIONS}
+          />
+        </div>
+        <div className="input-group">
+          <label className="input-label">Shareable report links</label>
+          <Select
+            value={featureDraft.shareableLinks}
+            onChange={(v) => setFeatureDraft((d) => ({ ...d, shareableLinks: v }))}
+            options={OVERRIDE_OPTIONS}
+          />
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: 'var(--s4)' }}>
+          <button type="button" className="btn btn-secondary" onClick={() => setFeatureModal(null)}>Cancel</button>
+          <button type="button" className="btn btn-primary" disabled={featureSaving} onClick={handleSaveFeatures}>
+            {featureSaving ? 'Saving...' : 'Save'}
+          </button>
+        </div>
       </Modal>
 
       {/* New Client Modal */}

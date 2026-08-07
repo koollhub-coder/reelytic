@@ -17,6 +17,7 @@ const DEFAULT_PLANS = [
             'Email support',
         ],
         popular: false,
+        featureFlags: { reportBranding: false, shareableLinks: false },
     },
     {
         id: 'pro',
@@ -30,8 +31,11 @@ const DEFAULT_PLANS = [
             'Mix reels & profiles freely',
             'Full report history',
             'Priority email support',
+            'Custom-branded client reports',
+            'Shareable report links',
         ],
         popular: true,
+        featureFlags: { reportBranding: true, shareableLinks: true },
     },
     {
         id: 'agency',
@@ -45,8 +49,11 @@ const DEFAULT_PLANS = [
             'Mix reels & profiles freely',
             'Full report history',
             'Priority support + onboarding call',
+            'Custom-branded client reports',
+            'Shareable report links',
         ],
         popular: false,
+        featureFlags: { reportBranding: true, shareableLinks: true },
     },
 ];
 

@@ -5,9 +5,12 @@ const { comparePassword, hashPassword } = require('../utils/password');
 const { requireLogin } = require('../middleware/auth');
 const { parseUserAgent } = require('../utils/ua');
 const { defaultsForNewUser } = require('../services/credits.service');
+const { getUserFeatures } = require('../services/features.service');
 
-// Shared shape for anything we hand back to the client about the logged-in user.
-function publicUser(user) {
+// Shared shape for anything we hand back to the client about the logged-in
+// user. Async because feature flags depend on a plans lookup (see
+// features.service.js) -- every call site below already awaits this.
+async function publicUser(user) {
   return {
     username: user.username,
     role: user.role,
@@ -20,6 +23,11 @@ function publicUser(user) {
     // missing/undefined reads as "already seen", only an explicit false
     // (new signups, see defaultsForNewUser) triggers it.
     hasSeenTour: user.hasSeenTour !== false,
+    // Plan-gated feature access (report branding, shareable links) -- see
+    // features.service.js for how plan defaults + per-account overrides
+    // combine. Computed here so every page just reads user.features instead
+    // of re-deriving plan logic client-side.
+    features: await getUserFeatures(user),
   };
 }
 
@@ -87,7 +95,7 @@ router.post('/login', async (req, res, next) => {
     req.session.role = user.role;
     req.session.createdAt = new Date().toISOString();
 
-    res.json({ user: publicUser(user) });
+    res.json({ user: await publicUser(user) });
   } catch (err) {
     next(err);
   }
@@ -99,8 +107,12 @@ router.post('/logout', (req, res) => {
   });
 });
 
-router.get('/me', requireLogin, async (req, res) => {
-  res.json({ user: publicUser(req.currentUser) });
+router.get('/me', requireLogin, async (req, res, next) => {
+  try {
+    res.json({ user: await publicUser(req.currentUser) });
+  } catch (err) {
+    next(err);
+  }
 });
 
 // Marks the welcome tour as seen, whether the user finished it or skipped
@@ -154,7 +166,7 @@ router.patch('/username', requireLogin, async (req, res, next) => {
       return res.status(400).json({ error: '3-32 characters: letters, numbers, dots, underscores, or hyphens. Must start and end with a letter or number.' });
     }
     if (requested === req.currentUser.username) {
-      return res.json({ user: publicUser(req.currentUser) });
+      return res.json({ user: await publicUser(req.currentUser) });
     }
 
     const db = getDb();
@@ -188,7 +200,7 @@ router.patch('/username', requireLogin, async (req, res, next) => {
     req.session.username = requested;
     req.currentUser.username = requested;
 
-    res.json({ user: publicUser(req.currentUser) });
+    res.json({ user: await publicUser(req.currentUser) });
   } catch (err) {
     next(err);
   }
@@ -262,7 +274,7 @@ router.post('/signup', async (req, res, next) => {
     req.session.role = doc.role;
     req.session.createdAt = new Date().toISOString();
 
-    res.status(201).json({ user: publicUser(doc) });
+    res.status(201).json({ user: await publicUser(doc) });
   } catch (err) {
     next(err);
   }
@@ -352,7 +364,7 @@ router.post('/google', async (req, res, next) => {
     req.session.role = user.role;
     req.session.createdAt = new Date().toISOString();
 
-    res.json({ user: publicUser(user) });
+    res.json({ user: await publicUser(user) });
   } catch (err) {
     next(err);
   }

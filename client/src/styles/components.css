@@ -72,6 +72,26 @@
 .btn-block {
   width: 100%;
 }
+/* Inline text links (a clickable phrase sitting inside a sentence, e.g.
+   "Not you? Switch account" or "How is this calculated?") -- color alone is
+   the affordance, no permanent underline. A permanent underline on running
+   text is the one thing that reliably reads as "unstyled default browser
+   link," never as an intentional design choice; every polished SaaS
+   (Stripe, Linear, Notion) leaves inline links plain-colored at rest and
+   only underlines on hover, which is what this reproduces. */
+.rl-text-link {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: none;
+}
+.rl-text-link:hover {
+  text-decoration: underline;
+}
 .btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;

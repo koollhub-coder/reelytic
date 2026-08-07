@@ -32,6 +32,8 @@
 }
 
 .landing-hero {
+  position: relative;
+  overflow: hidden;
   max-width: 1200px;
   margin: 0 auto;
   padding: var(--s8) var(--s5);
@@ -39,6 +41,26 @@
   grid-template-columns: 1fr 1fr;
   gap: var(--s7);
   align-items: center;
+}
+/* A soft ambient glow behind the hero, not an image -- one radial-gradient
+   pseudo-element, GPU-composited, zero extra requests and no measurable
+   layout/paint cost. This is the one cheap trick that reliably reads as
+   "premium" (Stripe, Linear, Vercel all use some variant of it) instead of
+   a flat single-color background. */
+.landing-hero::before {
+  content: '';
+  position: absolute;
+  top: -25%;
+  right: -15%;
+  width: 65%;
+  height: 150%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 16%, transparent) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+.landing-hero > * {
+  position: relative;
+  z-index: 1;
 }
 /* Grid items default to min-width:auto (sized to their widest unbreakable
    child), NOT 0 -- the classic "grid blowout" trap. A long logged-in
@@ -91,6 +113,26 @@
   margin-top: var(--s3);
 }
 
+/* One-time entrance on page load, staggered -- not a scroll-triggered
+   animation (that needs an IntersectionObserver watching every section,
+   which is the kind of thing that starts janking scroll on a slow machine).
+   This is a single CSS animation that runs once and is done; no JS, no
+   ongoing cost. */
+.hero-eyebrow, .hero-title, .hero-sub, .hero-cta-group, .hero-caption {
+  animation: rl-fade-up 0.6s ease both;
+}
+.hero-title { animation-delay: 0.05s; }
+.hero-sub { animation-delay: 0.12s; }
+.hero-cta-group { animation-delay: 0.19s; }
+.hero-caption { animation-delay: 0.25s; }
+@keyframes rl-fade-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-eyebrow, .hero-title, .hero-sub, .hero-cta-group, .hero-caption { animation: none; }
+}
+
 .landing-section {
   max-width: 1200px;
   margin: 0 auto;
@@ -118,10 +160,23 @@
   border-radius: var(--r-lg);
   padding: var(--s6);
   box-shadow: var(--shadow);
+  transition: transform var(--t-fast), box-shadow var(--t-fast), border-color var(--t-fast);
+}
+.step-card:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--accent) 12%, transparent);
 }
 .step-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-full);
+  background: var(--accent-soft);
   font-family: var(--font-data);
-  font-size: var(--fs-xl);
+  font-size: var(--fs-md);
   color: var(--accent);
   margin-bottom: var(--s3);
   font-weight: 600;
@@ -149,6 +204,12 @@
   border-radius: var(--r-lg);
   padding: var(--s5);
   box-shadow: var(--shadow);
+  transition: transform var(--t-fast), box-shadow var(--t-fast), border-color var(--t-fast);
+}
+.feature-card:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--accent) 12%, transparent);
 }
 .feature-title {
   font-weight: 600;
@@ -158,6 +219,34 @@
 .feature-desc {
   color: var(--text-2);
   font-size: var(--fs-sm);
+}
+
+.whats-new-badge {
+  display: flex;
+  justify-content: center;
+  margin-bottom: var(--s3);
+}
+.whats-new-logo {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  animation: rl-float 4s ease-in-out infinite;
+  filter: drop-shadow(0 8px 20px color-mix(in srgb, var(--accent) 40%, transparent));
+}
+@keyframes rl-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+.whats-new-card {
+  transition: transform var(--t-fast), box-shadow var(--t-fast), border-color var(--t-fast);
+}
+.whats-new-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--accent);
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .whats-new-logo { animation: none; }
 }
 
 .time-band {

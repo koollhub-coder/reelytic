@@ -12,7 +12,34 @@ function emptyPlan() {
         blurb: '',
         features: [''],
         popular: false,
+        featureFlags: { reportBranding: false, shareableLinks: false },
     };
+}
+
+// Small labeled switch, reused for both "popular" and the per-plan feature
+// toggles below -- same on/off pill, just parameterized on label + state.
+function ToggleRow({ checked, onToggle, label }) {
+    return (
+        <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+            <div
+                onClick={onToggle}
+                style={{
+                    width: 40, height: 22, borderRadius: 11, cursor: 'pointer', flexShrink: 0,
+                    background: checked ? 'var(--accent)' : 'var(--border-strong)',
+                    position: 'relative', transition: 'background 200ms',
+                }}
+            >
+                <div style={{
+                    width: 18, height: 18, borderRadius: '50%', background: '#fff',
+                    position: 'absolute', top: 2,
+                    left: checked ? 20 : 2,
+                    transition: 'left 200ms',
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+                }} />
+            </div>
+            <span style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-2)' }}>{label}</span>
+        </label>
+    );
 }
 
 function MarginBadge({ pct }) {
@@ -42,6 +69,8 @@ function PlanCard({ plan, index, onChange, onRemove, marginPct, isOnly }) {
     };
     const addFeature = () => update('features', [...(plan.features || []), '']);
     const removeFeature = (i) => update('features', plan.features.filter((_, idx) => idx !== i));
+    const flags = plan.featureFlags || {};
+    const toggleFlag = (key) => update('featureFlags', { ...flags, [key]: !flags[key] });
 
     return (
         <div style={{
@@ -158,6 +187,18 @@ function PlanCard({ plan, index, onChange, onRemove, marginPct, isOnly }) {
                             <button type="button" className="btn btn-secondary" style={{ alignSelf: 'flex-start' }} onClick={addFeature}>
                                 + Add bullet
                             </button>
+                        </div>
+                    </div>
+
+                    {/* Feature access -- these actually gate the account (see
+                        server/services/features.service.js), unlike the
+                        feature bullets above which are just marketing copy
+                        on the pricing page. */}
+                    <div style={{ marginBottom: 'var(--s4)', paddingTop: 'var(--s3)', borderTop: '1px solid var(--border)' }}>
+                        <label style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-2)', fontWeight: 600, display: 'block', marginBottom: 10 }}>Feature access <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>(actually gates the account, not just marketing copy)</span></label>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            <ToggleRow checked={!!flags.reportBranding} onToggle={() => toggleFlag('reportBranding')} label="Report branding (custom logo/colors)" />
+                            <ToggleRow checked={!!flags.shareableLinks} onToggle={() => toggleFlag('shareableLinks')} label="Shareable report links" />
                         </div>
                     </div>
 
