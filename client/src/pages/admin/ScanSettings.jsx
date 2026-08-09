@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../../api/client';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
-import { Shimmer } from '../../components/Shimmer';
+import { BrandLoader } from '../../components/BrandLoader';
 import { useToast } from '../../context/ToastContext';
 
 // Fallback so a failed/incomplete API response never crashes the page (see
@@ -167,7 +167,7 @@ export function ScanSettings() {
     }
   };
 
-  if (loading) return <Shimmer height="400px" />;
+  if (loading) return <BrandLoader message="Loading scan settings..." />;
 
   if (error || !info || !reelInfo) {
     return (

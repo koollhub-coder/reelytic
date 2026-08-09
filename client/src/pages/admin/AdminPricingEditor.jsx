@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { apiFetch } from '../../api/client';
 import { useToast } from '../../context/ToastContext';
-import { Shimmer } from '../../components/Shimmer';
+import { BrandLoader } from '../../components/BrandLoader';
 
 function emptyPlan() {
     return {
@@ -293,7 +293,7 @@ export function AdminPricingEditor() {
         }
     };
 
-    if (!plans) return <Shimmer height="500px" />;
+    if (!plans) return <BrandLoader message="Loading pricing plans..." />;
 
     return (
         <div>

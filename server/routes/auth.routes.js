@@ -57,6 +57,19 @@ router.post('/login', async (req, res, next) => {
     const user = await db.collection('users').findOne({ $or: [{ username: cleanUser }, { email: cleanUser }] });
     const ua = parseUserAgent(req.headers['user-agent']);
 
+    // A Google-created account has no passwordHash at all, so every password
+    // attempt on it fell through to "username and password don't match" --
+    // which sends people off hunting for a password that has never existed.
+    // Name the actual situation instead. Deliberately only shown once the
+    // account has been found by an exact username/email match, so this can't
+    // be used to enumerate which addresses have accounts.
+    if (user && !user.passwordHash) {
+      return res.status(401).json({
+        error: 'This account signs in with Google. Use "Continue with Google" above.',
+        code: 'GOOGLE_ACCOUNT',
+      });
+    }
+
     if (!user || !(await comparePassword(password, user.passwordHash))) {
       // Record failed login
       await db.collection('loginHistory').insertOne({
@@ -179,7 +192,18 @@ router.patch('/username', requireLogin, async (req, res, next) => {
     }
 
     const previousUsername = req.currentUser.username;
-    await db.collection('users').updateOne({ _id: req.currentUser._id }, { $set: { username: requested } });
+
+    // Accounts provisioned by an admin (POST /admin/clients) store only a
+    // username -- if the admin used the client's email as that username, it
+    // is the ONLY copy of their email on the document. Renaming then erased
+    // it outright, and because login matches on username-or-email, the
+    // client could no longer sign in with the address they'd always used and
+    // got a flat "username and password don't match". Preserve it first.
+    const update = { username: requested };
+    if (!req.currentUser.email && EMAIL_RE.test(previousUsername)) {
+      update.email = previousUsername;
+    }
+    await db.collection('users').updateOne({ _id: req.currentUser._id }, { $set: update });
 
     // Every report, submitted-link, campaign, and usage-stat row is keyed by
     // username (not user._id), because that's what the rest of the app looks

@@ -21,7 +21,11 @@ export function Modal({ isOpen, onClose, title, children, width = '480px' }) {
       <div className="card rl-modal-sheet" style={{ width, maxWidth: '100%', maxHeight: '90vh', overflowY: 'auto', position: 'relative' }}>
         <div className="rl-modal-handle" style={{ display: 'none' }} aria-hidden="true" />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 700 }}>{title}</h3>
+          {/* Explicit color, not inherited: a modal opened from a page that
+              scopes its own --text (the report pages do) would otherwise
+              inherit body's already-computed global-theme color and render
+              near-white text on a light sheet. */}
+          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 700, color: 'var(--text)' }}>{title}</h3>
           <button onClick={onClose} aria-label="Close modal" className="rl-modal-close" style={{ fontSize: '18px', color: 'var(--text-3)', cursor: 'pointer', background: 'none', border: 'none' }}>✕</button>
         </div>
         {children}

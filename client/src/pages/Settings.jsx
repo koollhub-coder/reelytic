@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { PasswordInput } from '../components/PasswordInput';
 import { Select } from '../components/Select';
-import { ProBadge } from '../components/ProBadge';
+import { ProBadge, PREMIUM_FEATURES } from '../components/Premium';
 import { WelcomeTour } from '../components/WelcomeTour';
 import { apiFetch } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -291,18 +291,59 @@ export function Settings() {
             Your logo and color appear on branded client reports. Set this once, every report uses it after.
           </p>
 
-          {!user?.features?.reportBranding ? (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 'var(--s4)', background: 'linear-gradient(135deg, color-mix(in srgb, var(--accent) 8%, var(--surface)), var(--surface))', border: '1px solid color-mix(in srgb, var(--accent) 25%, var(--border))', borderRadius: 'var(--r-md)', padding: 'var(--s5)' }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s2)', marginBottom: '4px' }}>
-                  <span style={{ fontWeight: 600 }}>Custom logo, colors, and layout</span>
-                  <ProBadge />
+          {/* Locked state shows the real editor underneath, dimmed and
+              inert, with the upgrade card sitting over it. Seeing the thing
+              you'd be buying is the whole point -- an explanatory paragraph
+              in place of the form teaches nobody what branding actually
+              does. inert-by-CSS only, so the server gate (settings.routes.js)
+              is still the thing that actually enforces this. */}
+          <div style={{ position: 'relative' }}>
+          {!user?.features?.reportBranding && (
+            <>
+              <div
+                aria-hidden="true"
+                style={{
+                  position: 'absolute', inset: 0, zIndex: 2, borderRadius: 'var(--r-md)',
+                  background: 'linear-gradient(180deg, color-mix(in srgb, var(--surface) 55%, transparent), var(--surface) 60%)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              />
+              <div style={{
+                position: 'absolute', inset: 0, zIndex: 3,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'var(--s4)',
+              }}>
+                <div style={{
+                  textAlign: 'center', maxWidth: '380px',
+                  backgroundColor: 'var(--surface)',
+                  border: '1px solid var(--border-strong)',
+                  borderRadius: 'var(--r-lg)',
+                  boxShadow: '0 12px 32px rgba(0,0,0,0.18)',
+                  padding: 'var(--s6) var(--s5)',
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 'var(--s3)' }}>
+                    <ProBadge />
+                  </div>
+                  <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 700, marginBottom: 'var(--s2)' }}>
+                    {PREMIUM_FEATURES.reportBranding.title}
+                  </div>
+                  <div style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)', lineHeight: 1.6, marginBottom: 'var(--s5)' }}>
+                    {PREMIUM_FEATURES.reportBranding.description}
+                  </div>
+                  <a href="/pricing" className="btn btn-primary" style={{ width: '100%' }}>See plans</a>
+                  <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', marginTop: 'var(--s3)' }}>
+                    You're on <span style={{ textTransform: 'capitalize' }}>{user?.plan || 'free'}</span>. Included on Pro and Agency.
+                  </div>
                 </div>
-                <div style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)' }}>Available on Pro and Agency. Yours is currently on <span style={{ textTransform: 'capitalize' }}>{user?.plan || 'free'}</span>.</div>
               </div>
-              <a href="/pricing" className="btn btn-primary">View plans</a>
-            </div>
-          ) : (
+            </>
+          )}
+          <div
+            aria-hidden={!user?.features?.reportBranding}
+            style={!user?.features?.reportBranding
+              ? { pointerEvents: 'none', userSelect: 'none', filter: 'saturate(0.5)', opacity: 0.9 }
+              : undefined}
+          >
+          {(
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 'var(--s6)' }}>
           <div>
           {/* Live preview -- reflects unsaved changes as you make them, same
@@ -423,11 +464,11 @@ export function Settings() {
           </div>
           )}
 
-          {user?.features?.reportBranding && (
-            <button type="button" className="btn btn-primary" style={{ marginTop: 'var(--s5)' }} disabled={brandingSaving} onClick={handleBrandingSave}>
-              {brandingSaving ? 'Saving...' : 'Save branding'}
-            </button>
-          )}
+          <button type="button" className="btn btn-primary" style={{ marginTop: 'var(--s5)' }} disabled={brandingSaving || !user?.features?.reportBranding} onClick={handleBrandingSave}>
+            {brandingSaving ? 'Saving...' : 'Save branding'}
+          </button>
+          </div>
+          </div>
         </div>
       </div>
     </div>

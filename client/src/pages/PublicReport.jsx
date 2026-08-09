@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { apiFetch } from '../api/client';
 import { useToast } from '../context/ToastContext';
-import { Shimmer } from '../components/Shimmer';
+import { BrandLoader } from '../components/BrandLoader';
 import { ReportThemeStyles, ReportSheet, ThemeToggle } from '../components/ReportSheet';
 
 // The read-only view behind a "Get shareable link" URL (see BrandedReport.jsx
@@ -46,10 +46,7 @@ export function PublicReport() {
   }
   if (!job || !branding) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 'var(--s4)', padding: 'var(--s6)', backgroundColor: 'var(--bg)' }}>
-        <Shimmer width="56px" height="56px" borderRadius="50%" />
-        <div style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)' }}>Loading report...</div>
-      </div>
+      <BrandLoader variant="full" message="Loading report..." />
     );
   }
 
@@ -70,6 +67,18 @@ export function PublicReport() {
         </div>
         <div className="rl-report-topbar-actions">
           <ThemeToggle theme={theme} setTheme={setTheme} />
+          {/* A plain link, not an apiFetch call: the browser handles the
+              file save itself and the token in the URL is the only auth the
+              endpoint needs. Carries the report's own columns only, never
+              the agency's original uploaded sheet. */}
+          <a
+            className="btn btn-secondary"
+            href={`/api/public/reports/${token}/export.xlsx`}
+            style={{ flexShrink: 0, textDecoration: 'none' }}
+          >
+            <span className="rl-label-full">Download Excel</span>
+            <span className="rl-label-short">Excel</span> ↓
+          </a>
           <button className="btn btn-primary" onClick={handleSavePdf} style={{ flexShrink: 0 }}>
             <span className="rl-label-full">Save as PDF</span>
             <span className="rl-label-short">PDF</span> ↓

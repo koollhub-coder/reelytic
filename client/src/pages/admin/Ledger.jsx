@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../../api/client';
 import { CopyButton } from '../../components/CopyButton';
-import { Shimmer } from '../../components/Shimmer';
+import { BrandLoader } from '../../components/BrandLoader';
 import { Select } from '../../components/Select';
 
 const PAGE_SIZE = 50;
@@ -69,7 +69,7 @@ export function Ledger() {
       </div>
 
       {loading ? (
-        <Shimmer height="300px" />
+        <BrandLoader message="Loading ledger..." />
       ) : (
         <>
           <div className="data-table-container" style={{ marginBottom: 'var(--s4)' }}>

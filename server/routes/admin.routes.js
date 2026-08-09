@@ -78,6 +78,12 @@ router.post('/clients', requireAdmin, async (req, res, next) => {
 
     await db.collection('users').insertOne({
       username: cleanUser,
+      // Admins routinely provision clients using their email as the username.
+      // Storing it in `email` as well means the address survives a later
+      // username change (see PATCH /auth/username) and stays a valid login
+      // handle, instead of existing only as the username that just got
+      // renamed out from under them.
+      email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanUser) ? cleanUser : null,
       passwordHash,
       role: 'client',
       mustChangePassword: true,

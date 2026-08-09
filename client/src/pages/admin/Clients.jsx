@@ -3,7 +3,7 @@ import { apiFetch } from '../../api/client';
 import { Modal } from '../../components/Modal';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { CopyButton } from '../../components/CopyButton';
-import { Shimmer } from '../../components/Shimmer';
+import { BrandLoader } from '../../components/BrandLoader';
 import { Select } from '../../components/Select';
 import { useToast } from '../../context/ToastContext';
 
@@ -178,7 +178,7 @@ export function Clients() {
       </div>
 
       {loading ? (
-        <Shimmer height="300px" />
+        <BrandLoader message="Loading clients..." />
       ) : (
       <div className="data-table-container">
         <table className="data-table">

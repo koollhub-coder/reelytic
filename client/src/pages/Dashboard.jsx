@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../api/client';
 import { useAuth } from '../context/AuthContext';
-import { Shimmer } from '../components/Shimmer';
+import { BrandLoader } from '../components/BrandLoader';
 
 const cardStyle = {
     background: 'var(--surface)',
@@ -47,10 +47,7 @@ export function Dashboard() {
 
     if (!data) {
         return (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--s4)' }}>
-                <Shimmer height="120px" />
-                <Shimmer height="220px" />
-            </div>
+            <BrandLoader message="Loading your dashboard..." />
         );
     }
 

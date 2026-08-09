@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../../api/client';
-import { Shimmer } from '../../components/Shimmer';
+import { BrandLoader } from '../../components/BrandLoader';
 import { PROFILE_METHODOLOGY } from '../../content/profileMethodology';
 import { REEL_METHODOLOGY } from '../../content/reelMethodology';
 
@@ -50,7 +50,7 @@ export function ProfileMethodology() {
 
   const activeMethodBanner = (label, activeMode, activeInfo) => (
     <div className="card" style={{ marginBottom: 'var(--s5)', padding: 'var(--s5)' }}>
-      {loading ? <Shimmer height="24px" /> : error ? (
+      {loading ? <BrandLoader variant="inline" minHeight="60px" message="" /> : error ? (
         <span style={{ color: 'var(--err)', fontSize: 'var(--fs-sm)' }}>{error}</span>
       ) : (
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s2)', flexWrap: 'wrap' }}>

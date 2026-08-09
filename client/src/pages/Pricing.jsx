@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../api/client';
-import { Shimmer } from '../components/Shimmer';
+import { BrandLoader } from '../components/BrandLoader';
 import { Logo } from '../components/Logo';
 import { AccountMenu } from '../components/AccountMenu';
 import { useAuth } from '../context/AuthContext';
@@ -122,7 +122,7 @@ export function Pricing() {
     if (!plans) {
         return (
             <div style={{ maxWidth: 1080, margin: '0 auto', padding: 'var(--s6) var(--s4)' }}>
-                <Shimmer height="200px" />
+                <BrandLoader message="Loading plans..." />
             </div>
         );
     }

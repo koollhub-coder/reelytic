@@ -72,6 +72,29 @@
 .btn-block {
   width: 100%;
 }
+/* Loader animation, defined globally rather than inside BrandLoader's own
+   <style> block: the small inline spinners elsewhere (e.g. History's
+   "loading older reports" line) need these keyframes even when no
+   BrandLoader is mounted, and re-injecting identical <style> per loader
+   instance is wasted work. */
+@keyframes rl-loader-spin { to { transform: rotate(360deg); } }
+@keyframes rl-loader-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.07); }
+}
+.rl-loader-ring {
+  position: absolute;
+  inset: 0;
+  border: 2px solid color-mix(in srgb, var(--accent) 18%, transparent);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: rl-loader-spin 900ms linear infinite;
+}
+.rl-loader-mark img { animation: rl-loader-pulse 1800ms ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .rl-loader-ring, .rl-loader-mark img { animation: none; }
+}
+
 /* Inline text links (a clickable phrase sitting inside a sentence, e.g.
    "Not you? Switch account" or "How is this calculated?") -- color alone is
    the affordance, no permanent underline. A permanent underline on running

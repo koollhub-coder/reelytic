@@ -22,6 +22,7 @@ import { SessionsLog } from './pages/admin/SessionsLog';
 
 import { Shell } from './components/Shell';
 import { NotFound } from './components/NotFound';
+import { BrandLoader } from './components/BrandLoader';
 import { UsageSpend } from './pages/admin/UsageSpend';
 import { Pricing } from './pages/Pricing';
 import { BillingPlans } from './pages/BillingPlans';
@@ -39,7 +40,10 @@ import './styles/mobile.css';
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
-  if (loading) return null;
+  // Was `return null`, which meant a blank screen for the length of the
+  // /auth/me round trip -- right after the boot splash faded, so it read as
+  // the app failing to load rather than still working.
+  if (loading) return <BrandLoader variant="full" message="Loading your workspace..." />;
   if (!user) return <Navigate to="/login" replace />;
   if (user.mustChangePassword && window.location.pathname !== '/change-password') {
     return <Navigate to="/change-password" replace />;
@@ -93,7 +97,7 @@ function AlreadySignedIn() {
 
 function PublicRoute({ children }) {
   const { user, loading } = useAuth();
-  if (loading) return null;
+  if (loading) return <BrandLoader variant="full" message="Loading your workspace..." />;
   // A logged-in user landing on /login or /signup (bookmark, shared link,
   // etc) sees an explicit "continue as X, or switch accounts" screen instead
   // of being silently bounced straight to the workspace. Visiting / (Landing)

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { apiFetch } from '../../api/client';
 import { StatCard } from '../../components/StatCard';
-import { Shimmer } from '../../components/Shimmer';
+import { BrandLoader } from '../../components/BrandLoader';
 import { PipelineModeBanner } from '../../components/PipelineModeBanner';
 import { Modal } from '../../components/Modal';
 
@@ -58,10 +58,7 @@ export function UsageSpend() {
 
     if (loading) {
         return (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--s4)' }}>
-                <Shimmer height="120px" />
-                <Shimmer height="300px" />
-            </div>
+            <BrandLoader message="Loading usage data..." />
         );
     }
 
@@ -262,7 +259,7 @@ export function UsageSpend() {
 
             <Modal isOpen={!!drilldownUser} onClose={() => setDrilldownUser(null)} title={drilldownUser ? `${drilldownUser}: every item this cycle` : ''} width="720px">
                 {drilldownLoading ? (
-                    <Shimmer height="200px" />
+                    <BrandLoader variant="inline" message="Loading items..." />
                 ) : drilldownError ? (
                     <div style={{ color: 'var(--err)' }}>{drilldownError}</div>
                 ) : !drilldownItems || drilldownItems.length === 0 ? (

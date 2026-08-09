@@ -3,9 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../api/client';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
-import { Shimmer } from '../components/Shimmer';
+import { BrandLoader } from '../components/BrandLoader';
 import { ReportThemeStyles, ReportSheet, ThemeToggle } from '../components/ReportSheet';
-import { ProBadge } from '../components/ProBadge';
+import { LockedFeatureButton, PREMIUM_FEATURES } from '../components/Premium';
 
 // Standalone route (no Shell sidebar) -- this page IS the preview: what's on
 // screen is exactly what prints, no separate render path to drift out of
@@ -97,10 +97,7 @@ export function BrandedReport() {
   }
   if (!job || !branding) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 'var(--s4)', padding: 'var(--s6)', backgroundColor: 'var(--bg)' }}>
-        <Shimmer width="56px" height="56px" borderRadius="50%" />
-        <div style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)' }}>Loading report...</div>
-      </div>
+      <BrandLoader variant="full" message="Loading report..." />
     );
   }
 
@@ -126,11 +123,6 @@ export function BrandedReport() {
 
       <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
         <div className="rl-print-hide" style={{ display: 'flex', alignItems: 'center', gap: 'var(--s2)', flexWrap: 'wrap', marginBottom: 'var(--s4)' }}>
-          {!hasBranding && (
-            <a href="/settings" className="chip warn" style={{ textDecoration: 'none' }}>
-              Add your logo and agency name in Settings
-            </a>
-          )}
           {shareToken ? (
             <>
               <button className="btn btn-secondary" disabled={shareBusy} onClick={handleCopyLink}>Copy shareable link</button>
@@ -141,15 +133,24 @@ export function BrandedReport() {
               {shareBusy ? 'Creating link...' : 'Get shareable link'}
             </button>
           ) : (
+            // Same slot, same shape as the real button, just locked -- the
+            // feature reads as available-but-not-yours rather than missing.
+            <LockedFeatureButton label="Get shareable link" feature={PREMIUM_FEATURES.shareableLinks} />
+          )}
+
+          {/* A setup nudge, not a warning. Amber said "something is broken"
+              about an account that simply hasn't uploaded a logo yet. */}
+          {!hasBranding && (
             <a
-              href="/pricing"
+              href="/settings"
               style={{
-                display: 'inline-flex', alignItems: 'center', gap: 'var(--s2)', textDecoration: 'none',
-                fontSize: 'var(--fs-xs)', color: 'var(--text-2)', border: '1px solid var(--border-strong)',
-                borderRadius: 'var(--r-md)', padding: '6px 6px 6px 12px', backgroundColor: 'var(--surface)',
+                display: 'inline-flex', alignItems: 'center', gap: '6px', textDecoration: 'none',
+                fontSize: 'var(--fs-xs)', color: 'var(--text-2)',
+                padding: '0 var(--s2)', height: '36px',
               }}
             >
-              Shareable links <ProBadge />
+              <span style={{ color: 'var(--text-3)' }}>Using default branding.</span>
+              <span style={{ color: 'var(--accent)', fontWeight: 600 }}>Add your logo</span>
             </a>
           )}
         </div>

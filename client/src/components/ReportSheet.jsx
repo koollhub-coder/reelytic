@@ -1,4 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+
+// Big campaigns run into the hundreds of creators. Show a readable page at a
+// time on screen; the printed PDF and the Excel export always carry every row.
+const ROWS_PER_PAGE = 50;
 
 function formatCompactNumber(n) {
   if (n == null) return '0';
@@ -113,8 +117,12 @@ export function ReportThemeStyles({ theme }) {
         .rl-highlights-grid { grid-template-columns: 1fr; }
         .rl-section-pad { padding: var(--s4) !important; }
       }
+      /* On screen the table is paginated; on paper it is not. The rows are
+         always in the DOM so a printed or saved PDF carries the full list. */
+      .rl-row-paged-out { display: none; }
       @page { margin: 14mm 12mm; }
       @media print {
+        .rl-row-paged-out { display: table-row !important; }
         .rl-print-hide { display: none !important; }
         .rl-print-sheet { border: none !important; border-radius: 0 !important; max-width: 100% !important; }
         body { background: ${theme === 'dark' ? '#101216' : '#F7F6F3'} !important; }
@@ -169,6 +177,16 @@ export function ReportSheet({ job, branding, maxWidth = '1000px' }) {
   const avgEr = successRows.length > 0
     ? successRows.reduce((sum, r) => sum + (Number(r.result[isReel ? 'er' : 'avgEr']) || 0), 0) / successRows.length
     : 0;
+
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(successRows.length / ROWS_PER_PAGE));
+  const pageStart = (page - 1) * ROWS_PER_PAGE;
+
+  // A shorter report loading into a mounted sheet must not leave the reader
+  // stranded on a page that no longer exists.
+  useEffect(() => {
+    if (page > totalPages) setPage(1);
+  }, [page, totalPages]);
 
   return (
     <div className="rl-print-sheet" style={{ maxWidth, margin: '0 auto', backgroundColor: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', overflow: 'hidden' }}>
@@ -235,7 +253,14 @@ export function ReportSheet({ job, branding, maxWidth = '1000px' }) {
           </>
         )}
 
-        <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 'var(--s3)' }}>Creator breakdown</div>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 'var(--s3)', flexWrap: 'wrap', marginBottom: 'var(--s3)' }}>
+          <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Creator breakdown</div>
+          {totalPages > 1 && (
+            <div className="rl-print-hide" style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>
+              Showing {pageStart + 1}-{Math.min(pageStart + ROWS_PER_PAGE, successRows.length)} of {successRows.length}
+            </div>
+          )}
+        </div>
         <div style={{ overflowX: 'auto' }}>
           <table className="data-table" style={{ width: '100%' }}>
             <thead>
@@ -259,8 +284,14 @@ export function ReportSheet({ job, branding, maxWidth = '1000px' }) {
                 const res = row.result;
                 const er = isReel ? res.er : res.avgEr;
                 const isTop = insights && insights.hasSpread && insights.top.name === res.username;
+                // Off-page rows stay in the DOM and are hidden by CSS that
+                // reverses under @media print. Slicing the array instead
+                // would silently drop them from the saved PDF, and a client
+                // handed a report missing half its creators is a far worse
+                // failure than a slightly heavier DOM.
+                const onCurrentPage = i >= pageStart && i < pageStart + ROWS_PER_PAGE;
                 return (
-                  <tr key={i}>
+                  <tr key={i} className={onCurrentPage ? undefined : 'rl-row-paged-out'}>
                     <td className="mono" style={{ fontWeight: 600 }}>@{res.username}</td>
                     <td className="numeric mono">{(res.followers ?? 0).toLocaleString()}</td>
                     {isReel ? (
@@ -279,6 +310,16 @@ export function ReportSheet({ job, branding, maxWidth = '1000px' }) {
             </tbody>
           </table>
         </div>
+
+        {totalPages > 1 && (
+          <div className="rl-print-hide" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px', marginTop: 'var(--s4)', flexWrap: 'wrap' }}>
+            <button type="button" className="btn btn-secondary" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Previous</button>
+            <span style={{ display: 'flex', alignItems: 'center', padding: '0 8px', fontSize: 'var(--fs-sm)', fontFamily: 'var(--font-data)', color: 'var(--text-2)' }}>
+              Page {page} of {totalPages}
+            </span>
+            <button type="button" className="btn btn-secondary" disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Next</button>
+          </div>
+        )}
 
         <div style={{ borderTop: '1px solid var(--border)', marginTop: 'var(--s6)', paddingTop: 'var(--s3)', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 'var(--s2)', fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>
           <span>{showAgencyName ? `Prepared by ${agencyName} · Confidential` : 'Confidential'}</span>

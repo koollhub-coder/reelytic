@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../api/client';
-import { Shimmer } from '../components/Shimmer';
+import { BrandLoader } from '../components/BrandLoader';
 import { useAuth } from '../context/AuthContext';
 
 const ANNUAL_DISCOUNT = 0.9; // -10% for annual billing
@@ -162,7 +162,7 @@ export function BillingPlans() {
       `}</style>
 
             {!plans ? (
-                <Shimmer height="400px" />
+                <BrandLoader message="Loading plans..." />
             ) : (
                 <>
                     <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 'var(--s6)' }}>

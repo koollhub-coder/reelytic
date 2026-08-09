@@ -10,6 +10,69 @@
     <link rel="icon" type="image/png" sizes="64x64" href="/favicon-64.png" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="apple-touch-icon" href="/logo-mark-128.png" />
+    <link rel="preload" as="image" href="/logo-mark-128.png" />
+
+    <!--
+      Boot splash. Lives in the HTML, not React, because its whole job is to
+      cover the window BEFORE any JS has run: bundle download, parse, and on
+      a cold Render dyno the server wake-up too. Anything React-rendered is
+      by definition too late for that, which is why a first hit used to show
+      a bare background for several seconds.
+
+      Styles are inlined for the same reason (an external stylesheet is one
+      more round trip before first paint), and the colours are hardcoded
+      rather than var(--...) since tokens.css hasn't loaded yet. The
+      data-theme attribute is set by the script just below, before paint, so
+      the dark variant never flashes light first.
+    -->
+    <style>
+      #app-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #F7F6F3;
+        font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        transition: opacity 350ms ease;
+      }
+      html[data-theme="dark"] #app-splash { background-color: #101216; }
+      #app-splash.is-hidden { opacity: 0; pointer-events: none; }
+      .rl-splash-inner { display: flex; flex-direction: column; align-items: center; }
+      .rl-splash-mark {
+        position: relative;
+        width: 92px; height: 92px;
+        display: flex; align-items: center; justify-content: center;
+        margin-bottom: 20px;
+      }
+      .rl-splash-ring {
+        position: absolute; inset: 0;
+        border: 2px solid rgba(226, 62, 87, 0.16);
+        border-top-color: #E23E57;
+        border-radius: 50%;
+        animation: rl-splash-spin 900ms linear infinite;
+      }
+      .rl-splash-mark img {
+        width: 52px; height: 52px; object-fit: contain; display: block;
+        animation: rl-splash-pulse 1800ms ease-in-out infinite;
+      }
+      .rl-splash-word {
+        font-size: 21px; font-weight: 700; letter-spacing: -0.02em; color: #1A1C20;
+      }
+      html[data-theme="dark"] .rl-splash-word { color: #ECEDEF; }
+      .rl-splash-word span { color: #E23E57; }
+      .rl-splash-hint { margin-top: 8px; font-size: 12px; color: #8B8F98; }
+      html[data-theme="dark"] .rl-splash-hint { color: #6E747F; }
+      @keyframes rl-splash-spin { to { transform: rotate(360deg); } }
+      @keyframes rl-splash-pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.07); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .rl-splash-ring, .rl-splash-mark img { animation: none; }
+      }
+    </style>
     <script>
       (function() {
         try {
@@ -18,11 +81,34 @@
           if (stored === 'dark' || (!stored && prefersDark)) {
             document.documentElement.setAttribute('data-theme', 'dark');
           }
+          // A shared report link is opened by the agency's client, who has no
+          // workspace of their own -- "Loading your workspace" would be the
+          // wrong first words for them. Runs before paint, so the wording is
+          // never seen changing.
+          if (location.pathname.indexOf('/share/') === 0) {
+            document.addEventListener('DOMContentLoaded', function () {
+              const hint = document.querySelector('.rl-splash-hint');
+              if (hint) hint.textContent = 'Loading report...';
+            });
+          }
         } catch (e) {}
       })();
     </script>
   </head>
   <body>
+    <!-- Sibling of #root, not a child: React's createRoot does not clear
+         pre-existing children, so a splash inside #root would sit under the
+         app forever. main.jsx fades and removes this once React has painted. -->
+    <div id="app-splash">
+      <div class="rl-splash-inner">
+        <div class="rl-splash-mark">
+          <div class="rl-splash-ring"></div>
+          <img src="/logo-mark-128.png" alt="" width="52" height="52" />
+        </div>
+        <div class="rl-splash-word">R<span>e</span>elytic</div>
+        <div class="rl-splash-hint">Loading your workspace...</div>
+      </div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

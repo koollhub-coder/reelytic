@@ -31,11 +31,24 @@ router.get('/', requireLogin, requireChangePasswordCheck, async (req, res, next)
         resolvedUsername: { $regex: escapeRegex(creator), $options: 'i' },
       }).project({ jobId: 1 }).toArray();
       const matchingJobIds = new Set(matches.map((m) => m.jobId));
-      if (matchingJobIds.size === 0) return res.json({ jobs: [] });
+      if (matchingJobIds.size === 0) return res.json({ jobs: [], total: 0, page: 1, limit: 100, hasMore: false });
       query._id = { $in: [...matchingJobIds].map((id) => queryId(id)) };
     }
 
-    const jobs = await db.collection('jobs').find(query).sort({ createdAt: -1 }).limit(100).toArray();
+    // Paged, not a flat .limit(100). The old hard cap meant an account with
+    // more than 100 reports simply could not reach the older ones -- they
+    // weren't paginated, they were unreachable. Defaults keep the previous
+    // page-one behaviour for any caller that doesn't pass params.
+    const page = Math.max(1, parseInt(req.query.page || '1', 10) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit || '100', 10) || 100));
+
+    const total = await db.collection('jobs').countDocuments(query);
+    const jobs = await db.collection('jobs')
+      .find(query)
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .toArray();
 
     const slim = jobs.map(j => ({
       id: j._id,
@@ -50,7 +63,7 @@ router.get('/', requireLogin, requireChangePasswordCheck, async (req, res, next)
       campaignId: j.campaignId || null
     }));
 
-    res.json({ jobs: slim });
+    res.json({ jobs: slim, total, page, limit, hasMore: page * limit < total });
   } catch (err) {
     next(err);
   }

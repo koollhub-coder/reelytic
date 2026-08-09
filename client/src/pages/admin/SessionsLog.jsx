@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../../api/client';
-import { Shimmer } from '../../components/Shimmer';
+import { BrandLoader } from '../../components/BrandLoader';
 
 const PAGE_SIZE = 50;
 
@@ -33,7 +33,7 @@ export function SessionsLog() {
       <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-2xl)', fontWeight: 700, marginBottom: 'var(--s6)' }}>Sessions & Login Log</h1>
 
       {loading ? (
-        <Shimmer height="300px" />
+        <BrandLoader message="Loading sessions..." />
       ) : (
         <>
           <div className="data-table-container" style={{ marginBottom: 'var(--s4)' }}>

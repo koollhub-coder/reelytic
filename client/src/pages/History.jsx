@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../api/client';
 import { EmptyState } from '../components/EmptyState';
-import { Shimmer } from '../components/Shimmer';
+import { BrandLoader } from '../components/BrandLoader';
 import { Modal } from '../components/Modal';
 import { Select } from '../components/Select';
 import { useToast } from '../context/ToastContext';
@@ -287,21 +287,77 @@ export function History() {
   // nothing, trapping the user with no way to clear it.
   const [hasAnyReports, setHasAnyReports] = useState(false);
 
+  // Older pages stream in behind the first one rather than the page waiting
+  // on the full set. Tracked so the run can be abandoned when the filter
+  // changes or the page unmounts mid-stream, otherwise a stale background
+  // fetch would append the previous filter's reports over the new results.
+  const [loadingMore, setLoadingMore] = useState(false);
+  const loadRunId = useRef(0);
+
+  const PAGE_SIZE = 100;
+
   const load = useCallback((creator = '') => {
-    const jobsQs = creator ? `?creator=${encodeURIComponent(creator)}` : '';
-    Promise.all([apiFetch(`/jobs${jobsQs}`), apiFetch('/campaigns')])
+    const runId = ++loadRunId.current;
+    const qs = (page) => {
+      const params = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) });
+      if (creator) params.set('creator', creator);
+      return `/jobs?${params.toString()}`;
+    };
+
+    setLoading(true);
+    Promise.all([apiFetch(qs(1)), apiFetch('/campaigns')])
       .then(([jobsRes, campaignsRes]) => {
-        setJobs(jobsRes.jobs || []);
+        if (runId !== loadRunId.current) return;
+        const firstPage = jobsRes.jobs || [];
+        setJobs(firstPage);
         setCampaigns(campaignsRes.campaigns || []);
         setUncategorizedRollup(campaignsRes.uncategorized || null);
         setExpandedIds(new Set((campaignsRes.campaigns || []).map((c) => c.id)));
-        if (!creator) setHasAnyReports((jobsRes.jobs || []).length > 0);
+        if (!creator) setHasAnyReports(firstPage.length > 0);
+        setLoading(false);
+
+        // Page one is on screen and interactive at this point; the rest
+        // arrives underneath it without another spinner.
+        if (jobsRes.hasMore) {
+          setLoadingMore(true);
+          const drain = async () => {
+            let page = 2;
+            let more = true;
+            while (more && runId === loadRunId.current) {
+              try {
+                const res = await apiFetch(qs(page));
+                if (runId !== loadRunId.current) return;
+                const batch = res.jobs || [];
+                if (batch.length) {
+                  // Guard against duplicates: a report created while paging
+                  // shifts everything down a slot, which would otherwise
+                  // re-append rows already on screen.
+                  setJobs((prev) => {
+                    const seen = new Set(prev.map((j) => j.id));
+                    return [...prev, ...batch.filter((j) => !seen.has(j.id))];
+                  });
+                }
+                more = !!res.hasMore;
+                page += 1;
+              } catch {
+                more = false;
+              }
+            }
+            if (runId === loadRunId.current) setLoadingMore(false);
+          };
+          drain();
+        }
       })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+      .catch(() => {
+        if (runId === loadRunId.current) setLoading(false);
+      });
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    // Abandons any in-flight background paging when the page unmounts.
+    return () => { loadRunId.current += 1; };
+  }, [load]);
 
   // Debounced: search by creator hits the server (it has to join against
   // every report's individual rows, not just job-level fields), so wait for
@@ -418,12 +474,25 @@ export function History() {
         </div>
       )}
 
-      {loading ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--s3)' }}>
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Shimmer key={i} height="52px" borderRadius="10px" />
-          ))}
+      {/* Quiet, non-blocking: the list is already usable, this just explains
+          why rows are still appearing underneath. */}
+      {!loading && loadingMore && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s2)', fontSize: 'var(--fs-xs)', color: 'var(--text-3)', marginBottom: 'var(--s3)' }}>
+          <span
+            aria-hidden="true"
+            style={{
+              width: '12px', height: '12px', borderRadius: '50%', flexShrink: 0,
+              border: '2px solid color-mix(in srgb, var(--accent) 25%, transparent)',
+              borderTopColor: 'var(--accent)',
+              animation: 'rl-loader-spin 900ms linear infinite',
+            }}
+          />
+          Loading older reports...
         </div>
+      )}
+
+      {loading ? (
+        <BrandLoader message="Loading your reports..." />
       ) : !hasAnyReports ? (
         <EmptyState
           icon="⏱️"

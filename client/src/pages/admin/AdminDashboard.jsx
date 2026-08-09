@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../../api/client';
 import { StatCard } from '../../components/StatCard';
-import { Shimmer } from '../../components/Shimmer';
+import { BrandLoader } from '../../components/BrandLoader';
 
 export function AdminDashboard() {
   const [data, setData] = useState(null);
@@ -16,10 +16,7 @@ export function AdminDashboard() {
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--s4)' }}>
-        <Shimmer height="120px" />
-        <Shimmer height="300px" />
-      </div>
+      <BrandLoader message="Loading dashboard..." />
     );
   }
 

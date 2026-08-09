@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { apiFetch } from '../../api/client';
 import { useToast } from '../../context/ToastContext';
-import { Shimmer } from '../../components/Shimmer';
+import { BrandLoader } from '../../components/BrandLoader';
 import { PipelineModeBanner } from '../../components/PipelineModeBanner';
 
 const REFRESH_MS = 60000;
@@ -60,7 +60,7 @@ export function CostMonitor() {
         );
     }
 
-    if (!data) return <Shimmer height="500px" />;
+    if (!data) return <BrandLoader message="Loading cost data..." />;
 
     const rate = data.usdToInr;
 

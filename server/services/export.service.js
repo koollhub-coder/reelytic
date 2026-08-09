@@ -285,6 +285,55 @@ async function generateClientLedgerExcel(username, entries) {
   return await workbook.xlsx.writeBuffer();
 }
 
+/*
+  The branded report's own table, and only that -- the creator breakdown a
+  client actually sees on the shared page, not the full original sheet with
+  every column they uploaded. Feeds the Download Excel button on the public
+  share view, so the person receiving the link can take the numbers away
+  without asking the agency to re-export anything.
+*/
+async function generateSharedReportExcel({ job, branding }) {
+  const isReel = job.type === 'reel';
+  const rows = (job.rows || []).filter((r) => r.state === 'done' && r.result && r.result.username);
+  const agency = (branding && branding.agencyName) || 'Reelytic';
+
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet('Report'.slice(0, 31));
+
+  const titleRow = sheet.addRow([job.fileName || (isReel ? 'Reel Report' : 'Profile Report')]);
+  titleRow.font = { bold: true, size: 14, name: 'Inter', color: { argb: 'C4225A' } };
+  sheet.mergeCells(titleRow.number, 1, titleRow.number, 6);
+
+  const preparedOn = new Date(job.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  const metaRow = sheet.addRow([`Prepared by ${agency} on ${preparedOn} - ${rows.length} ${isReel ? 'reels' : 'profiles'} analyzed`]);
+  metaRow.font = { size: 10, name: 'Inter', color: { argb: '6B7280' } };
+  sheet.mergeCells(metaRow.number, 1, metaRow.number, 6);
+  sheet.addRow([]);
+
+  const headers = isReel
+    ? ['Creator', 'Followers', 'Views', 'Likes', 'Comments', 'Engagement rate']
+    : ['Creator', 'Followers', 'Avg views', 'Engagement rate'];
+
+  const headerRowIndex = sheet.lastRow.number + 1;
+  styleHeaderRow(sheet.addRow(headers));
+
+  rows.forEach((r) => {
+    const res = r.result;
+    const er = (isReel ? res.er : res.avgEr) ?? 0;
+    const values = isReel
+      ? [`@${res.username}`, res.followers ?? 0, res.views ?? 0, res.likes ?? 0, res.comments ?? 0, er / 100]
+      : [`@${res.username}`, res.followers ?? 0, res.avgViews ?? 0, er / 100];
+    styleDataRow(sheet.addRow(values), 'success');
+  });
+
+  applyNumberFormats(sheet, isReel ? { thousands: [2, 3, 4, 5], percent: [6] } : { thousands: [2, 3], percent: [4] });
+  writeFooter(sheet);
+  autoFitColumns(sheet);
+  sheet.views = [{ state: 'frozen', ySplit: headerRowIndex }];
+
+  return await workbook.xlsx.writeBuffer();
+}
+
 function generateClientLedgerCsv(username, entries) {
   const csvRow = (vals) => vals.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',') + '\n';
   let csv = csvRow(clientLedgerHeaders());
@@ -355,4 +404,4 @@ function autoFitColumns(sheet) {
   });
 }
 
-module.exports = { generateExcelExport, generateCsvExport, generateClientLedgerExcel, generateClientLedgerCsv };
+module.exports = { generateExcelExport, generateCsvExport, generateClientLedgerExcel, generateClientLedgerCsv, generateSharedReportExcel };
