@@ -4,6 +4,7 @@ import { apiFetch } from '../api/client';
 import { useToast } from '../context/ToastContext';
 import { BrandLoader } from '../components/BrandLoader';
 import { ReportThemeStyles, ReportSheet, ThemeToggle } from '../components/ReportSheet';
+import { ProBadge } from '../components/Premium';
 
 // The read-only view behind a "Get shareable link" URL (see BrandedReport.jsx
 // and jobs.routes.js POST /:id/share). No login, no session -- whoever holds
@@ -23,6 +24,20 @@ export function PublicReport() {
   // Same honest framing as the authenticated preview: this hands off to the
   // browser's own save sheet, so say so before the dialog appears rather
   // than letting a printer UI ambush someone who expected a file.
+  /*
+    PDF download is not built yet, so it is presented as locked rather than
+    pretending. Clicking the browser's print sheet was never a download, and
+    a client told us so twice.
+
+    Shown, not hidden: a greyed control with a lock reads as "coming", while
+    an absent one reads as "this product cannot do that". Same reasoning as
+    the plan-gated controls in Premium.jsx. Delete this and restore
+    handleSavePdf once server-side rendering exists.
+  */
+  const handlePdfLocked = () => {
+    addToast("PDF download is coming soon. For now, use Download Excel or your browser's print option.", 'accent');
+  };
+
   const handleSavePdf = () => {
     addToast('Choose "Save as PDF" as the destination.', 'accent');
     setTimeout(() => window.print(), 400);
@@ -98,9 +113,17 @@ export function PublicReport() {
             <span className="rl-label-full">Download Excel</span>
             <span className="rl-label-short">Excel</span> ↓
           </a>
-          <button className="btn btn-primary" onClick={handleSavePdf} style={{ flexShrink: 0 }}>
-            <span className="rl-label-full">Save as PDF</span>
-            <span className="rl-label-short">PDF</span> ↓
+          <button
+            className="btn btn-secondary"
+            onClick={handlePdfLocked}
+            title="PDF download is coming soon"
+            style={{ flexShrink: 0, gap: 'var(--s2)', color: 'var(--text-3)' }}
+          >
+            <span style={{ color: 'var(--text-2)' }}>
+              <span className="rl-label-full">Save as PDF</span>
+              <span className="rl-label-short">PDF</span>
+            </span>
+            <ProBadge label="Soon" />
           </button>
         </div>
       </div>

@@ -497,7 +497,7 @@ export function ReportSheet({ job, branding, context = {}, maxWidth = '1000px' }
 
         <div style={{ borderTop: '1px solid var(--border)', marginTop: 'var(--s6)', paddingTop: 'var(--s3)', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 'var(--s2)', fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>
           <span>{showAgencyName ? `Prepared by ${agencyName} · Confidential` : 'Confidential'}</span>
-          <span>Data compiled via Reelytic</span>
+
         </div>
       </div>
     </div>

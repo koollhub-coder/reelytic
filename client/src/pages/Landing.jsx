@@ -72,12 +72,12 @@ export function Landing() {
         <div className="hero-eyebrow" style={{ textAlign: 'center' }}>NEW IN REELYTIC</div>
         <h2 className="section-title">Everything a client report needs, already handled</h2>
         <p style={{ textAlign: 'center', color: 'var(--text-2)', maxWidth: '660px', margin: '0 auto var(--s6)' }}>
-          {/* Says exactly what the report does. The old line claimed nothing in
-              it named a tool, while the footer plainly reads "Data compiled via
-              Reelytic". A client spotting that is a client who stops believing
-              the rest of the page. */}
-          Your logo, your colours, your layout on every page. The only mention of us is one
-          quiet line in the footer.
+          {/* True again: the Reelytic credit has been taken off the report
+              footer, so the claim and the artefact now agree. An agency
+              forwarding this to a brand should not have to explain who we
+              are, and some of them would simply not send it if they did. */}
+          Your logo, your colours, your layout on every page. Our name appears nowhere on
+          the report your client receives.
         </p>
         <div className="features-grid">
           <div className="feature-card whats-new-card">
