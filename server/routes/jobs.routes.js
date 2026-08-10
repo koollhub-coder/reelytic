@@ -7,12 +7,37 @@ const { startJob, pauseJob, resetJob, retryFailedRows } = require('../services/j
 const { costForRun, costPerItem } = require('../services/credits.service');
 const { getActiveJobPointer, clearActiveJobPointer } = require('../services/activeJob.service');
 const { hasFeature } = require('../services/features.service');
+const { buildReportContext } = require('../services/reportContext.service');
 
 // Escapes regex special characters in free-text search input before it's
 // used to build a MongoDB $regex -- otherwise a search term like "a.b*c"
 // would be interpreted as a pattern instead of literal text.
 function escapeRegex(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/*
+  Loads a job and confirms the caller is allowed to act on it, returning null
+  after already sending the response when they are not.
+
+  Being logged in is NOT the same as owning the report. Several routes here
+  mutate or spend against a job found by id alone: start and retry-failed
+  burn Apify credits, pause/resume/reset disrupt a run in progress. Without
+  an owner check, one agency could spend or break another's report by
+  guessing an id. Every route that touches a job by id goes through here.
+*/
+async function loadOwnedJob(req, res) {
+  const db = getDb();
+  const job = await db.collection('jobs').findOne({ _id: queryId(req.params.id) });
+  if (!job) {
+    res.status(404).json({ error: 'Report not found' });
+    return null;
+  }
+  if (job.ownerUsername !== req.currentUser.username && req.currentUser.role !== 'admin') {
+    res.status(403).json({ error: 'Forbidden' });
+    return null;
+  }
+  return job;
 }
 
 router.get('/', requireLogin, requireChangePasswordCheck, async (req, res, next) => {
@@ -168,7 +193,9 @@ router.get('/:id', requireLogin, requireChangePasswordCheck, async (req, res, ne
     if (job.ownerUsername !== req.currentUser.username && req.currentUser.role !== 'admin') {
       return res.status(403).json({ error: 'Forbidden' });
     }
-    res.json({ job });
+    // Benchmark and previous-campaign comparison, computed server-side so
+    // this and the public share view can never show different figures.
+    res.json({ job, context: await buildReportContext(job) });
   } catch (err) {
     next(err);
   }
@@ -176,9 +203,8 @@ router.get('/:id', requireLogin, requireChangePasswordCheck, async (req, res, ne
 
 router.get('/:id/rows', requireLogin, requireChangePasswordCheck, async (req, res, next) => {
   try {
-    const db = getDb();
-    const job = await db.collection('jobs').findOne({ _id: queryId(req.params.id) });
-    if (!job) return res.status(404).json({ error: 'Report not found' });
+    const job = await loadOwnedJob(req, res);
+    if (!job) return undefined;
 
     const page = parseInt(req.query.page || '1', 10);
     const limit = 50;
@@ -210,8 +236,8 @@ router.patch('/:id/columns', requireLogin, requireChangePasswordCheck, async (re
   try {
     const { renames, removed, order } = req.body;
     const db = getDb();
-    const job = await db.collection('jobs').findOne({ _id: queryId(req.params.id) });
-    if (!job) return res.status(404).json({ error: 'Report not found' });
+    const job = await loadOwnedJob(req, res);
+    if (!job) return undefined;
     if (job.status !== 'preview') return res.status(400).json({ error: 'Can only edit columns in preview state' });
 
     let cols = job.originalColumns || [];
@@ -250,8 +276,8 @@ router.patch('/:id/columns', requireLogin, requireChangePasswordCheck, async (re
 router.post('/:id/start', requireLogin, requireChangePasswordCheck, async (req, res, next) => {
   try {
     const db = getDb();
-    const job = await db.collection('jobs').findOne({ _id: queryId(req.params.id) });
-    if (!job) return res.status(404).json({ error: 'Report not found' });
+    const job = await loadOwnedJob(req, res);
+    if (!job) return undefined;
 
     const validRowsCount = job.rows.filter(r => r.state !== 'invalid' && r.state !== 'duplicate' && r.state !== 'skipped').length;
 
@@ -308,6 +334,7 @@ router.post('/:id/start', requireLogin, requireChangePasswordCheck, async (req, 
 
 router.post('/:id/pause', requireLogin, requireChangePasswordCheck, async (req, res, next) => {
   try {
+    if (!(await loadOwnedJob(req, res))) return undefined;
     await pauseJob(req.params.id);
     res.json({ success: true, status: 'paused' });
   } catch (err) {
@@ -317,6 +344,7 @@ router.post('/:id/pause', requireLogin, requireChangePasswordCheck, async (req, 
 
 router.post('/:id/resume', requireLogin, requireChangePasswordCheck, async (req, res, next) => {
   try {
+    if (!(await loadOwnedJob(req, res))) return undefined;
     await startJob(req.params.id);
     res.json({ success: true, status: 'running' });
   } catch (err) {
@@ -326,6 +354,7 @@ router.post('/:id/resume', requireLogin, requireChangePasswordCheck, async (req,
 
 router.post('/:id/reset', requireLogin, requireChangePasswordCheck, async (req, res, next) => {
   try {
+    if (!(await loadOwnedJob(req, res))) return undefined;
     await resetJob(req.params.id);
     res.json({ success: true, status: 'preview' });
   } catch (err) {
@@ -369,16 +398,59 @@ router.post('/:id/discard', requireLogin, requireChangePasswordCheck, async (req
 // isn't tied to whatever ID scheme the authenticated app happens to use.
 // Idempotent: a link already handed to a client (email, Slack) must keep
 // working on repeat clicks instead of silently rotating under them.
+// Longest allowed window. A link with no ceiling is one an agency forgets
+// about, which is the whole problem expiry exists to solve; a year is well
+// past any campaign's useful life while still feeling unlimited in practice.
+const MAX_SHARE_HOURS = 24 * 365;
+
+/*
+  Turns the request's expiry choice into a concrete Date, or null for "never".
+
+  Accepts an hour count rather than a client-supplied timestamp on purpose:
+  a raw date from the browser is the caller's clock, not the server's, and a
+  skewed or hand-edited one would silently produce a link that outlives what
+  the UI promised. The server owns the arithmetic.
+*/
+function resolveShareExpiry(body) {
+  const raw = body && body.expiresInHours;
+  if (raw === null || raw === undefined || raw === '' || raw === 'never') return { value: null };
+
+  const hours = Number(raw);
+  if (!Number.isFinite(hours) || hours <= 0) {
+    return { error: 'Pick how long this link should stay active.' };
+  }
+  if (hours > MAX_SHARE_HOURS) {
+    return { error: 'A link can stay active for at most one year.' };
+  }
+  return { value: new Date(Date.now() + hours * 3600 * 1000) };
+}
+
+function shareState(job) {
+  return {
+    shareToken: job.shareToken || null,
+    shareExpiresAt: job.shareExpiresAt || null,
+    shareViews: job.shareViews || 0,
+    shareLastViewedAt: job.shareLastViewedAt || null,
+  };
+}
+
 router.post('/:id/share', requireLogin, requireChangePasswordCheck, async (req, res, next) => {
   try {
     const db = getDb();
-    const job = await db.collection('jobs').findOne({ _id: queryId(req.params.id) });
-    if (!job) return res.status(404).json({ error: 'Report not found' });
-    if (job.ownerUsername !== req.currentUser.username && req.currentUser.role !== 'admin') {
-      return res.status(403).json({ error: 'Forbidden' });
-    }
+    const job = await loadOwnedJob(req, res);
+    if (!job) return undefined;
+
+    const expiry = resolveShareExpiry(req.body);
+    if (expiry.error) return res.status(400).json({ error: expiry.error });
+
+    // Whether the caller actually asked about expiry at all. Re-copying an
+    // existing link must not silently reset its window to "never" just
+    // because the request body left the field out.
+    const expirySpecified = req.body && Object.prototype.hasOwnProperty.call(req.body, 'expiresInHours');
 
     let shareToken = job.shareToken;
+    const update = { updatedAt: new Date() };
+
     if (!shareToken) {
       // Minting a brand-new link requires the feature; a report that
       // already has one keeps working below regardless -- same
@@ -387,12 +459,32 @@ router.post('/:id/share', requireLogin, requireChangePasswordCheck, async (req, 
         return res.status(403).json({ error: 'Shareable links aren\'t available on your current plan. Upgrade to share reports with clients.', code: 'FEATURE_LOCKED' });
       }
       shareToken = crypto.randomBytes(16).toString('hex');
-      await db.collection('jobs').updateOne(
-        { _id: queryId(req.params.id) },
-        { $set: { shareToken, updatedAt: new Date() } }
-      );
+      update.shareToken = shareToken;
+      update.shareExpiresAt = expiry.value;
+      // A reissued link starts its counter clean rather than inheriting
+      // opens from a previous link on the same report.
+      update.shareViews = 0;
+      update.shareLastViewedAt = null;
+    } else if (expirySpecified) {
+      update.shareExpiresAt = expiry.value;
     }
-    res.json({ success: true, shareToken });
+
+    await db.collection('jobs').updateOne({ _id: queryId(req.params.id) }, { $set: update });
+
+    res.json({ success: true, ...shareState({ ...job, ...update }) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Read-only share status for the share dialog. Separate from POST /share so
+// opening the dialog to look at the current settings can't itself mint a
+// link the agency never asked for.
+router.get('/:id/share', requireLogin, requireChangePasswordCheck, async (req, res, next) => {
+  try {
+    const job = await loadOwnedJob(req, res);
+    if (!job) return undefined;
+    res.json(shareState(job));
   } catch (err) {
     next(err);
   }
@@ -401,17 +493,14 @@ router.post('/:id/share', requireLogin, requireChangePasswordCheck, async (req, 
 router.post('/:id/share/revoke', requireLogin, requireChangePasswordCheck, async (req, res, next) => {
   try {
     const db = getDb();
-    const job = await db.collection('jobs').findOne({ _id: queryId(req.params.id) });
-    if (!job) return res.status(404).json({ error: 'Report not found' });
-    if (job.ownerUsername !== req.currentUser.username && req.currentUser.role !== 'admin') {
-      return res.status(403).json({ error: 'Forbidden' });
-    }
+    const job = await loadOwnedJob(req, res);
+    if (!job) return undefined;
     // $set to null rather than $unset -- the in-memory DB fallback (see
     // db.js MemoryCollection.updateOne) only implements $set/$inc/$push, so
     // $unset would silently no-op there and leave the link live.
     await db.collection('jobs').updateOne(
       { _id: queryId(req.params.id) },
-      { $set: { shareToken: null, updatedAt: new Date() } }
+      { $set: { shareToken: null, shareExpiresAt: null, updatedAt: new Date() } }
     );
     res.json({ success: true });
   } catch (err) {
@@ -419,8 +508,17 @@ router.post('/:id/share/revoke', requireLogin, requireChangePasswordCheck, async
   }
 });
 
+// Retrying re-scrapes the failed rows, which spends the OWNER's credits. The
+// ownership check is therefore not optional: without it any logged-in account
+// could burn another agency's balance just by guessing a job id.
 router.post('/:id/retry-failed', requireLogin, requireChangePasswordCheck, async (req, res, next) => {
   try {
+    const db = getDb();
+    const job = await db.collection('jobs').findOne({ _id: queryId(req.params.id) });
+    if (!job) return res.status(404).json({ error: 'Report not found' });
+    if (job.ownerUsername !== req.currentUser.username && req.currentUser.role !== 'admin') {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
     await retryFailedRows(req.params.id);
     res.json({ success: true, status: 'running' });
   } catch (err) {

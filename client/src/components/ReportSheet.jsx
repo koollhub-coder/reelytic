@@ -11,12 +11,71 @@ function formatCompactNumber(n) {
   return String(Math.round(n));
 }
 
+/*
+  An engagement rate above this is treated as unreliable rather than
+  exceptional, so it can never be named a report's best performer.
+
+  A pipeline bug (see the estimator note in server/services/metrics.service.js)
+  produced stored rates as high as 1363.9%, and because "top performer" was a
+  plain max, the most broken row in a report was the one presented to the
+  client in green as its best result. The server fix stops new rows like that
+  being written; this stops the ones already in the database being celebrated.
+
+  100 is the line. For a reel the rate is engagement over views, so above 100%
+  is arithmetically impossible. For a profile it is engagement over followers,
+  where above 100% is possible for a creator whose reach outruns their
+  following, but in this data every such row came from the estimator bug, and
+  a rate that high in front of a client always means the follower count is
+  stale rather than the campaign being spectacular. Once the source is fixed,
+  genuinely viral creators land in the 25-55% range.
+
+  Rows above the line keep their place in the table and in the totals. They
+  are only barred from being ranked or from setting the headline.
+
+  MUST stay in step with MAX_PLAUSIBLE_ER in
+  server/services/reportContext.service.js, or the summary tile and the
+  benchmark sentence directly beneath it compute their medians over different
+  row sets and visibly disagree.
+*/
+const MAX_PLAUSIBLE_ER = 100;
+
+/*
+  Whether a stored row actually identifies its creator.
+
+  Historic rows carry the literal string "undefined" (167 of them) because an
+  upstream actor returned no owner and the old code stringified it; new rows
+  store null instead (see resolveUsername in metrics.service.js). Both mean
+  the same thing, so both are treated the same way here.
+*/
+function hasCreatorName(result) {
+  if (!result) return false;
+  const u = result.username;
+  if (u === undefined || u === null) return false;
+  const s = String(u).trim();
+  return s !== '' && s !== 'undefined' && s !== 'null';
+}
+
+// A row whose creator never resolved is still a real measurement of a real
+// reel, so it stays in the report and in the totals. It just says so, rather
+// than being labelled "@undefined" in front of a client.
+function creatorLabel(result) {
+  return hasCreatorName(result) ? `@${result.username}` : 'Creator not identified';
+}
+
+function median(values) {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.floor((sorted.length - 1) / 2)];
+}
+
 // Mirrors ReportEngine.jsx's computeReportInsights exactly -- these numbers
 // must never disagree with what the client already saw on the live results
 // screen. Duplicated rather than shared to avoid touching that file for this
 // addition; keep both in sync if the ranking logic ever changes.
 function computeReportInsights(rows, type) {
-  const successful = rows.filter((r) => r.state === 'done' && r.result && r.result.username);
+  // Not filtered on username any more: a row that resolved its metrics but
+  // not its creator is still part of this report.
+  const successful = rows.filter((r) => r.state === 'done' && r.result);
   if (successful.length < 2) return null;
 
   const viewsKey = type === 'reel' ? 'views' : 'avgViews';
@@ -28,8 +87,18 @@ function computeReportInsights(rows, type) {
   const erList = successful.map((r) => Number(r.result[erKey]) || 0);
   const avgViews = viewsList.reduce((a, b) => a + b, 0) / viewsList.length;
   const avgEr = erList.reduce((a, b) => a + b, 0) / erList.length;
+  // Median alongside the mean, and it is the median the report actually
+  // shows. Matches server/services/reportContext.service.js so the summary
+  // tile and the benchmark line beneath it cannot contradict each other.
+  const medianEr = median(erList.filter((v) => v > 0 && v <= MAX_PLAUSIBLE_ER));
 
-  const eligible = successful.filter((r) => (Number(r.result[viewsKey]) || 0) > 0);
+  // A creator can only be ranked on a rate we believe. Rows outside the
+  // plausible range stay in the table and in the totals; they just cannot be
+  // held up as the best or worst performer.
+  const eligible = successful.filter((r) => {
+    const er = Number(r.result[erKey]) || 0;
+    return (Number(r.result[viewsKey]) || 0) > 0 && er > 0 && er <= MAX_PLAUSIBLE_ER;
+  });
   let top = null, bottom = null, hasSpread = false;
   if (eligible.length >= 2) {
     const topRow = eligible.reduce((best, r) => ((Number(r.result[erKey]) || 0) > (Number(best.result[erKey]) || 0) ? r : best));
@@ -37,7 +106,11 @@ function computeReportInsights(rows, type) {
     if (topRow !== bottomRow) { top = pick(topRow); bottom = pick(bottomRow); hasSpread = true; }
   }
 
-  return { count: successful.length, avgViews, avgEr, top, bottom, hasSpread };
+  // Surfaced so the report can say plainly that some rows were left out of
+  // the ranking, rather than silently dropping them.
+  const unreliable = successful.filter((r) => (Number(r.result[erKey]) || 0) > MAX_PLAUSIBLE_ER).length;
+
+  return { count: successful.length, avgViews, avgEr, medianEr, top, bottom, hasSpread, unreliable };
 }
 
 function StatTile({ label, value }) {
@@ -156,10 +229,46 @@ export function ThemeToggle({ theme, setTheme }) {
 // sees. Shared between BrandedReport.jsx (the authenticated preview, with
 // its editing toolbar) and PublicReport.jsx (the read-only view behind a
 // share link) so the two can never visually drift apart.
-export function ReportSheet({ job, branding, maxWidth = '1000px' }) {
+/*
+  The verdict sentence for each benchmark standing.
+
+  Worded so it reads as information rather than a grade. This document goes
+  to the agency's own client, and "below the median" is a fact they can act
+  on; "underperforming" is a judgement on work they paid for.
+*/
+const STANDING_COPY = {
+  'top-quarter': 'That puts this roster in the top quarter for its size.',
+  'above-median': 'That is above the median for its size.',
+  'in-line': 'That is in line with the median for its size.',
+  'below-median': 'That is below the median for its size.',
+  'bottom-quarter': 'That places this roster in the bottom quarter for its size.',
+};
+
+/*
+  A single up/down figure against the previous report.
+
+  Green for up and grey for down, never red. A campaign with fewer creators
+  than last time is a decision the agency made, not a failure, and colouring
+  it as an error would put a red mark on their own client-facing document.
+*/
+function DeltaStat({ label, change }) {
+  if (change === null || change === undefined) return null;
+  const up = change > 0;
+  const flat = Math.abs(change) < 0.05;
+  return (
+    <div>
+      <div style={{ fontSize: '10.5px', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-3)', marginBottom: '2px' }}>{label}</div>
+      <div className="mono" style={{ fontWeight: 700, color: flat ? 'var(--text-2)' : (up ? 'var(--ok)' : 'var(--text-2)') }}>
+        {flat ? 'No change' : `${up ? '▲' : '▼'} ${Math.abs(change).toFixed(1)}%`}
+      </div>
+    </div>
+  );
+}
+
+export function ReportSheet({ job, branding, context = {}, maxWidth = '1000px' }) {
   const isReel = job.type === 'reel';
   const insights = computeReportInsights(job.rows, job.type);
-  const successRows = job.rows.filter((r) => r.state === 'done' && r.result && r.result.username);
+  const successRows = job.rows.filter((r) => r.state === 'done' && r.result);
   const accent = branding.accentColor || '#E23E57';
   const agencyName = branding.agencyName || 'Your agency';
   const logoPosition = branding.logoPosition || 'left';
@@ -174,9 +283,23 @@ export function ReportSheet({ job, branding, maxWidth = '1000px' }) {
   const totalFollowers = !isReel
     ? successRows.reduce((sum, r) => sum + (Number(r.result.followers) || 0), 0)
     : null;
-  const avgEr = successRows.length > 0
-    ? successRows.reduce((sum, r) => sum + (Number(r.result[isReel ? 'er' : 'avgEr']) || 0), 0) / successRows.length
-    : 0;
+  /*
+    The headline rate is a MEDIAN, and the tile says so.
+
+    It was a plain mean, which let a single broken row define the number a
+    client sees: one creator stored at 1201% engagement pushed a real report's
+    headline from roughly 3.5% to 70.2%. The median moves by a fraction of a
+    point in the same situation, and it is what the benchmark line below the
+    tile already compares against, so the two now agree by construction.
+  */
+  // Computed here rather than read off `insights`, which is null for a report
+  // with fewer than two creators. A one-creator report still has a rate, and
+  // showing it 0.0% would be a new wrong number in place of the old one.
+  const typicalEr = median(
+    successRows
+      .map((r) => Number(r.result[isReel ? 'er' : 'avgEr']) || 0)
+      .filter((v) => v > 0 && v <= MAX_PLAUSIBLE_ER)
+  );
 
   const [page, setPage] = useState(1);
   const totalPages = Math.max(1, Math.ceil(successRows.length / ROWS_PER_PAGE));
@@ -222,18 +345,61 @@ export function ReportSheet({ job, branding, maxWidth = '1000px' }) {
             <>
               <StatTile label="Total views" value={formatCompactNumber(totalViews)} />
               <StatTile label="Total engagement" value={formatCompactNumber(totalEngagement)} />
-              <StatTile label="Average ER" value={`${avgEr.toFixed(1)}%`} />
+              <StatTile label="Typical ER" value={`${typicalEr.toFixed(1)}%`} />
               <StatTile label="Reels analyzed" value={successRows.length} />
             </>
           ) : (
             <>
               <StatTile label="Combined followers" value={formatCompactNumber(totalFollowers)} />
               <StatTile label="Avg views / reel" value={formatCompactNumber(totalViews / (successRows.length || 1))} />
-              <StatTile label="Average ER" value={`${avgEr.toFixed(1)}%`} />
+              <StatTile label="Typical ER" value={`${typicalEr.toFixed(1)}%`} />
               <StatTile label="Profiles analyzed" value={successRows.length} />
             </>
           )}
         </div>
+
+        {(context.benchmark || context.previous) && (
+          <>
+            <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 'var(--s3)' }}>Context</div>
+            <div style={{ border: '1px solid var(--border)', borderLeft: `3px solid ${accent}`, padding: 'var(--s4)', marginBottom: 'var(--s6)' }}>
+              {context.benchmark && (
+                <div style={{ fontSize: 'var(--fs-sm)', color: 'var(--text)', lineHeight: 1.65 }}>
+                  {/* "Median creator", said explicitly. The Summary tile above
+                      shows a mean, and two different averages on one page
+                      must not look like the same number disagreeing with
+                      itself. */}
+                  The median creator in this report sits at{' '}
+                  <strong className="mono">{context.benchmark.reportEr.toFixed(1)}%</strong> engagement, against{' '}
+                  <strong className="mono">{context.benchmark.median.toFixed(1)}%</strong> for creators {context.benchmark.bandLabel}.
+                  {' '}{STANDING_COPY[context.benchmark.standing] || ''}
+                  {/* The sample size is stated because a benchmark without
+                      one is an assertion rather than a measurement. */}
+                  <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', marginTop: '4px' }}>
+                    Based on {context.benchmark.sampleSize.toLocaleString()} creators measured across Reelytic, using medians so one unusual account cannot move the figure.
+                  </div>
+                </div>
+              )}
+
+              {context.previous && (
+                <div style={{
+                  fontSize: 'var(--fs-sm)', color: 'var(--text)', lineHeight: 1.65,
+                  marginTop: context.benchmark ? 'var(--s4)' : 0,
+                  paddingTop: context.benchmark ? 'var(--s4)' : 0,
+                  borderTop: context.benchmark ? '1px solid var(--border)' : 'none',
+                }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--s5)' }}>
+                    <DeltaStat label="Engagement rate" change={context.previous.medianEr.changePct} suffix="" />
+                    <DeltaStat label="Total views" change={context.previous.totalViews.changePct} suffix="" />
+                    <DeltaStat label="Creators" change={context.previous.creators.changePct} suffix="" />
+                  </div>
+                  <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', marginTop: 'var(--s2)' }}>
+                    Compared with {context.previous.comparedTo}, the previous report in this campaign.
+                  </div>
+                </div>
+              )}
+            </div>
+          </>
+        )}
 
         {showHighlights && insights && insights.hasSpread && (
           <>
@@ -283,7 +449,7 @@ export function ReportSheet({ job, branding, maxWidth = '1000px' }) {
               {successRows.map((row, i) => {
                 const res = row.result;
                 const er = isReel ? res.er : res.avgEr;
-                const isTop = insights && insights.hasSpread && insights.top.name === res.username;
+                const isTop = insights && insights.hasSpread && hasCreatorName(res) && insights.top.name === res.username;
                 // Off-page rows stay in the DOM and are hidden by CSS that
                 // reverses under @media print. Slicing the array instead
                 // would silently drop them from the saved PDF, and a client
@@ -292,7 +458,7 @@ export function ReportSheet({ job, branding, maxWidth = '1000px' }) {
                 const onCurrentPage = i >= pageStart && i < pageStart + ROWS_PER_PAGE;
                 return (
                   <tr key={i} className={onCurrentPage ? undefined : 'rl-row-paged-out'}>
-                    <td className="mono" style={{ fontWeight: 600 }}>@{res.username}</td>
+                    <td className="mono" style={{ fontWeight: 600, color: hasCreatorName(res) ? undefined : 'var(--text-3)' }}>{creatorLabel(res)}</td>
                     <td className="numeric mono">{(res.followers ?? 0).toLocaleString()}</td>
                     {isReel ? (
                       <>

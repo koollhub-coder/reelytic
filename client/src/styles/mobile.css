@@ -105,6 +105,10 @@
   /* Grids whose desktop minmax()/fixed columns are wider than a phone.
      Collapsing to one column is the intended wrap behaviour. */
   .rl-stack-mobile { grid-template-columns: 1fr !important; }
+  /* The branding editor is a fixed two-column grid on desktop (so the right
+     column doesn't run out of content and leave dead space); on a phone it
+     has to become one column like everything else. */
+  .rl-branding-grid { grid-template-columns: 1fr !important; }
 
   /* Bare <table>s that lack .data-table-container get their own bounded
      horizontal scroll here, so a wide table never scrolls the whole page.

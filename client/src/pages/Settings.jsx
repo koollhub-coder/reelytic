@@ -344,13 +344,20 @@ export function Settings() {
               : undefined}
           >
           {(
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 'var(--s6)' }}>
-          <div>
+          /* Two explicit columns with the preview spanning both.
+
+             It used to be a plain auto-fit grid with the preview stacked on
+             top of the left column, which left the right column two fields
+             short and opened a large dead area at the bottom right of the
+             card. Spanning the preview also happens to be more honest: what
+             it previews is a report header, and that runs the full width of
+             the real report. */
+          <div className="rl-branding-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--s5) var(--s6)', alignItems: 'start' }}>
           {/* Live preview -- reflects unsaved changes as you make them, same
               draft-before-commit pattern as any theme/branding editor: you
               see the effect immediately, saving is a separate, deliberate
               step so nothing changes on a stray click. */}
-          <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--r-md)', backgroundColor: 'var(--surface-2)', padding: 'var(--s4)', marginBottom: 'var(--s5)' }}>
+          <div style={{ gridColumn: '1 / -1', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', backgroundColor: 'var(--surface-2)', padding: 'var(--s4)' }}>
             <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 'var(--s3)' }}>Preview</div>
             <div style={{
               display: 'flex', alignItems: 'center', gap: 'var(--s3)', paddingBottom: 'var(--s3)', borderBottom: `3px solid ${branding.accentColor}`,
@@ -372,6 +379,8 @@ export function Settings() {
             </div>
           </div>
 
+          {/* Column 1 */}
+          <div>
           <div className="input-group">
             <label className="input-label" htmlFor="branding-agency-name">Agency name</label>
             <input

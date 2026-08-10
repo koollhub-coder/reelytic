@@ -6,6 +6,23 @@ import { useAuth } from '../context/AuthContext';
 import { BrandLoader } from '../components/BrandLoader';
 import { ReportThemeStyles, ReportSheet, ThemeToggle } from '../components/ReportSheet';
 import { LockedFeatureButton, PREMIUM_FEATURES } from '../components/Premium';
+import { ShareDialog, LinkIcon } from '../components/ShareDialog';
+
+// The one-line summary next to "Manage shareable link". Expiry is stated as
+// a date rather than a countdown, so it stays true whether the page has been
+// open for a second or an hour.
+function linkStatusLabel({ shareExpiresAt, shareViews }) {
+  const opens = shareViews > 0
+    ? `${shareViews} ${shareViews === 1 ? 'open' : 'opens'}`
+    : 'Not opened yet';
+
+  if (!shareExpiresAt) return `Link is live, never expires · ${opens}`;
+
+  const when = new Date(shareExpiresAt);
+  if (when.getTime() <= Date.now()) return `Link expired ${when.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} · ${opens}`;
+
+  return `Expires ${when.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} · ${opens}`;
+}
 
 // Standalone route (no Shell sidebar) -- this page IS the preview: what's on
 // screen is exactly what prints, no separate render path to drift out of
@@ -20,6 +37,7 @@ export function BrandedReport() {
   const { user } = useAuth();
   const [job, setJob] = useState(null);
   const [branding, setBranding] = useState(null);
+  const [context, setContext] = useState({});
   const [error, setError] = useState('');
   // Independent of the app's global theme (ThemeContext) -- a client-facing
   // report shouldn't flip based on whatever mode the agency user happens to
@@ -28,8 +46,8 @@ export function BrandedReport() {
   // "download the light variant" works: there's no separate render path,
   // just this toggle.
   const [theme, setTheme] = useState('light');
-  const [shareToken, setShareToken] = useState(null);
-  const [shareBusy, setShareBusy] = useState(false);
+  const [shareState, setShareState] = useState({ shareToken: null, shareExpiresAt: null, shareViews: 0 });
+  const [shareOpen, setShareOpen] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -38,30 +56,16 @@ export function BrandedReport() {
     ])
       .then(([jobRes, brandingRes]) => {
         setJob(jobRes.job);
-        setShareToken(jobRes.job.shareToken || null);
+        setContext(jobRes.context || {});
+        setShareState({
+          shareToken: jobRes.job.shareToken || null,
+          shareExpiresAt: jobRes.job.shareExpiresAt || null,
+          shareViews: jobRes.job.shareViews || 0,
+        });
         setBranding(brandingRes.branding || {});
       })
       .catch((err) => setError(err.message || 'Could not load this report'));
   }, [jobId]);
-
-  const handleGetShareLink = async () => {
-    setShareBusy(true);
-    try {
-      const res = await apiFetch(`/jobs/${jobId}/share`, { method: 'POST' });
-      setShareToken(res.shareToken);
-      await navigator.clipboard.writeText(`${window.location.origin}/share/${res.shareToken}`);
-      addToast('Shareable link copied. Anyone with it can view this report, no login needed.', 'ok');
-    } catch (err) {
-      addToast(err.message || "Couldn't create a shareable link", 'err');
-    } finally {
-      setShareBusy(false);
-    }
-  };
-
-  const handleCopyLink = async () => {
-    await navigator.clipboard.writeText(`${window.location.origin}/share/${shareToken}`);
-    addToast('Link copied', 'ok');
-  };
 
   // Renamed from "Download PDF": this opens the browser's own print sheet
   // with Save-as-PDF as the destination, which is not what "Download"
@@ -70,21 +74,8 @@ export function BrandedReport() {
   // surprise, and doubles as the place to mention the headers/footers
   // setting that otherwise stamps a URL on every page.
   const handleSavePdf = () => {
-    addToast('Opening your browser\'s save sheet. Pick "Save as PDF" as the destination, and turn off "Headers and footers" under More settings for a clean file.', 'accent');
+    addToast('Choose "Save as PDF" as the destination, and turn off "Headers and footers" for a clean file.', 'accent');
     setTimeout(() => window.print(), 400);
-  };
-
-  const handleRevoke = async () => {
-    setShareBusy(true);
-    try {
-      await apiFetch(`/jobs/${jobId}/share/revoke`, { method: 'POST' });
-      setShareToken(null);
-      addToast('Shareable link turned off', 'ok');
-    } catch (err) {
-      addToast(err.message || "Couldn't turn off the link", 'err');
-    } finally {
-      setShareBusy(false);
-    }
   };
 
   if (error) {
@@ -108,9 +99,21 @@ export function BrandedReport() {
       <ReportThemeStyles theme={theme} />
 
       <div className="rl-print-hide rl-report-topbar">
-        <button className="btn btn-ghost" onClick={() => navigate(-1)} title="Back to report" style={{ padding: '0 var(--s3)', flexShrink: 0 }}>
-          ← <span className="rl-label-full">Back to report</span>
-        </button>
+        {/* Back and the mark share the left side. The agency sees this screen
+            every time they prepare a report, and the shared view their client
+            opens carries the same header, so the two now match instead of the
+            preview being unbranded chrome. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s2)', minWidth: 0 }}>
+          <button className="btn btn-ghost" onClick={() => navigate(-1)} title="Back to report" style={{ padding: '0 var(--s3)', flexShrink: 0 }}>
+            ← <span className="rl-label-full">Back to report</span>
+          </button>
+          <div className="rl-report-brand" style={{ paddingLeft: 'var(--s2)', borderLeft: '1px solid var(--border)' }}>
+            <img src="/logo-mark-128.png" alt="" width="26" height="26" style={{ display: 'block', objectFit: 'contain', flexShrink: 0 }} />
+            <span className="rl-report-brand-name rl-label-full">
+              R<span style={{ fontFamily: 'var(--font-data)', color: 'var(--accent)' }}>e</span>elytic
+            </span>
+          </div>
+        </div>
 
         <div className="rl-report-topbar-actions">
           <ThemeToggle theme={theme} setTheme={setTheme} />
@@ -123,14 +126,21 @@ export function BrandedReport() {
 
       <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
         <div className="rl-print-hide" style={{ display: 'flex', alignItems: 'center', gap: 'var(--s2)', flexWrap: 'wrap', marginBottom: 'var(--s4)' }}>
-          {shareToken ? (
+          {shareState.shareToken ? (
             <>
-              <button className="btn btn-secondary" disabled={shareBusy} onClick={handleCopyLink}>Copy shareable link</button>
-              <button type="button" className="btn btn-ghost" onClick={handleRevoke} disabled={shareBusy}>Turn off</button>
+              <button className="btn btn-secondary" onClick={() => setShareOpen(true)} style={{ gap: 'var(--s2)' }}>
+                <LinkIcon /> Manage link
+              </button>
+              {/* The status the agency actually needs at a glance: is it
+                  still live, and did the client open it. Anything more
+                  detailed belongs in the dialog. */}
+              <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>
+                {linkStatusLabel(shareState)}
+              </span>
             </>
           ) : user?.features?.shareableLinks ? (
-            <button className="btn btn-secondary" disabled={shareBusy} onClick={handleGetShareLink}>
-              {shareBusy ? 'Creating link...' : 'Get shareable link'}
+            <button className="btn btn-secondary" onClick={() => setShareOpen(true)} style={{ gap: 'var(--s2)' }}>
+              <LinkIcon /> Get shareable link
             </button>
           ) : (
             // Same slot, same shape as the real button, just locked -- the
@@ -156,7 +166,14 @@ export function BrandedReport() {
         </div>
       </div>
 
-      <ReportSheet job={job} branding={branding} maxWidth="1000px" />
+      <ReportSheet job={job} branding={branding} context={context} maxWidth="1000px" />
+
+      <ShareDialog
+        isOpen={shareOpen}
+        onClose={() => setShareOpen(false)}
+        jobId={jobId}
+        onStateChange={setShareState}
+      />
     </div>
   );
 }

@@ -281,6 +281,23 @@ function alignReelResults(resolvedList, items) {
   return resolvedList.map((entry, idx) => {
     if (entry.shortcode && byShortcode.has(entry.shortcode)) return byShortcode.get(entry.shortcode);
     if (byUrl.has(entry.effective)) return byUrl.get(entry.effective);
+
+    /*
+      Positional matching is a LAST resort, and only when this entry gave us
+      no identity to check against.
+
+      Confirmed live: a request for the nonexistent reel "ZZZnonexistent99"
+      came back in a 3-for-3 run, so positionalOk was true, and that row was
+      handed @taapsee's unrelated reel DVEGQskiMcy -- 164,130 likes and 19.7M
+      followers, against a link the client never submitted. Wrong-creator data
+      in a client report is far worse than a row marked failed, and a failed
+      row is recoverable through Retry failed.
+
+      So: if we know the shortcode we wanted and it is not in the response,
+      the answer is "no data", never "here is whatever came back in this
+      slot".
+    */
+    if (entry.shortcode) return null;
     if (positionalOk) return list[idx];
     return null;
   });

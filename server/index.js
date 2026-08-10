@@ -23,6 +23,13 @@ async function startServer() {
 
   const app = express();
 
+  // Render (and any other managed host) puts a proxy in front of us, so
+  // without this every request reports the proxy's address as req.ip and the
+  // whole internet shares one rate-limit bucket. '1' means trust exactly one
+  // hop, which is what Render provides; trusting the full chain would let a
+  // caller forge X-Forwarded-For and dodge the limit entirely.
+  app.set('trust proxy', 1);
+
   // Security Headers
   app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -63,6 +70,7 @@ async function startServer() {
   app.use('/api/pricing', require('./routes/pricing.routes'));
   app.use('/api/me', require('./routes/me.routes'));
   app.use('/api/campaigns', require('./routes/campaigns.routes'));
+  app.use('/api/benchmarks', require('./routes/benchmarks.routes'));
   app.use('/api/public', publicRoutes);
 
   // Static client build in production

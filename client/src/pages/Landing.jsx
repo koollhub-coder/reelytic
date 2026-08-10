@@ -70,22 +70,39 @@ export function Landing() {
           <img src="/logo-mark-128.png" alt="" className="whats-new-logo" />
         </div>
         <div className="hero-eyebrow" style={{ textAlign: 'center' }}>NEW IN REELYTIC</div>
-        <h2 className="section-title">Built for handing reports straight to your client</h2>
-        <p style={{ textAlign: 'center', color: 'var(--text-2)', maxWidth: '640px', margin: '0 auto var(--s6)' }}>
-          Every report now leaves your workspace looking like it came from your agency, not a tool.
+        <h2 className="section-title">Reports your client can act on, not just read</h2>
+        <p style={{ textAlign: 'center', color: 'var(--text-2)', maxWidth: '660px', margin: '0 auto var(--s6)' }}>
+          Every report leaves your workspace looking like it came from your agency, and now it
+          answers the question every client asks next: compared to what?
         </p>
         <div className="features-grid">
+          {/* Benchmarks lead. Branding and share links are table stakes any
+              competitor can copy in a sprint; a median drawn from every
+              campaign the product has ever measured is the one thing that
+              cannot be rebuilt without the same history. */}
+          <div className="feature-card whats-new-card">
+            <div className="feature-title">Benchmarks, not just numbers</div>
+            <div className="feature-desc">"2.3% engagement" means nothing on its own. Every report now says how that compares to the typical creator of the same size, measured across every campaign Reelytic has run.</div>
+          </div>
+          <div className="feature-card whats-new-card">
+            <div className="feature-title">Campaign over campaign</div>
+            <div className="feature-desc">Group reports into a campaign and each new one shows what moved since the last: engagement, reach, and roster size, with the direction of travel.</div>
+          </div>
           <div className="feature-card whats-new-card">
             <div className="feature-title">Your branding, on every report</div>
             <div className="feature-desc">Add your logo, accent color, and layout once in Settings. Every report you generate after that uses it automatically, no re-uploading.</div>
           </div>
           <div className="feature-card whats-new-card">
-            <div className="feature-title">Shareable client links</div>
-            <div className="feature-desc">Send a client a link straight to their report. No login, no export, no back-and-forth over email.</div>
+            <div className="feature-title">Share links that expire</div>
+            <div className="feature-desc">Send a client a link straight to their report, with no login. Set it to run out in 24 hours, a week, a month, or never, and switch it off the moment a campaign wraps.</div>
           </div>
           <div className="feature-card whats-new-card">
-            <div className="feature-title">Light and dark, both polished</div>
-            <div className="feature-desc">Preview and download either variant of the same branded report, matched to what your client actually sees.</div>
+            <div className="feature-title">See when it was opened</div>
+            <div className="feature-desc">Know whether your client actually looked at the report before the next call. Counts opens, never tracks the person who opened it.</div>
+          </div>
+          <div className="feature-card whats-new-card">
+            <div className="feature-title">They can take the data with them</div>
+            <div className="feature-desc">Clients download the report table as a clean Excel file straight from the link. Just the reporting columns, never your original working sheet.</div>
           </div>
         </div>
       </div>

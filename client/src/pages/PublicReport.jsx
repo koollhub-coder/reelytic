@@ -16,6 +16,7 @@ export function PublicReport() {
   const { addToast } = useToast();
   const [job, setJob] = useState(null);
   const [branding, setBranding] = useState(null);
+  const [context, setContext] = useState({});
   const [error, setError] = useState('');
   const [theme, setTheme] = useState('light');
 
@@ -23,7 +24,7 @@ export function PublicReport() {
   // browser's own save sheet, so say so before the dialog appears rather
   // than letting a printer UI ambush someone who expected a file.
   const handleSavePdf = () => {
-    addToast('Opening your browser\'s save sheet. Pick "Save as PDF" as the destination.', 'accent');
+    addToast('Choose "Save as PDF" as the destination.', 'accent');
     setTimeout(() => window.print(), 400);
   };
 
@@ -32,6 +33,7 @@ export function PublicReport() {
       .then((res) => {
         setJob(res.job);
         setBranding(res.branding || {});
+        setContext(res.context || {});
       })
       .catch((err) => setError(err.message || "This link is invalid or has been turned off."));
   }, [token]);
@@ -59,12 +61,29 @@ export function PublicReport() {
           it carries the Reelytic mark for credibility and keeps the actions
           on one row down to phone width. */}
       <div className="rl-print-hide rl-report-topbar">
-        <div className="rl-report-brand">
+        {/*
+          The mark is a link, and this is the single highest-value piece of
+          marketing real estate the product has: the person reading this is a
+          brand or client who was handed a polished report by someone else and
+          is, by definition, interested in exactly what Reelytic does.
+
+          Opens in a new tab on purpose. They came here to read a report, and
+          navigating them away from it to sell to them would be both rude and
+          a good way to lose the visit entirely.
+        */}
+        <a
+          className="rl-report-brand"
+          href="/?from=shared-report"
+          target="_blank"
+          rel="noopener"
+          title="Reelytic: Instagram campaign reporting for agencies"
+          style={{ textDecoration: 'none', color: 'inherit' }}
+        >
           <img src="/logo-mark-128.png" alt="" width="30" height="30" style={{ display: 'block', objectFit: 'contain', flexShrink: 0 }} />
           <span className="rl-report-brand-name">
             R<span style={{ fontFamily: 'var(--font-data)', color: 'var(--accent)' }}>e</span>elytic
           </span>
-        </div>
+        </a>
         <div className="rl-report-topbar-actions">
           <ThemeToggle theme={theme} setTheme={setTheme} />
           {/* A plain link, not an apiFetch call: the browser handles the
@@ -86,11 +105,44 @@ export function PublicReport() {
         </div>
       </div>
 
-      <ReportSheet job={job} branding={branding} maxWidth="1000px" />
+      <ReportSheet job={job} branding={branding} context={context} maxWidth="1000px" />
 
-      <div className="rl-print-hide" style={{ maxWidth: '1000px', margin: 'var(--s4) auto 0', textAlign: 'center', fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>
-        Reports like this one are built with{' '}
-        <Link to="/" style={{ color: 'var(--text-2)' }}>Reelytic</Link>
+      {/*
+        The end-of-report call to action.
+
+        Someone who has scrolled the whole way down has read every number and
+        is the warmest lead this product will ever get. A grey one-line credit
+        wasted that. This states what the tool does and gives them somewhere
+        to go, while staying visually quieter than the agency's own branding
+        above it, because this document belongs to the agency, not to us.
+      */}
+      <div
+        className="rl-print-hide"
+        style={{
+          maxWidth: '1000px', margin: 'var(--s5) auto 0',
+          border: '1px solid var(--border)', borderRadius: 'var(--r-lg)',
+          backgroundColor: 'var(--surface)', padding: 'var(--s5)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          gap: 'var(--s4)', flexWrap: 'wrap',
+        }}
+      >
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontWeight: 700, color: 'var(--text)', marginBottom: '2px' }}>
+            This report was built with Reelytic
+          </div>
+          <div style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-2)' }}>
+            Turn a sheet of Instagram links into a client-ready report in minutes.
+          </div>
+        </div>
+        <a
+          className="btn btn-primary"
+          href="/?from=shared-report-footer"
+          target="_blank"
+          rel="noopener"
+          style={{ textDecoration: 'none', flexShrink: 0 }}
+        >
+          See how it works
+        </a>
       </div>
     </div>
   );

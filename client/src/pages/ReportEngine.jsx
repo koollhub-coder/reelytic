@@ -50,8 +50,22 @@ function formatCompactNumber(n) {
 // picks entirely (though still counted in the report-wide averages): a
 // resolved username with 0 views/0 ER is almost always a data gap, not a
 // genuine "worst performer," and showing it as one looked like a bug.
+/*
+  Same plausibility ceiling and median as ReportSheet.jsx uses, because this
+  screen and the branded report are the same numbers shown twice. Diverging
+  here would mean the live results say one thing and the client's copy of the
+  report says another. If you change it in one file, change it in the other.
+*/
+const MAX_PLAUSIBLE_ER = 100;
+
+function median(values) {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.floor((sorted.length - 1) / 2)];
+}
+
 function computeReportInsights(rows, type) {
-  const successful = rows.filter((r) => r.state === 'done' && r.result && r.result.username);
+  const successful = rows.filter((r) => r.state === 'done' && r.result);
   if (successful.length < 2) return null;
 
   const viewsKey = type === 'reel' ? 'views' : 'avgViews';
@@ -68,8 +82,14 @@ function computeReportInsights(rows, type) {
   const erList = successful.map((r) => Number(r.result[erKey]) || 0);
   const avgViews = viewsList.reduce((a, b) => a + b, 0) / viewsList.length;
   const avgEr = erList.reduce((a, b) => a + b, 0) / erList.length;
+  const medianEr = median(erList.filter((v) => v > 0 && v <= MAX_PLAUSIBLE_ER));
 
-  const eligible = successful.filter((r) => (Number(r.result[viewsKey]) || 0) > 0);
+  // A creator can only be ranked on a rate we believe. Rows above the ceiling
+  // stay in the table and the totals; they just cannot be named best or worst.
+  const eligible = successful.filter((r) => {
+    const er = Number(r.result[erKey]) || 0;
+    return (Number(r.result[viewsKey]) || 0) > 0 && er > 0 && er <= MAX_PLAUSIBLE_ER;
+  });
 
   let top = null;
   let bottom = null;
@@ -84,7 +104,7 @@ function computeReportInsights(rows, type) {
     }
   }
 
-  return { count: successful.length, avgViews, avgEr, top, bottom, hasSpread };
+  return { count: successful.length, avgViews, avgEr, medianEr, top, bottom, hasSpread };
 }
 
 // Plain text, not markdown -- meant to be pasted straight into an email or
@@ -93,8 +113,8 @@ function computeReportInsights(rows, type) {
 function buildSummaryText(insights, type) {
   const lines = [
     type === 'reel'
-      ? `${insights.count} Reels analyzed. Average ${formatCompactNumber(insights.avgViews)} views, ${insights.avgEr.toFixed(1)}% engagement rate.`
-      : `${insights.count} profiles analyzed. Average ${formatCompactNumber(insights.avgViews)} views per Reel, ${insights.avgEr.toFixed(1)}% engagement rate.`,
+      ? `${insights.count} Reels analyzed. Average ${formatCompactNumber(insights.avgViews)} views, ${insights.medianEr.toFixed(1)}% typical engagement rate.`
+      : `${insights.count} profiles analyzed. Average ${formatCompactNumber(insights.avgViews)} views per Reel, ${insights.medianEr.toFixed(1)}% typical engagement rate.`,
   ];
   if (insights.hasSpread) {
     lines.push(`Top performer: @${insights.top.name} (${formatCompactNumber(insights.top.views)} views, ${insights.top.er.toFixed(1)}% ER)`);
@@ -1187,8 +1207,8 @@ export function ReportEngine({ type = 'reel' }) {
               </div>
               <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-base)', marginBottom: insights.hasSpread ? 'var(--s5)' : 0 }}>
                 {type === 'reel'
-                  ? `This report covers ${insights.count} Reels, averaging ${formatCompactNumber(insights.avgViews)} views and a ${insights.avgEr.toFixed(1)}% engagement rate.`
-                  : `This report covers ${insights.count} profiles, averaging ${formatCompactNumber(insights.avgViews)} views per Reel and a ${insights.avgEr.toFixed(1)}% engagement rate.`}
+                  ? `This report covers ${insights.count} Reels, averaging ${formatCompactNumber(insights.avgViews)} views and a ${insights.medianEr.toFixed(1)}% typical engagement rate.`
+                  : `This report covers ${insights.count} profiles, averaging ${formatCompactNumber(insights.avgViews)} views per Reel and a ${insights.medianEr.toFixed(1)}% typical engagement rate.`}
               </p>
               {insights.hasSpread && (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 'var(--s4)' }}>

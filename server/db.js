@@ -170,6 +170,64 @@ function applyProjection(item, projection) {
   return out;
 }
 
+/*
+  Normalises a value for ordered comparison.
+
+  Dates are the reason this exists. The memory store round-trips through
+  JSON, so a Date written as an object comes back as an ISO string, and
+  comparing that string against a real Date coerces to NaN and silently
+  answers "false" to every range query. Reducing both sides to a number
+  first keeps a stored ISO string and an in-memory Date comparable.
+*/
+function comparable(value) {
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === 'string') {
+    const t = Date.parse(value);
+    if (!Number.isNaN(t)) return t;
+  }
+  return value;
+}
+
+/*
+  Operator support for the in-memory fallback.
+
+  This deliberately mirrors the subset of MongoDB query operators the app
+  actually issues. An unsupported operator here does not throw, it silently
+  matches nothing, which is the worst possible failure mode: a feature just
+  quietly stops working when the fallback is active. $lt and $ne were added
+  because the campaign-comparison query in reportContext.service.js uses
+  both, and without them it returned null on every call under the fallback.
+*/
+function matchOperators(actual, conditions) {
+  const a = comparable(actual);
+  for (const [op, raw] of Object.entries(conditions)) {
+    const b = comparable(raw);
+    switch (op) {
+      case '$gte': if (!(a >= b)) return false; break;
+      case '$gt': if (!(a > b)) return false; break;
+      case '$lte': if (!(a <= b)) return false; break;
+      case '$lt': if (!(a < b)) return false; break;
+      case '$ne': if (actual === raw) return false; break;
+      case '$in': if (!Array.isArray(raw) || !raw.includes(actual)) return false; break;
+      case '$nin': if (Array.isArray(raw) && raw.includes(actual)) return false; break;
+      case '$exists': if ((actual !== undefined) !== !!raw) return false; break;
+      default:
+        // Unknown operator: refuse to guess. Matching nothing silently is
+        // how a query starts lying about the data.
+        throw new Error(`[Reelytic DB] Unsupported query operator "${op}" in memory fallback`);
+    }
+  }
+  return true;
+}
+
+// A condition object is one whose keys are ALL operators. `{ shareToken: null }`
+// and `{ counts: { failed: 0 } }` are plain values to match on, not conditions.
+function isConditionObject(val) {
+  if (!val || typeof val !== 'object' || Array.isArray(val) || val instanceof Date) return false;
+  const keys = Object.keys(val);
+  return keys.length > 0 && keys.every((k) => k.startsWith('$'));
+}
+
 function matchQuery(item, query) {
   for (const key of Object.keys(query)) {
     if (key === '$or') {
@@ -178,12 +236,8 @@ function matchQuery(item, query) {
       continue;
     }
     const val = query[key];
-    if (val && typeof val === 'object' && val.$gte !== undefined) {
-      if (val.$lte !== undefined) {
-        if (!(item[key] >= val.$gte && item[key] <= val.$lte)) return false;
-      } else {
-        if (!(item[key] >= val.$gte)) return false;
-      }
+    if (isConditionObject(val)) {
+      if (!matchOperators(item[key], val)) return false;
       continue;
     }
     if (item[key] !== val) return false;
@@ -255,6 +309,10 @@ async function ensureIndexes() {
     await db.collection('settings').createIndex({ key: 1 }, { unique: true });
     await db.collection('jobs').createIndex({ ownerUsername: 1, createdAt: -1 });
     await db.collection('jobs').createIndex({ status: 1 });
+    // Share links are looked up by token on every open of a /share/ URL, and
+    // that route is the one strangers can reach. Sparse because only a small
+    // fraction of jobs are ever shared.
+    await db.collection('jobs').createIndex({ shareToken: 1 }, { sparse: true });
     await db.collection('submittedLinks').createIndex({ ownerUsername: 1, at: -1 });
     await db.collection('submittedLinks').createIndex({ url: 1 });
     await db.collection('cache').createIndex({ url: 1 }, { unique: true });

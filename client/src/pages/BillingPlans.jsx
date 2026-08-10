@@ -57,7 +57,7 @@ function PlanCard({ plan, annual, onChoose, currentPlanId }) {
             )}
             {!annual && <div style={{ marginBottom: 'var(--s4)' }} />}
 
-            <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 var(--s5) 0', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 var(--s5) 0', display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
                 {plan.features.map((f) => (
                     <li key={f} style={{ display: 'flex', gap: 8, fontSize: 'var(--fs-sm)', color: 'var(--text)' }}>
                         <span style={{ color: 'var(--ok)' }}>{'✓'}</span>
@@ -113,6 +113,12 @@ export function BillingPlans() {
             <style>{`
         .pricing-card {
           position: relative;
+          /* Flex column so the CTA can be pinned to the bottom. The grid
+             already stretches every card to the tallest one, but content
+             flowed top-down, so a plan with fewer bullets (Starter) left its
+             button floating mid-card while the others sat lower. */
+          display: flex;
+          flex-direction: column;
           background: var(--surface);
           border: 1px solid var(--border);
           border-radius: var(--r-lg);

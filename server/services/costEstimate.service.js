@@ -47,9 +47,27 @@ const REEL_EXPRESS_COST_USD = 0.003907;
 const REEL_FOLLOWER_STANDARD_COST_USD = 0.002702;
 const REEL_FOLLOWER_EXPRESS_COST_USD = 0.000677;
 
+/*
+  Per-run start fee on instagram-scraper~instagram-profile-reels-scraper,
+  introduced by the actor author effective 2026-08-21. Every other event on
+  that actor is unchanged.
+
+  It is charged once per actor RUN, and scrapeProfilesBatchV2 sends
+  PROFILE_BATCH_SIZE usernames per run, so the per-profile share is the fee
+  divided by the batch size. Kept in step with PROFILE_BATCH_SIZE in
+  jobEngine.service.js: if that batch size changes, this denominator has to
+  change with it or every profile report's recorded cost drifts.
+*/
+const PROFILE_V2_RUN_START_FEE_USD = 0.0005;
+const PROFILE_BATCH_SIZE = Number(process.env.PROFILE_BATCH_SIZE || 5);
+
 async function profileExpressCostUsd() {
   const depth = await getV2FetchDepth();
-  return PROFILE_V2_MEASURED_AT_DEPTH_12_USD * (depth / 12);
+  const perResult = PROFILE_V2_MEASURED_AT_DEPTH_12_USD * (depth / 12);
+  // Without this term the Usage & Spend page would quietly under-report every
+  // profile report from 21 Aug onward. Small per profile, but a cost figure
+  // that is knowingly wrong is worse than one that is merely approximate.
+  return perResult + (PROFILE_V2_RUN_START_FEE_USD / PROFILE_BATCH_SIZE);
 }
 
 // pipelineMode: 'legacy'|'v2' for profile, 'standard'|'express' for reel.

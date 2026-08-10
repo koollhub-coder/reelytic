@@ -2,7 +2,26 @@ import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { Modal } from '../components/Modal';
+import { useToast } from '../context/ToastContext';
 
+/*
+  Checkout, with online payment switched off.
+
+  Razorpay is not configured yet, so rather than hand someone a payment form
+  that cannot take a payment, this routes them to a person. The previous
+  build showed a fake Razorpay card form in test mode: it looked like a real
+  checkout, asked for a card number, and was wired to a simulated success
+  that granted nothing. Anyone who reached it either thought they had paid,
+  or concluded the product was broken. A dead-end that says who to contact is
+  strictly better than a working-looking form that leads nowhere.
+
+  Everything needed for the real gateway is still here and still correct.
+  When the keys land, flip PAYMENTS_ENABLED to true.
+*/
+const PAYMENTS_ENABLED = false;
+
+const BILLING_EMAIL = 'reelyticalert@gmail.com';
 const RAZORPAY_SCRIPT_SRC = 'https://checkout.razorpay.com/v1/checkout.js';
 
 function loadRazorpayScript() {
@@ -16,13 +35,33 @@ function loadRazorpayScript() {
     });
 }
 
+function MailIcon() {
+    return (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <rect x="2.5" y="5" width="19" height="14" rx="2.5" stroke="currentColor" strokeWidth="1.8" />
+            <path d="M3.5 7l8.5 6 8.5-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+    );
+}
+
 export function Checkout() {
     const location = useLocation();
     const navigate = useNavigate();
     const { refreshUser } = useAuth();
+    const { addToast } = useToast();
     const order = location.state;
 
+    const [status, setStatus] = useState('idle'); // idle | processing | contact | success
+    const [error, setError] = useState('');
+
+    useEffect(() => {
+        if (!order) navigate('/pricing', { replace: true });
+    }, [order, navigate]);
+
+    if (!order) return null;
+
     // Grant the plan's credits on the backend, refresh balance, then show success.
+    // Only reachable through a real, completed Razorpay payment.
     const grantAndSucceed = async () => {
         try {
             await apiFetch('/billing/confirm', {
@@ -36,23 +75,21 @@ export function Checkout() {
         setStatus('success');
     };
 
-    const [status, setStatus] = useState('idle'); // idle | processing | dummy-modal | success
-    const [error, setError] = useState('');
-
-    useEffect(() => {
-        if (!order) navigate('/pricing', { replace: true });
-    }, [order, navigate]);
-
-    if (!order) return null;
-
     const handlePay = async () => {
         setError('');
-        setStatus('processing');
 
+        // No gateway configured: go straight to the contact route. Deliberately
+        // does not call /billing/create-order first, since there is nothing an
+        // order id could be used for and a pointless round trip only adds a
+        // spinner and a way to fail.
+        if (!PAYMENTS_ENABLED) {
+            setStatus('contact');
+            return;
+        }
+
+        setStatus('processing');
         let createdOrder;
         try {
-            // Real backend call: today this returns a mock order (see server/routes/billing.routes.js).
-            // Once real Razorpay keys are in .env, this same call starts returning a real order id.
             createdOrder = await apiFetch('/billing/create-order', {
                 method: 'POST',
                 body: JSON.stringify({ planId: order.planId, amount: order.price, billing: order.billing }),
@@ -66,10 +103,10 @@ export function Checkout() {
         const scriptLoaded = await loadRazorpayScript();
         const hasRealKey = createdOrder.keyId && !createdOrder.keyId.includes('YOUR_KEY');
 
+        // Payments are on but the gateway still can't be reached. Say so
+        // plainly and offer the same human fallback rather than pretending.
         if (!scriptLoaded || !hasRealKey) {
-            // Dummy mode: no real Razorpay key configured yet. Show the in-app
-            // simulator instead of a broken/rejected real checkout.
-            setStatus('dummy-modal');
+            setStatus('contact');
             return;
         }
 
@@ -100,9 +137,18 @@ export function Checkout() {
         rzp.open();
     };
 
-    const handleDummyConfirm = () => {
-        setStatus('processing');
-        grantAndSucceed();
+    const mailtoHref = `mailto:${BILLING_EMAIL}`
+        + `?subject=${encodeURIComponent(`Reelytic: activate ${order.plan} plan (${order.billing})`)}`
+        + `&body=${encodeURIComponent(
+            `Hi Reelytic team,\n\nI'd like to activate the ${order.plan} plan.\n\n`
+            + `Plan: ${order.plan}\nBilling: ${order.billing}\n`
+            + `Credits per month: ${order.credits.toLocaleString('en-IN')}\n`
+            + `Amount: Rs ${order.price.toLocaleString('en-IN')}\n\nThanks.`
+        )}`;
+
+    const handleCopyEmail = async () => {
+        await navigator.clipboard.writeText(BILLING_EMAIL);
+        addToast('Email address copied', 'ok');
     };
 
     if (status === 'success') {
@@ -114,9 +160,6 @@ export function Checkout() {
                 </h1>
                 <p style={{ color: 'var(--text-2)', marginBottom: 'var(--s5)' }}>
                     {order.credits.toLocaleString('en-IN')} credits will be added to your account.
-                </p>
-                <p style={{ color: 'var(--warn)', fontSize: 'var(--fs-xs)', marginBottom: 'var(--s5)' }}>
-                    Dev note: this was a simulated payment. No real charge occurred, and credits aren't actually applied to your account yet. That wiring comes with the real payment gateway keys.
                 </p>
                 <button type="button" className="btn btn-primary" onClick={() => navigate('/reels')}>
                     Back to Reelytic
@@ -155,54 +198,85 @@ export function Checkout() {
                     <p style={{ color: 'var(--err)', fontSize: 'var(--fs-sm)', marginBottom: 'var(--s3)' }}>{error}</p>
                 )}
 
+                {/* Labelled for what it actually does. "Pay with Razorpay" on a
+                    button that opens a contact dialog is a small lie the user
+                    finds out about one click later. */}
                 <button type="button" className="btn btn-primary btn-block" disabled={status === 'processing'} onClick={handlePay}>
-                    {status === 'processing' ? <span className="btn-spinner" /> : 'Pay with Razorpay'}
+                    {status === 'processing'
+                        ? <span className="btn-spinner" />
+                        : (PAYMENTS_ENABLED ? 'Pay with Razorpay' : 'Continue to activate')}
                 </button>
                 <button type="button" className="btn btn-ghost btn-block" style={{ marginTop: 8 }} onClick={() => navigate('/billing')}>
                     Choose a different plan
                 </button>
 
                 <p style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', textAlign: 'center', marginTop: 'var(--s4)' }}>
-                    Payments are processed securely by Razorpay. Reelytic never sees your card details.
+                    {PAYMENTS_ENABLED
+                        ? 'Payments are processed securely by Razorpay. Reelytic never sees your card details.'
+                        : 'Plans are activated by our team. No card details are collected here.'}
                 </p>
             </div>
 
-            {status === 'dummy-modal' && (
-                <div
-                    style={{ position: 'fixed', inset: 0, background: 'rgba(16,18,22,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 900, padding: '16px' }}
-                    onMouseDown={(e) => { if (e.target === e.currentTarget) setStatus('idle'); }}
-                >
-                    {/* width, not a fixed 360px -- 360 alone overflows an iPhone
-                        SE (320px) with zero margin either side. */}
-                    <div style={{ background: '#fff', color: '#1a1c20', borderRadius: 12, width: '360px', maxWidth: '100%', padding: 24, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                            <div style={{ width: 28, height: 28, borderRadius: 6, background: '#3395FF', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 14 }}>R</div>
-                            <strong>Razorpay</strong>
-                            <span style={{ marginLeft: 'auto', fontSize: 11, background: '#FEF3C7', color: '#92400E', padding: '2px 8px', borderRadius: 999 }}>TEST MODE</span>
-                        </div>
-                        <p style={{ fontSize: 13, color: '#5D6169', marginBottom: 16 }}>
-                            Reelytic: {order.plan} plan ({order.billing})
-                        </p>
-                        <div style={{ fontSize: 28, fontWeight: 700, marginBottom: 20 }}>
-                            {'₹'}{order.price.toLocaleString('en-IN')}
-                        </div>
-                        <input className="input" placeholder="Card number" defaultValue="4111 1111 1111 1111" style={{ width: '100%', marginBottom: 8, color: '#1a1c20' }} disabled />
-                        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-                            <input className="input" placeholder="MM/YY" defaultValue="12/29" style={{ flex: 1, color: '#1a1c20' }} disabled />
-                            <input className="input" placeholder="CVV" defaultValue="123" style={{ flex: 1, color: '#1a1c20' }} disabled />
-                        </div>
-                        <button type="button" className="btn btn-primary btn-block" onClick={handleDummyConfirm}>
-                            Pay {'₹'}{order.price.toLocaleString('en-IN')}
-                        </button>
-                        <button type="button" className="btn btn-ghost btn-block" style={{ marginTop: 8 }} onClick={() => setStatus('idle')}>
-                            Cancel
-                        </button>
-                        <p style={{ fontSize: 11, color: '#8B8F98', textAlign: 'center', marginTop: 12 }}>
-                            Simulated checkout, no real payment key configured yet.
-                        </p>
+            {/* Uses the app's own Modal, so it inherits the theme, the escape
+                key, and the mobile bottom-sheet treatment. The old dialog was
+                hand-rolled with a hardcoded white panel and inputs on a
+                `.input` class that does not exist in the stylesheet, which is
+                why it rendered as unstyled boxes on a light card. */}
+            <Modal isOpen={status === 'contact'} onClose={() => setStatus('idle')} title="Activate your plan" width="440px">
+                <div style={{
+                    width: '44px', height: '44px', borderRadius: 'var(--r-md)',
+                    backgroundColor: 'color-mix(in srgb, var(--accent) 12%, transparent)',
+                    border: '1px solid color-mix(in srgb, var(--accent) 25%, transparent)',
+                    color: 'var(--accent)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    marginBottom: 'var(--s4)',
+                }}>
+                    <MailIcon />
+                </div>
+
+                <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)', lineHeight: 1.65, marginBottom: 'var(--s4)' }}>
+                    Online payment is not switched on yet. Send us a message and we will activate
+                    the <strong style={{ color: 'var(--text)' }}>{order.plan}</strong> plan on your
+                    account and confirm by reply.
+                </p>
+
+                <div style={{
+                    display: 'flex', alignItems: 'center', gap: 'var(--s2)',
+                    backgroundColor: 'var(--surface-2)', border: '1px solid var(--border)',
+                    borderRadius: 'var(--r-md)', padding: '6px 6px 6px var(--s3)',
+                    marginBottom: 'var(--s4)',
+                }}>
+                    <span className="mono" style={{
+                        flex: 1, minWidth: 0, fontSize: 'var(--fs-sm)', color: 'var(--text)',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>
+                        {BILLING_EMAIL}
+                    </span>
+                    <button type="button" className="btn btn-secondary" onClick={handleCopyEmail} style={{ flexShrink: 0, height: '30px', padding: '0 var(--s3)' }}>
+                        Copy
+                    </button>
+                </div>
+
+                <div style={{
+                    fontSize: 'var(--fs-xs)', color: 'var(--text-3)',
+                    borderTop: '1px solid var(--border)', paddingTop: 'var(--s3)', marginBottom: 'var(--s5)',
+                    lineHeight: 1.7,
+                }}>
+                    Include your plan and billing period so we can set it up in one pass:
+                    <div style={{ color: 'var(--text-2)', marginTop: '4px' }}>
+                        {order.plan} plan, {order.billing}, {order.credits.toLocaleString('en-IN')} credits per month.
                     </div>
                 </div>
-            )}
+
+                <div style={{ display: 'flex', gap: 'var(--s2)', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                    <button type="button" className="btn btn-ghost" onClick={() => setStatus('idle')}>Close</button>
+                    {/* A real button, not an underlined mailto link. Opens the
+                        user's mail app with the plan details already filled in. */}
+                    <a className="btn btn-primary" href={mailtoHref} style={{ textDecoration: 'none' }}>
+                        Open email app
+                    </a>
+                </div>
+            </Modal>
         </div>
     );
 }

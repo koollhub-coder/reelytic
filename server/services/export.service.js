@@ -2,6 +2,23 @@ const ExcelJS = require('exceljs');
 
 const ER_FORMULA_NOTE = 'ER = (Likes + Comments) / Views x 100';
 
+/*
+  Creator handle for a spreadsheet cell, or a plain statement that it is not
+  known.
+
+  Historic rows store the literal string "undefined" where an upstream actor
+  returned no owner (167 of them), so `res.username || ''` happily wrote
+  "undefined" into client-facing exports. Both that string and a real absence
+  mean the same thing and are handled together. Mirrors creatorLabel() in
+  client/src/components/ReportSheet.jsx; keep the two in step.
+*/
+function creatorCell(username, { withAt = false } = {}) {
+  if (username === undefined || username === null) return 'Creator not identified';
+  const s = String(username).trim();
+  if (s === '' || s === 'undefined' || s === 'null') return 'Creator not identified';
+  return withAt ? `@${s}` : s;
+}
+
 const CANDIDATE_REASON_LABELS = {
   included: 'Included',
   outlier_high: 'Outlier - too high',
@@ -65,7 +82,7 @@ async function generateExcelExport(job) {
       const rRow = [
         sr,
         ...origData,
-        isOk ? (res.username || '') : '',
+        isOk ? creatorCell(res.username) : '',
         isOk ? (res.profileLink || '') : '',
         isOk ? (res.reelLink || row.input.url) : row.input.url,
         isOk ? (res.followers || 0) : 0,
@@ -121,7 +138,7 @@ async function generateExcelExport(job) {
       const sumRow = [
         sr,
         ...origData,
-        isOk ? (res.username || '') : '',
+        isOk ? creatorCell(res.username) : '',
         isOk ? (res.profileLink || '') : '',
         isOk ? (res.followers || 0) : 0,
         isOk ? (res.avgViews || 0) : 0,
@@ -141,7 +158,7 @@ async function generateExcelExport(job) {
         res.candidates.forEach(c => {
           const detail = perReelByCode.get(c.shortCode);
           const bdRow = breakdownSheet.addRow([
-            res.username || '',
+            creatorCell(res.username),
             res.profileLink || '',
             c.url || '',
             c.timestamp ? new Date(c.timestamp).toLocaleDateString('en-IN') : '',
@@ -159,7 +176,7 @@ async function generateExcelExport(job) {
       } else if (res.perReel && Array.isArray(res.perReel)) {
         res.perReel.forEach(reel => {
           breakdownSheet.addRow([
-            res.username || '',
+            creatorCell(res.username),
             res.profileLink || '',
             reel.link || '',
             '',
@@ -217,8 +234,8 @@ function generateCsvExport(job) {
     const res = row.result || {};
 
     const line = isReel
-      ? [sr, ...origData, isOk ? (res.username || '') : '', isOk ? (res.profileLink || '') : '', isOk ? (res.reelLink || row.input.url) : row.input.url, isOk ? (res.followers || 0) : 0, isOk ? (res.views || 0) : 0, isOk ? (res.likes || 0) : 0, isOk ? (res.comments || 0) : 0, isOk ? (res.shares || 0) : 0, isOk ? (res.reposts || 0) : 0, isOk ? (res.saves || 0) : 0, isOk ? (res.er || 0) : 0]
-      : [sr, ...origData, isOk ? (res.username || '') : '', isOk ? (res.profileLink || '') : '', isOk ? (res.followers || 0) : 0, isOk ? (res.avgViews || 0) : 0, isOk ? (res.avgEr || 0) : 0];
+      ? [sr, ...origData, isOk ? creatorCell(res.username) : '', isOk ? (res.profileLink || '') : '', isOk ? (res.reelLink || row.input.url) : row.input.url, isOk ? (res.followers || 0) : 0, isOk ? (res.views || 0) : 0, isOk ? (res.likes || 0) : 0, isOk ? (res.comments || 0) : 0, isOk ? (res.shares || 0) : 0, isOk ? (res.reposts || 0) : 0, isOk ? (res.saves || 0) : 0, isOk ? (res.er || 0) : 0]
+      : [sr, ...origData, isOk ? creatorCell(res.username) : '', isOk ? (res.profileLink || '') : '', isOk ? (res.followers || 0) : 0, isOk ? (res.avgViews || 0) : 0, isOk ? (res.avgEr || 0) : 0];
 
     csv += csvRow(line);
   });
@@ -294,7 +311,9 @@ async function generateClientLedgerExcel(username, entries) {
 */
 async function generateSharedReportExcel({ job, branding }) {
   const isReel = job.type === 'reel';
-  const rows = (job.rows || []).filter((r) => r.state === 'done' && r.result && r.result.username);
+  // No username requirement: a row that measured a real reel belongs in the
+  // export even when its creator never resolved. It is labelled, not dropped.
+  const rows = (job.rows || []).filter((r) => r.state === 'done' && r.result);
   const agency = (branding && branding.agencyName) || 'Reelytic';
 
   const workbook = new ExcelJS.Workbook();
@@ -319,10 +338,21 @@ async function generateSharedReportExcel({ job, branding }) {
 
   rows.forEach((r) => {
     const res = r.result;
+    /*
+      The rate goes in AS STORED, not divided by 100.
+
+      applyNumberFormats uses '0.00"%"', where the % is a quoted literal. That
+      appends a percent sign without Excel's usual multiply-by-100, so the cell
+      must already hold the percentage figure itself. Dividing first turned a
+      real 2.1% into 0.02% in every downloaded sheet while the on-screen report
+      still read 2.1%, which is the kind of mismatch that makes a client
+      distrust both numbers. Every other export in this file passes the raw
+      value; this one now matches.
+    */
     const er = (isReel ? res.er : res.avgEr) ?? 0;
     const values = isReel
-      ? [`@${res.username}`, res.followers ?? 0, res.views ?? 0, res.likes ?? 0, res.comments ?? 0, er / 100]
-      : [`@${res.username}`, res.followers ?? 0, res.avgViews ?? 0, er / 100];
+      ? [creatorCell(res.username, { withAt: true }), res.followers ?? 0, res.views ?? 0, res.likes ?? 0, res.comments ?? 0, er]
+      : [creatorCell(res.username, { withAt: true }), res.followers ?? 0, res.avgViews ?? 0, er];
     styleDataRow(sheet.addRow(values), 'success');
   });
 
