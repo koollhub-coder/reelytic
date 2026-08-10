@@ -10,7 +10,7 @@
     <link rel="icon" type="image/png" sizes="64x64" href="/favicon-64.png" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="apple-touch-icon" href="/logo-mark-128.png" />
-    <link rel="preload" as="image" href="/logo-mark-128.png" />
+    <link rel="preload" as="image" href="/logo-mark-128.png" fetchpriority="high" />
 
     <!--
       Boot splash. Lives in the HTML, not React, because its whole job is to
@@ -42,7 +42,11 @@
       .rl-splash-inner { display: flex; flex-direction: column; align-items: center; }
       .rl-splash-mark {
         position: relative;
-        width: 92px; height: 92px;
+        /* MUST match SIZES.full.ring in src/components/BrandLoader.jsx.
+           The splash hands off to that component, and any difference shows
+           up as the loader changing size mid-load. On a 390px phone a fixed
+           92px here against the component's clamped 72px was exactly that. */
+        width: clamp(72px, 18vw, 92px); height: clamp(72px, 18vw, 92px);
         display: flex; align-items: center; justify-content: center;
         margin-bottom: 20px;
       }
@@ -54,7 +58,9 @@
         animation: rl-splash-spin 900ms linear infinite;
       }
       .rl-splash-mark img {
-        width: 52px; height: 52px; object-fit: contain; display: block;
+        /* Matches SIZES.full.mark in BrandLoader.jsx, same reason. */
+        width: clamp(42px, 10vw, 52px); height: clamp(42px, 10vw, 52px);
+        object-fit: contain; display: block;
         animation: rl-splash-pulse 1800ms ease-in-out infinite;
       }
       .rl-splash-word {
@@ -103,7 +109,7 @@
       <div class="rl-splash-inner">
         <div class="rl-splash-mark">
           <div class="rl-splash-ring"></div>
-          <img src="/logo-mark-128.png" alt="" width="52" height="52" />
+          <img src="/logo-mark-128.png" alt="" width="52" height="52" fetchpriority="high" decoding="sync" />
         </div>
         <div class="rl-splash-word">R<span>e</span>elytic</div>
         <div class="rl-splash-hint">Loading your workspace...</div>

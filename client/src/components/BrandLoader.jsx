@@ -16,6 +16,8 @@ import React, { useLayoutEffect, useRef, useState } from 'react';
 */
 
 const SIZES = {
+  // full MUST stay in step with #app-splash in index.html. The splash hands
+  // off to this component, so any divergence resizes the loader mid-load.
   full: { ring: 'clamp(72px, 18vw, 92px)', mark: 'clamp(42px, 10vw, 52px)', minHeight: '100vh' },
   page: { ring: 'clamp(64px, 16vw, 78px)', mark: 'clamp(36px, 9vw, 44px)', minHeight: '240px' },
   inline: { ring: 'clamp(44px, 12vw, 52px)', mark: 'clamp(24px, 6vw, 30px)', minHeight: '180px' },
@@ -88,6 +90,14 @@ export function BrandLoader({ variant = 'page', message = 'Loading...', minHeigh
           <img
             src="/logo-mark-128.png"
             alt=""
+            /* Same reasoning as the boot splash in index.html: the ring is
+               pure CSS and paints instantly, while the mark is a separate
+               request. Without these the ring spins around an empty middle
+               on a cold mobile load, which is the "circle with no logo"
+               state. The file is preloaded at high priority in index.html,
+               so by the time React mounts it is normally already decoded. */
+            fetchPriority="high"
+            decoding="sync"
             style={{ width: size.mark, height: size.mark, display: 'block', objectFit: 'contain' }}
           />
         </div>
