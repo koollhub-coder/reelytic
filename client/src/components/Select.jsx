@@ -35,7 +35,23 @@ export function Select({ value, onChange, options, placeholder = 'Select...', st
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: selected ? 'var(--text)' : 'var(--text-3)' }}>
           {selected ? selected.label : placeholder}
         </span>
-        <span style={{ color: 'var(--text-3)', flexShrink: 0, fontSize: '10px', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform var(--t-fast)' }}>▾</span>
+        {/* A drawn chevron, not the "▾" glyph.
+
+            That character renders at whatever weight and baseline the user's
+            font decides, which is why it looked like a stray speck: tiny,
+            misaligned, and thinner than every other stroke on screen. An SVG
+            with an explicit stroke width matches the rest of the UI and
+            rotates cleanly when the menu opens. */}
+        <svg
+          width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"
+          style={{
+            color: 'var(--text-2)', flexShrink: 0,
+            transform: open ? 'rotate(180deg)' : 'none',
+            transition: 'transform var(--t-fast)',
+          }}
+        >
+          <path d="M6 9.5 12 15.5 18 9.5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
       </button>
       {open && (
         <div

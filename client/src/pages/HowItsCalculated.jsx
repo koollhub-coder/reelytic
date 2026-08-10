@@ -35,7 +35,7 @@ export function HowItsCalculated() {
       </p>
 
       <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 700, marginBottom: 'var(--s3)' }}>Reel reports</h2>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 'var(--s4)', marginBottom: 'var(--s6)' }}>
+      <div className="rl-card-grid" style={{ gap: 'var(--s4)', marginBottom: 'var(--s6)' }}>
         {reelSections.map((s) => (
           <div key={s.heading} style={cardStyle}>
             <div style={{ fontWeight: 700, fontSize: 'var(--fs-base)', marginBottom: '6px' }}>{s.heading}</div>
@@ -45,7 +45,7 @@ export function HowItsCalculated() {
       </div>
 
       <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 700, marginBottom: 'var(--s3)' }}>Profile reports</h2>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 'var(--s4)', marginBottom: 'var(--s6)' }}>
+      <div className="rl-card-grid" style={{ gap: 'var(--s4)', marginBottom: 'var(--s6)' }}>
         {profileSections.map((s) => (
           <div key={s.heading} style={cardStyle}>
             <div style={{ fontWeight: 700, fontSize: 'var(--fs-base)', marginBottom: '6px' }}>{s.heading}</div>

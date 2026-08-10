@@ -73,7 +73,7 @@ export function ProfileMethodology() {
 
       <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 700, marginBottom: 'var(--s3)' }}>Profile reports</h2>
       {activeMethodBanner('Active scan method for this rule set', mode, info)}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: 'var(--s5)', marginBottom: 'var(--s6)' }}>
+      <div className="rl-card-grid" style={{ gap: 'var(--s5)', marginBottom: 'var(--s6)' }}>
         {profileSections.map((s) => (
           <div key={s.heading} style={cardStyle}>
             <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 'var(--fs-lg)', marginBottom: 'var(--s2)' }}>{s.heading}</div>
@@ -84,7 +84,7 @@ export function ProfileMethodology() {
 
       <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 700, marginBottom: 'var(--s3)' }}>Reel reports</h2>
       {activeMethodBanner('Active scan method for this rule set', reelMode, reelInfo)}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: 'var(--s5)' }}>
+      <div className="rl-card-grid" style={{ gap: 'var(--s5)' }}>
         {reelSections.map((s) => (
           <div key={s.heading} style={cardStyle}>
             <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 'var(--fs-lg)', marginBottom: 'var(--s2)' }}>{s.heading}</div>

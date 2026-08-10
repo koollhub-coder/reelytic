@@ -99,21 +99,17 @@ export function BrandedReport() {
       <ReportThemeStyles theme={theme} />
 
       <div className="rl-print-hide rl-report-topbar">
-        {/* Back and the mark share the left side. The agency sees this screen
-            every time they prepare a report, and the shared view their client
-            opens carries the same header, so the two now match instead of the
-            preview being unbranded chrome. */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s2)', minWidth: 0 }}>
-          <button className="btn btn-ghost" onClick={() => navigate(-1)} title="Back to report" style={{ padding: '0 var(--s3)', flexShrink: 0 }}>
-            ← <span className="rl-label-full">Back to report</span>
-          </button>
-          <div className="rl-report-brand" style={{ paddingLeft: 'var(--s2)', borderLeft: '1px solid var(--border)' }}>
-            <img src="/logo-mark-128.png" alt="" width="26" height="26" style={{ display: 'block', objectFit: 'contain', flexShrink: 0 }} />
-            <span className="rl-report-brand-name rl-label-full">
-              R<span style={{ fontFamily: 'var(--font-data)', color: 'var(--accent)' }}>e</span>elytic
-            </span>
-          </div>
-        </div>
+        {/* No Reelytic mark here, deliberately.
+
+            This screen belongs to the agency: they are looking at THEIR
+            client's report, and their own logo already sits inside the sheet
+            below. A second brand bolted into the chrome above it reads as
+            clutter, not as branding. The shared public view is different, and
+            keeps its mark: that page is seen by someone who has no
+            relationship with us yet. */}
+        <button className="btn btn-ghost" onClick={() => navigate(-1)} title="Back to report" style={{ padding: '0 var(--s3)', flexShrink: 0 }}>
+          ← <span className="rl-label-full">Back to report</span>
+        </button>
 
         <div className="rl-report-topbar-actions">
           <ThemeToggle theme={theme} setTheme={setTheme} />

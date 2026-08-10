@@ -176,6 +176,14 @@ export function ReportThemeStyles({ theme }) {
       @media (max-width: 640px) {
         .rl-report-topbar { padding: var(--s2) var(--s3); border-radius: var(--r-md); gap: var(--s2); }
         .rl-report-topbar-actions { gap: 6px; }
+        /* Below this width the wordmark is the first thing to go.
+
+           Four controls plus "Reelytic" do not fit a phone, and the row was
+           resolving that by clipping the wordmark to a lone "R" next to a
+           squeezed theme toggle. The logo mark alone still carries the brand,
+           and the buttons get the room they need to stay legible. */
+        .rl-report-brand-name { display: none; }
+        .rl-report-brand { flex-shrink: 0; }
         /* Long labels become icon-first on a phone so the row never wraps
            into a three-deep stack of full-width buttons. */
         .rl-label-full { display: none; }

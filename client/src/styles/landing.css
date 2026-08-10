@@ -150,7 +150,10 @@
 
 .steps-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  /* min() clamps the track floor to the container. A bare 300px min
+     overflows any phone narrower than about 340px, which is what pushed the
+     cards past the right edge and made them read as misaligned. */
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
   gap: var(--s5);
 }
 
@@ -193,9 +196,24 @@
 }
 
 .features-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  /* Flex, not grid.
+
+     A 3-column grid strands an incomplete final row against a blank third
+     column, which is exactly what a 5-card section looked like: three, then
+     two, then a hole. Flex-wrap with centring lets any number of cards sit
+     evenly, so adding or removing one never breaks the layout again.
+
+     flex-basis carries the old 340px intent; min(…, 100%) keeps it from
+     overflowing phones narrower than that. */
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: var(--s5);
+}
+
+.features-grid > * {
+  flex: 1 1 min(340px, 100%);
+  max-width: 420px;
 }
 
 .feature-card {
@@ -278,4 +296,170 @@
   font-size: var(--fs-sm);
   color: var(--text-3);
   margin-top: auto;
+}
+
+/* ---- Hero product shot -----------------------------------------------
+   A sheet of links on the left, the finished client report on the right.
+   The product's whole promise is that transformation, so the hero shows it
+   rather than describing it. Rendered in markup, not a screenshot, so it
+   stays sharp and can never drift from the real report design. */
+.report-hero {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  width: 100%;
+}
+.report-hero-input {
+  flex: 0.85;
+  min-width: 0;
+  background-color: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--s4);
+}
+.report-hero-filename {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  margin-bottom: var(--s3);
+}
+.report-hero-link {
+  font-family: var(--font-data);
+  font-size: 11px;
+  color: var(--text-2);
+  padding: 3px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.report-hero-more {
+  font-family: var(--font-data);
+  font-size: 11px;
+  color: var(--text-3);
+  padding-top: 4px;
+}
+.report-hero-arrow {
+  color: var(--accent);
+  font-size: 22px;
+  flex-shrink: 0;
+}
+/* The sheet keeps the real report's light theme in both app themes: this is
+   a picture of a printed client document, not a piece of app chrome. */
+.report-hero-sheet {
+  flex: 1.15;
+  min-width: 0;
+  background-color: #FFFFFF;
+  border-radius: var(--r-md);
+  padding: var(--s4);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.28);
+}
+
+@media (max-width: 700px) {
+  .report-hero { flex-direction: column; align-items: stretch; gap: var(--s2); }
+  .report-hero-arrow { transform: rotate(90deg); align-self: center; }
+}
+
+/* ---- Sheet preview ---------------------------------------------------
+   The one thing every agency wants to know about an export: which columns
+   are theirs and which we add. Two rows of chips instead of a paragraph. */
+.sheet-preview {
+  margin: var(--s5) auto 0;
+  max-width: 760px;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: var(--s5);
+  text-align: center;
+}
+.sheet-preview-caption {
+  font-size: var(--fs-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-bottom: var(--s4);
+}
+.sheet-preview-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin-bottom: var(--s4);
+}
+.sheet-col {
+  font-family: var(--font-data);
+  font-size: var(--fs-xs);
+  padding: 5px 11px;
+  border-radius: var(--r-sm);
+  white-space: nowrap;
+}
+.sheet-col-yours {
+  background-color: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+}
+.sheet-col-added {
+  background-color: color-mix(in srgb, var(--accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, transparent);
+  color: var(--accent);
+}
+.sheet-preview-key {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--s4);
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+.sheet-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  margin-right: 5px;
+}
+.sheet-dot-yours { background-color: var(--border-strong); }
+.sheet-dot-added { background-color: var(--accent); }
+
+/* ---- Type scale and rhythm -------------------------------------------
+   Section headings were sized ad hoc per block, so the page had no visible
+   hierarchy: every section shouted at the same volume. One scale, applied
+   everywhere, is most of what separates a page that looks designed from one
+   that looks assembled.
+
+   clamp() rather than breakpoints: the scale bends continuously with the
+   viewport, so there is no width at which a heading suddenly jumps. */
+.hero-title {
+  font-size: clamp(2rem, 1.2rem + 2.6vw, 3.4rem);
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+  margin-bottom: var(--s4);
+}
+.hero-sub {
+  font-size: clamp(1rem, 0.95rem + 0.3vw, 1.15rem);
+  line-height: 1.65;
+  max-width: 34em;
+}
+.section-title {
+  font-size: clamp(1.5rem, 1.1rem + 1.3vw, 2.1rem);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  text-align: center;
+  margin-bottom: var(--s5);
+}
+.step-heading, .feature-title {
+  font-size: var(--fs-md);
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+.step-desc, .feature-desc {
+  font-size: var(--fs-sm);
+  line-height: 1.65;
+  color: var(--text-2);
+}
+/* One rhythm between major blocks instead of each section choosing its own. */
+.landing-section {
+  padding-top: clamp(3rem, 1.5rem + 5vw, 6rem);
+  padding-bottom: clamp(3rem, 1.5rem + 5vw, 6rem);
+}
+.steps-grid, .features-grid {
+  gap: clamp(1rem, 0.5rem + 1.2vw, 1.75rem);
 }

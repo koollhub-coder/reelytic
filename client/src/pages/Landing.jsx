@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Logo } from '../components/Logo';
-import { LedgerHero } from '../components/LedgerHero';
+import { ReportHero } from '../components/ReportHero';
 import { AccountMenu } from '../components/AccountMenu';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
@@ -40,9 +40,9 @@ export function Landing() {
       <section className="landing-hero">
         <div>
           <div className="hero-eyebrow">FOR INFLUENCER-MARKETING AGENCIES</div>
-          <h1 className="hero-title">Campaign reports in minutes, not workdays.</h1>
+          <h1 className="hero-title">Turn a sheet of Instagram links into a client-ready report.</h1>
           <p className="hero-sub">
-            Upload your sheet of reels or creator profiles. Reelytic fetches views, likes, comments, and engagement rates, then hands the same sheet back, filled in.
+            Upload the campaign sheet you already keep. Every view, like, comment and engagement rate comes back filled in and branded as yours, so your team reports on more clients without adding a single person to do it.
           </p>
           <div className="hero-cta-group">
             {/* Fixed, short label -- account identity/switching lives in the
@@ -61,7 +61,7 @@ export function Landing() {
           </div>
         </div>
         <div>
-          <LedgerHero />
+          <ReportHero />
         </div>
       </section>
 
@@ -70,23 +70,19 @@ export function Landing() {
           <img src="/logo-mark-128.png" alt="" className="whats-new-logo" />
         </div>
         <div className="hero-eyebrow" style={{ textAlign: 'center' }}>NEW IN REELYTIC</div>
-        <h2 className="section-title">Reports your client can act on, not just read</h2>
+        <h2 className="section-title">Everything a client report needs, already handled</h2>
         <p style={{ textAlign: 'center', color: 'var(--text-2)', maxWidth: '660px', margin: '0 auto var(--s6)' }}>
-          Every report leaves your workspace looking like it came from your agency, and now it
-          answers the question every client asks next: compared to what?
+          {/* Says exactly what the report does. The old line claimed nothing in
+              it named a tool, while the footer plainly reads "Data compiled via
+              Reelytic". A client spotting that is a client who stops believing
+              the rest of the page. */}
+          Your logo, your colours, your layout on every page. The only mention of us is one
+          quiet line in the footer.
         </p>
         <div className="features-grid">
-          {/* Benchmarks lead. Branding and share links are table stakes any
-              competitor can copy in a sprint; a median drawn from every
-              campaign the product has ever measured is the one thing that
-              cannot be rebuilt without the same history. */}
-          <div className="feature-card whats-new-card">
-            <div className="feature-title">Benchmarks, not just numbers</div>
-            <div className="feature-desc">"2.3% engagement" means nothing on its own. Every report now says how that compares to the typical creator of the same size, measured across every campaign Reelytic has run.</div>
-          </div>
           <div className="feature-card whats-new-card">
             <div className="feature-title">Campaign over campaign</div>
-            <div className="feature-desc">Group reports into a campaign and each new one shows what moved since the last: engagement, reach, and roster size, with the direction of travel.</div>
+            <div className="feature-desc">Put a campaign's reports together and every new one shows what changed since the last: engagement, reach and how many creators you ran.</div>
           </div>
           <div className="feature-card whats-new-card">
             <div className="feature-title">Your branding, on every report</div>
@@ -94,15 +90,15 @@ export function Landing() {
           </div>
           <div className="feature-card whats-new-card">
             <div className="feature-title">Share links that expire</div>
-            <div className="feature-desc">Send a client a link straight to their report, with no login. Set it to run out in 24 hours, a week, a month, or never, and switch it off the moment a campaign wraps.</div>
+            <div className="feature-desc">Send your client a link to their report. No login, no attachment. Set it to close after a day, a week or a month, and switch it off the moment the campaign ends.</div>
           </div>
           <div className="feature-card whats-new-card">
             <div className="feature-title">See when it was opened</div>
-            <div className="feature-desc">Know whether your client actually looked at the report before the next call. Counts opens, never tracks the person who opened it.</div>
+            <div className="feature-desc">Walk into the next call knowing whether they read it. We count how many times the link was opened, never who opened it.</div>
           </div>
           <div className="feature-card whats-new-card">
             <div className="feature-title">They can take the data with them</div>
-            <div className="feature-desc">Clients download the report table as a clean Excel file straight from the link. Just the reporting columns, never your original working sheet.</div>
+            <div className="feature-desc">Your client can save the numbers as an Excel file straight from the link. Just the report, never your working sheet.</div>
           </div>
         </div>
       </div>
@@ -113,24 +109,49 @@ export function Landing() {
           <div className="step-card">
             <div className="step-number">01</div>
             <h3 className="step-heading">Upload your sheet</h3>
-            <p className="step-desc">Drop your Excel, CSV or paste reel links. Your original columns and formatting are never touched.</p>
+            <p className="step-desc">Drop in an Excel or CSV file, or paste the links straight in. Your own columns stay exactly where you put them.</p>
           </div>
           <div className="step-card">
             <div className="step-number">02</div>
-            <h3 className="step-heading">We fetch the numbers</h3>
-            <p className="step-desc">Live progress, pause anytime, up to 2,000 links per run with smart caching for repeat links.</p>
+            <h3 className="step-heading">We pull the numbers in</h3>
+            <p className="step-desc">Watch it work through the list, pause whenever you need to, up to 2,000 links in one go.</p>
           </div>
           <div className="step-card">
             <div className="step-number">03</div>
             <h3 className="step-heading">Download it back</h3>
-            <p className="step-desc">Get your original sheet back with professional Reelytic metric columns appended in Excel or CSV.</p>
+            <p className="step-desc">Your sheet comes back with the numbers added alongside your own columns, in Excel or CSV.</p>
+          </div>
+        </div>
+
+        {/* Sits under the three steps, not inside step 03.
+
+            Inside the card it made that one card far taller than its two
+            neighbours, and because the row stretches all three to match, the
+            other two gained a block of dead space. On its own line it balances
+            the steps and the preview gets the width it deserves. */}
+        <div className="sheet-preview" aria-hidden="true">
+          <div className="sheet-preview-caption">What comes back</div>
+          <div className="sheet-preview-row">
+            <span className="sheet-col sheet-col-yours">Creator</span>
+            <span className="sheet-col sheet-col-yours">Brief</span>
+            <span className="sheet-col sheet-col-yours">Fee</span>
+            <span className="sheet-col sheet-col-added">Views</span>
+            <span className="sheet-col sheet-col-added">Likes</span>
+            <span className="sheet-col sheet-col-added">Comments</span>
+            <span className="sheet-col sheet-col-added">Shares</span>
+            <span className="sheet-col sheet-col-added">Saves</span>
+            <span className="sheet-col sheet-col-added">Engagement rate</span>
+          </div>
+          <div className="sheet-preview-key">
+            <span><i className="sheet-dot sheet-dot-yours"></i>your columns, exactly as you sent them</span>
+            <span><i className="sheet-dot sheet-dot-added"></i>added by Reelytic</span>
           </div>
         </div>
       </div>
 
       <div className="time-band">
         <div className="time-band-inner">
-          2,000 reels <span className="time-band-highlight">≈ 45 min</span> vs manual entry <span className="time-band-highlight">≈ 3 days</span>. That's the report your client gets today instead of Thursday.
+          2,000 reels takes <span className="time-band-highlight">45 minutes</span> instead of <span className="time-band-highlight">3 days</span>. That is three days of senior time back on every campaign, and a client who hears from you first.
         </div>
       </div>
 
@@ -140,42 +161,42 @@ export function Landing() {
           <div className="step-card">
             <div className="step-number">🎬</div>
             <h3 className="step-heading">Reel Report</h3>
-            <p className="step-desc">Paste any list of reel links and get views, likes, comments, reposts, saves, and engagement rate for each one, side by side.</p>
+            <p className="step-desc">Paste a list of reel links and get views, likes, comments, shares, saves and engagement rate for each one, lined up side by side.</p>
           </div>
           <div className="step-card">
             <div className="step-number">👤</div>
             <h3 className="step-heading">Profile Report</h3>
-            <p className="step-desc">Point it at a creator's profile and get a stable read on their recent performance and follower count, with outliers automatically excluded.</p>
+            <p className="step-desc">Give us a creator's profile and get a fair read on how they normally perform, with one-off viral posts left out so the average means something.</p>
           </div>
         </div>
       </div>
 
       <div className="landing-section">
-        <h2 className="section-title">Built for high-stakes agency reporting</h2>
+        <h2 className="section-title">Built for the reports your retainer depends on</h2>
         <div className="features-grid">
           <div className="feature-card">
-            <div className="feature-title">Auditable Ledger Design</div>
-            <div className="feature-desc">Every number, metric, and timestamp is formatted in tabular numerals for a clean, professional read at a glance.</div>
+            <div className="feature-title">Numbers that line up</div>
+            <div className="feature-desc">Every figure sits in a neat column, so a client can scan the whole report without hunting for the number they care about.</div>
           </div>
           <div className="feature-card">
-            <div className="feature-title">Runs at agency scale</div>
-            <div className="feature-desc">Process up to 2,000 links in a single run, with smart caching so repeat links never get charged or fetched twice.</div>
+            <div className="feature-title">Scales with your client list</div>
+            <div className="feature-desc">Run up to 2,000 links at once, across as many clients as you handle. If the same link appears in two campaigns, you are never charged for it twice.</div>
           </div>
           <div className="feature-card">
-            <div className="feature-title">Full Control While It Runs</div>
-            <div className="feature-desc">Pause, resume, or download a partial report mid-run. Close your tab safely; the run keeps going on our end.</div>
+            <div className="feature-title">Stop and start whenever you like</div>
+            <div className="feature-desc">Pause it, pick it back up, or take what is ready so far. Close the tab and go to a meeting: it carries on without you.</div>
           </div>
           <div className="feature-card">
-            <div className="feature-title">Clean by default</div>
-            <div className="feature-desc">Duplicate and invalid links are flagged clearly in your preview, never silently dropped or miscounted in your export.</div>
+            <div className="feature-title">Nothing slips through</div>
+            <div className="feature-desc">Repeated and broken links are pointed out before you start, so nothing quietly goes missing from the final count.</div>
           </div>
           <div className="feature-card">
-            <div className="feature-title">Export-ready output</div>
-            <div className="feature-desc">Get your original sheet back as a formatted Excel or CSV file, with your columns and structure exactly as you sent them.</div>
+            <div className="feature-title">Ready to send, not to fix</div>
+            <div className="feature-desc">Your sheet comes back tidy in Excel or CSV, laid out exactly the way you sent it in.</div>
           </div>
           <div className="feature-card">
-            <div className="feature-title">Full run history</div>
-            <div className="feature-desc">Every report you've generated stays available to revisit or re-download, even after you log out and come back later.</div>
+            <div className="feature-title">Nothing gets lost</div>
+            <div className="feature-desc">Every report you have ever run stays in your account, ready to open or download again months later.</div>
           </div>
         </div>
       </div>

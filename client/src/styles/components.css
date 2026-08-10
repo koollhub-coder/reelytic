@@ -357,3 +357,26 @@
   border-radius: 50%;
   flex-shrink: 0;
 }
+/* ---- Card grid --------------------------------------------------------
+   Use this for any grid of equal-weight CARDS (feature tiles, explainer
+   panels), not for metric tiles.
+
+   A 3-column grid strands an incomplete last row against blank columns: 4
+   cards render as 3 + 1 with a hole, 5 as 3 + 2 with a hole. That gap reads
+   as a layout bug on every page it happens on, and it happened on the
+   landing page, the "How is this calculated" pages, and the methodology
+   pages for the same reason.
+
+   Flex-wrap with centring makes any count look deliberate, so adding or
+   removing a card can never reopen the hole. min(...,100%) on the basis
+   keeps cards from overflowing phones narrower than the basis. */
+.rl-card-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: stretch;
+}
+.rl-card-grid > * {
+  flex: 1 1 min(300px, 100%);
+  max-width: 460px;
+}

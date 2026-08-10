@@ -85,7 +85,24 @@ function dominantBand(job) {
   return bandFor(followers[Math.floor(followers.length / 2)]);
 }
 
+/*
+  Benchmarks are switched OFF.
+
+  The comparison is only honest once there is enough history behind it to
+  call a median a median. Reelytic is new, so a line telling a client they
+  are "in the top quarter for their size" is a claim the data cannot yet
+  carry, and being caught overstating it once would cost more trust than the
+  feature ever earned.
+
+  Everything stays built and tested. Flip this to true when the sample is
+  genuinely large, and the report, the shared view and the landing page all
+  pick it back up with no other change. See MIN_SAMPLE in
+  benchmarks.service.js for the per-band floor that still applies on top.
+*/
+const BENCHMARKS_ENABLED = false;
+
 async function buildBenchmarkContext(job) {
+  if (!BENCHMARKS_ENABLED) return null;
   const metrics = headlineMetrics(job);
   const band = dominantBand(job);
   if (!metrics || !band) return null;
