@@ -32,18 +32,36 @@ async function setProfileCacheTtlDays(days) {
   return value;
 }
 
-async function getCached(url, type) {
+/*
+  Returns { data, fetchedAt } rather than just the payload, so a caller can
+  record HOW OLD a reused figure was. "This cost nothing" and "this cost
+  nothing because we are showing you a six-day-old number" are different
+  statements, and the admin needs the second one to judge whether the
+  cache TTL is set sensibly.
+*/
+async function getCachedEntry(url, type) {
   try {
     const db = getDb();
     const cached = await db.collection('cache').findOne({ url, type });
     if (!cached) return null;
 
     const ttlDays = await getCacheTtlDays(type);
-    const expiry = new Date(cached.fetchedAt).getTime() + ttlDays * 24 * 60 * 60 * 1000;
+    const fetchedAt = new Date(cached.fetchedAt);
+    const expiry = fetchedAt.getTime() + ttlDays * 24 * 60 * 60 * 1000;
     if (Date.now() > expiry) {
       return null;
     }
-    return cached.data;
+    /*
+      An entry with no payload is a miss, not a hit.
+
+      Callers test the returned object for truthiness. getCached() used to
+      return `cached.data` directly, so an empty payload was falsy and fell
+      through to a real scrape. Wrapping it in an object would make that same
+      empty entry truthy and short-circuit the scrape, producing a finished
+      row with no metrics in it. Checked here so both callers inherit it.
+    */
+    if (cached.data == null) return null;
+    return { data: cached.data, fetchedAt };
   } catch (e) {
     // Previously swallowed silently -- a broken cache lookup looked
     // identical to "nothing cached yet", which is exactly how this went
@@ -51,6 +69,12 @@ async function getCached(url, type) {
     console.warn('[Cache Service] getCached failed:', e.message);
     return null;
   }
+}
+
+// Payload-only form, kept so existing callers are unaffected.
+async function getCached(url, type) {
+  const entry = await getCachedEntry(url, type);
+  return entry ? entry.data : null;
 }
 
 async function setCache(url, type, data) {
@@ -66,4 +90,4 @@ async function setCache(url, type, data) {
   }
 }
 
-module.exports = { getCached, setCache, getCacheTtlDays, setProfileCacheTtlDays, DEFAULT_PROFILE_CACHE_TTL_DAYS };
+module.exports = { getCached, getCachedEntry, setCache, getCacheTtlDays, setProfileCacheTtlDays, DEFAULT_PROFILE_CACHE_TTL_DAYS };

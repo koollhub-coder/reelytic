@@ -3,6 +3,7 @@ import { apiFetch } from '../../api/client';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { BrandLoader } from '../../components/BrandLoader';
 import { useToast } from '../../context/ToastContext';
+import { formatDate, formatDateTime, formatDayKey } from '../../utils/date';
 
 // Fallback so a failed/incomplete API response never crashes the page (see
 // the `error` state below for the actual failure UI) -- info[m].label on a
@@ -43,7 +44,7 @@ function PipelineHistoryTable({ log, infoSafe }) {
         <tbody>
           {log.map((entry, i) => (
             <tr key={i}>
-              <td className="mono" style={{ color: 'var(--text-3)' }}>{new Date(entry.at).toLocaleString()}</td>
+              <td className="mono" style={{ color: 'var(--text-3)' }}>{formatDateTime(entry.at)}</td>
               <td style={{ fontWeight: 600 }}>{entry.by}</td>
               <td>{infoSafe[entry.from]?.label || entry.from}</td>
               <td>{infoSafe[entry.to]?.label || entry.to}</td>

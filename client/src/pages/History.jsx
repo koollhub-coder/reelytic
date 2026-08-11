@@ -6,6 +6,7 @@ import { BrandLoader } from '../components/BrandLoader';
 import { Modal } from '../components/Modal';
 import { Select } from '../components/Select';
 import { useToast } from '../context/ToastContext';
+import { formatDate, formatDateTime, formatDayKey } from '../utils/date';
 
 const STATUS_LABELS = {
   preview: { label: 'Not started', chip: 'warn' },
@@ -26,7 +27,7 @@ function formatDuration(startedAt, finishedAt) {
 
 function formatDateRange(earliestAt, latestAt) {
   if (!earliestAt) return '';
-  const fmt = (d) => new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const fmt = (d) => formatDate(d);
   if (!latestAt || fmt(earliestAt) === fmt(latestAt)) return fmt(earliestAt);
   return `${fmt(earliestAt)} - ${fmt(latestAt)}`;
 }
@@ -63,7 +64,7 @@ function ReportRow({ job, campaigns, onReassign, navigate }) {
       </td>
       <td className="mono" style={{ color: 'var(--text-3)' }}>{formatDuration(job.startedAt, job.finishedAt)}</td>
       <td className="mono" style={{ color: 'var(--text-3)' }}>
-        {new Date(job.createdAt).toLocaleDateString()} {new Date(job.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        {formatDateTime(job.createdAt)}
       </td>
       <td>
         <Select

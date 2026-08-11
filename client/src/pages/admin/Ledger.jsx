@@ -3,6 +3,7 @@ import { apiFetch } from '../../api/client';
 import { CopyButton } from '../../components/CopyButton';
 import { BrandLoader } from '../../components/BrandLoader';
 import { Select } from '../../components/Select';
+import { formatDate, formatDateTime, formatDayKey } from '../../utils/date';
 
 const PAGE_SIZE = 50;
 
@@ -86,7 +87,7 @@ export function Ledger() {
               <tbody>
                 {ledger.map((l, i) => (
                   <tr key={i}>
-                    <td className="mono" style={{ color: 'var(--text-3)' }}>{new Date(l.at).toLocaleString()}</td>
+                    <td className="mono" style={{ color: 'var(--text-3)' }}>{formatDateTime(l.at)}</td>
                     <td style={{ fontWeight: 600 }}>{l.username}</td>
                     <td><span className="chip" style={{ textTransform: 'uppercase' }}>{l.type}</span></td>
                     <td className="mono" style={{ maxWidth: '320px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

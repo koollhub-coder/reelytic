@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Modal } from './Modal';
 import { apiFetch } from '../api/client';
 import { useToast } from '../context/ToastContext';
+import { formatDate as fmtDate, formatDateTime as fmtDateTime } from '../utils/date';
 
 /*
   The share-link control panel: create a link, choose how long it stays
@@ -31,17 +32,15 @@ const PRESETS = [
 
 const DEFAULT_PRESET = '30d';
 
+// Local wrappers keep this file's existing null-on-empty contract, which the
+// callers below rely on to decide whether to render the line at all. The
+// house format itself lives in utils/date.js.
 function formatDateTime(value) {
-  if (!value) return null;
-  return new Date(value).toLocaleString('en-IN', {
-    day: 'numeric', month: 'short', year: 'numeric',
-    hour: 'numeric', minute: '2-digit',
-  });
+  return value ? fmtDateTime(value) : null;
 }
 
 function formatDate(value) {
-  if (!value) return null;
-  return new Date(value).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  return value ? fmtDate(value) : null;
 }
 
 // The value an <input type="datetime-local"> expects, in LOCAL time. Using

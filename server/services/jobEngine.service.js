@@ -1,10 +1,10 @@
 const { getDb, queryId } = require('../db');
 const { scrapeReels, scrapeProfilesBatch, scrapeProfilesBatchV2, scrapeFollowersBatch, scrapeFollowersBatchExpress, scrapeFollowersBatchWithCost, extractUsername } = require('./apify.service');
-const { getCached, setCache } = require('./cache.service');
+const { getCachedEntry, setCache } = require('./cache.service');
 const { computeReelMetrics, computeProfileMetrics, computeProfileMetricsV2 } = require('./metrics.service');
 const { recordLedgerEntry } = require('./ledger.service');
 const { estimateItemCostUsd, REEL_STANDARD_COST_USD, REEL_EXPRESS_COST_USD } = require('./costEstimate.service');
-const { chargeSuccess, costPerItem } = require('./credits.service');
+const { chargeSuccess, costPerItem, getBalance } = require('./credits.service');
 const { getLearnedAvgMs, recordJobTiming, DEFAULT_AVG_MS } = require('./learnedTiming.service');
 
 const activeJobs = new Map(); // jobId -> { abort: boolean }
@@ -28,7 +28,18 @@ async function startJob(jobId) {
   // not reset the clock, so "processing time" on completion reflects the
   // whole run, not just the time since the last resume.
   const update = { status: 'running', pausedReason: null };
-  if (!job.startedAt) update.startedAt = new Date();
+  if (!job.startedAt) {
+    update.startedAt = new Date();
+    /*
+      The client's balance the instant before any credit is spent on this
+      report. Captured here rather than derived later because a balance can
+      also move for reasons this report knows nothing about (an admin top-up,
+      a plan reset), so reconstructing "what did they have before?" after the
+      fact is guesswork. Only stamped on the FIRST start: resuming a paused
+      report must not overwrite the opening balance with a mid-run one.
+    */
+    update.creditsBefore = await getBalance(job.ownerUsername);
+  }
   await jobsColl.updateOne({ _id: queryId(jobId) }, { $set: update });
 
   processJobLoop(jobId).catch(err => {
@@ -77,11 +88,11 @@ async function processReelBatch(batchSlice, pipelineMode) {
 
   // Per-URL result cache (cheap local/db lookup, not an Apify call) -- safe to
   // check in parallel for the whole batch before touching Apify at all.
-  const cacheChecks = await Promise.all(toScrape.map(({ row }) => getCached(row.input.url, 'reel')));
+  const cacheChecks = await Promise.all(toScrape.map(({ row }) => getCachedEntry(row.input.url, 'reel')));
   const needFetch = [];
   toScrape.forEach((item, i) => {
     if (cacheChecks[i]) {
-      results.push({ index: item.index, state: 'done', result: cacheChecks[i], fromCache: true });
+      results.push({ index: item.index, state: 'done', result: cacheChecks[i].data, fromCache: true, cachedAt: cacheChecks[i].fetchedAt });
     } else {
       needFetch.push(item);
     }
@@ -217,11 +228,11 @@ async function processProfileBatch(batchSlice, pipelineMode) {
 
   if (toScrape.length === 0) return results;
 
-  const cacheChecks = await Promise.all(toScrape.map(({ row }) => getCached(row.input.url, 'profile')));
+  const cacheChecks = await Promise.all(toScrape.map(({ row }) => getCachedEntry(row.input.url, 'profile')));
   const needFetch = [];
   toScrape.forEach((item, i) => {
     if (cacheChecks[i]) {
-      results.push({ index: item.index, state: 'done', result: cacheChecks[i], fromCache: true });
+      results.push({ index: item.index, state: 'done', result: cacheChecks[i].data, fromCache: true, cachedAt: cacheChecks[i].fetchedAt });
     } else {
       needFetch.push(item);
     }
@@ -318,7 +329,11 @@ async function processJobLoop(jobId) {
           // (see processReelBatch) -- only fall back to the flat estimate
           // if it's somehow missing. Profile: still the flat estimate.
           estimatedCostUsd: res.costUsd != null ? res.costUsd : itemCostUsd,
+          // Only reels currently carry a real per-run figure, so anything
+          // without res.costUsd is an estimate and must not claim otherwise.
+          costSource: res.costUsd != null ? 'measured' : 'estimated',
           fromCache: res.fromCache,
+          cachedAt: res.cachedAt || null,
         });
         // Charge credits per successful item (failures are free).
         chargeSuccess(job.ownerUsername, job.type).catch(() => { });
@@ -365,9 +380,14 @@ async function processJobLoop(jobId) {
   // Check if job finished
   const finalCheck = await jobsColl.findOne({ _id: queryId(jobId) });
   if (finalCheck && finalCheck.cursor >= finalCheck.rows.length && finalCheck.status === 'running') {
+    // Closing balance, so the credit audit can show before -> spent -> after
+    // as three independently-recorded figures. If they ever fail to reconcile,
+    // that is a real bug worth surfacing rather than a rounding artefact of a
+    // number we recomputed ourselves.
+    const creditsAfter = await getBalance(finalCheck.ownerUsername);
     await jobsColl.updateOne(
       { _id: queryId(jobId) },
-      { $set: { status: 'done', finishedAt: new Date(), updatedAt: new Date() } }
+      { $set: { status: 'done', finishedAt: new Date(), creditsAfter, updatedAt: new Date() } }
     );
     recordJobTiming(finalCheck.type, finalCheck.avgRowMs).catch(() => { });
   }

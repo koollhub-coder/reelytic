@@ -12,6 +12,7 @@ import { ProfileMethodologyModal } from '../components/ProfileMethodologyModal';
 import { ReelMethodologyModal } from '../components/ReelMethodologyModal';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
+import { formatDate, formatDateTime, formatDayKey } from '../utils/date';
 
 const ER_FORMULA = {
   reel: 'ER = (Likes + Comments) / Views × 100',
@@ -1375,7 +1376,7 @@ export function ReportEngine({ type = 'reel' }) {
                               ) : (c.shortCode || '-')}
                             </td>
                             <td className="mono" style={{ color: 'var(--text-3)', fontSize: 'var(--fs-xs)' }}>
-                              {c.timestamp ? new Date(c.timestamp).toLocaleDateString() : '-'}
+                              {formatDate(c.timestamp)}
                             </td>
                             <td className="numeric mono">{c.views != null ? c.views.toLocaleString() : '-'}</td>
                             <td className="numeric mono">{detail ? (detail.likes ?? 0).toLocaleString() : '-'}</td>

@@ -7,7 +7,7 @@ const { parseUserAgent } = require('../utils/ua');
 const config = require('../config');
 const { DEFAULT_PLANS } = require('./pricing.routes');
 const { FEATURE_KEYS } = require('../services/features.service');
-const { defaultsForNewUser, adjustCredits, setCredits } = require('../services/credits.service');
+const { defaultsForNewUser, adjustCredits, setCredits, getBalance } = require('../services/credits.service');
 const { generateClientLedgerExcel, generateClientLedgerCsv } = require('../services/export.service');
 const { getProfilePipelineMode, setProfilePipelineMode, PROFILE_PIPELINE_INFO, getV2FetchDepth, setV2FetchDepth } = require('../services/profilePipeline.service');
 const { getCacheTtlDays, setProfileCacheTtlDays, DEFAULT_PROFILE_CACHE_TTL_DAYS } = require('../services/cache.service');
@@ -565,24 +565,210 @@ router.get('/usage/by-user/:username', requireAdmin, async (req, res, next) => {
     const db = getDb();
     const entries = await db.collection('submittedLinks').find(
       { username: req.params.username, result: 'success', at: { $gte: new Date(cycleStart) } },
-      { projection: { url: 1, type: 1, resolvedUsername: 1, estimatedCostUsd: 1, pipelineMode: 1, at: 1 } }
+      { projection: { url: 1, type: 1, resolvedUsername: 1, estimatedCostUsd: 1, pipelineMode: 1, at: 1, fromCache: 1, costSource: 1, cachedAt: 1 } }
     ).sort({ at: -1 }).toArray();
 
     const usdToInr = await getUsdToInrRate();
-    const items = entries.map((e) => ({
-      url: e.url,
-      type: e.type,
-      resolvedUsername: e.resolvedUsername,
-      pipelineMode: e.pipelineMode,
-      costUsd: e.estimatedCostUsd != null ? e.estimatedCostUsd : fallbackCostUsd(e.type),
-      // true = recorded at scrape time (reel items include a real, measured
-      // analytics cost; see scrapeReels' costPerRequestedUsd). false = this
-      // entry predates cost tracking and is backfilled with a flat rate.
-      recordedLive: e.estimatedCostUsd != null,
-      at: e.at,
-    }));
+    let cachedCount = 0;
+    const items = entries.map((e) => {
+      /*
+        Entries written before costSource existed have to be classified from
+        what they do carry. A successful item costing exactly 0 can only have
+        come from the cache: every live scrape rate is strictly positive, and
+        a genuinely unknown cost is stored as null, not 0. Anything else with
+        a recorded number is a flat-rate estimate, since only reels ever
+        captured a real per-run figure and older rows did not distinguish.
+      */
+      const cached = e.fromCache != null
+        ? !!e.fromCache
+        : e.estimatedCostUsd === 0;
+      const source = e.costSource
+        || (cached ? 'cached' : (e.estimatedCostUsd != null ? 'estimated' : 'backfilled'));
+      if (cached) cachedCount++;
+      return {
+        url: e.url,
+        type: e.type,
+        resolvedUsername: e.resolvedUsername,
+        pipelineMode: e.pipelineMode,
+        costUsd: e.estimatedCostUsd != null ? e.estimatedCostUsd : fallbackCostUsd(e.type),
+        // cached | measured | estimated | backfilled -- drives the chip and
+        // explains why a row can legitimately read as zero.
+        costSource: source,
+        cached,
+        // When the reused data was originally scraped, so the admin can see
+        // how stale a free item's figures were. Null on anything cached
+        // before this was recorded, and on everything not cached.
+        cachedAt: cached ? (e.cachedAt || null) : null,
+        at: e.at,
+      };
+    });
 
-    res.json({ username: req.params.username, items, usdToInr });
+    res.json({ username: req.params.username, items, usdToInr, cachedCount });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/*
+  Credit audit: every report this client has run, with the balance they held
+  going in, what the run charged, and the balance they held coming out.
+
+  The three figures are recorded independently (creditsBefore at first start,
+  creditsAfter at completion, creditsSpent accumulated per successful item),
+  so comparing them is a genuine check rather than a restatement. Where
+  before - spent != after, this says so instead of quietly showing the
+  arithmetic it wishes were true: a mismatch means either the balance moved
+  for another reason mid-run (an admin top-up) or a charge did not land, and
+  both are things worth seeing.
+
+  Apify cost is joined per job from the item ledger, which is what lets the
+  admin put "what we charged them" and "what it cost us" on the same row.
+*/
+router.get('/usage/credits/:username', requireAdmin, async (req, res, next) => {
+  try {
+    const db = getDb();
+    const username = req.params.username;
+
+    // Window the history. "All time" is the wrong default for a spend review
+    // once a client has months of runs, and totals that silently mean
+    // "everything ever" are the easiest number on a page to misread.
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const rawDays = String(req.query.days || '30');
+    const days = rawDays === 'all' ? null : Math.min(365, Math.max(1, Number(rawDays) || 30));
+    const since = days ? new Date(Date.now() - days * DAY_MS) : null;
+
+    const jobFilter = { ownerUsername: username, startedAt: { $ne: null } };
+    if (since) jobFilter.startedAt = { $ne: null, $gte: since };
+
+    const jobs = await db.collection('jobs').find(
+      jobFilter,
+      { projection: { type: 1, status: 1, counts: 1, createdAt: 1, startedAt: 1, finishedAt: 1, creditsBefore: 1, creditsAfter: 1, fileName: 1 } }
+    ).sort({ startedAt: -1 }).limit(500).toArray();
+
+    /*
+      What a credit is worth to us, so the page can answer "are we making
+      money on this client?" rather than only "what did it cost?".
+
+      Admins hold an effectively-infinite pool (ADMIN_CREDITS) and pay
+      nothing, so for them a credit has no revenue attached and the balance
+      is meaningless as a countdown. Reporting 999,634 as a balance invites
+      exactly the confusion it caused: it is not a balance, it is what is
+      left of a number that was never meant to be spent down.
+    */
+    const userDoc = await db.collection('users').findOne(
+      { username },
+      { projection: { plan: 1, credits: 1, role: 1 } }
+    );
+    const plan = (userDoc && userDoc.plan) || 'free';
+    const unlimited = plan === 'unlimited' || (userDoc && userDoc.role === 'admin');
+
+    let planPriceInr = null;
+    let planCredits = null;
+    if (!unlimited) {
+      const planDoc = await db.collection('settings').findOne({ key: 'pricingPlans' });
+      const plans = (planDoc && planDoc.value && planDoc.value.length > 0) ? planDoc.value : DEFAULT_PLANS;
+      const match = plans.find((p) => p.id === plan);
+      if (match && match.monthly && match.credits) {
+        planPriceInr = match.monthly;
+        planCredits = match.credits;
+      }
+    }
+
+    // One pass over the ledger, grouped in memory: 200 separate per-job
+    // aggregations would be 200 round trips for a page that refreshes.
+    const jobIds = jobs.map((j) => String(j._id));
+    const costRows = jobIds.length === 0 ? [] : await db.collection('submittedLinks').find(
+      { jobId: { $in: jobIds }, result: 'success' },
+      { projection: { jobId: 1, estimatedCostUsd: 1, type: 1, fromCache: 1 } }
+    ).toArray();
+
+    const costByJob = new Map();
+    for (const r of costRows) {
+      const key = String(r.jobId);
+      if (!costByJob.has(key)) costByJob.set(key, { usd: 0, items: 0, cached: 0 });
+      const bucket = costByJob.get(key);
+      bucket.usd += r.estimatedCostUsd != null ? r.estimatedCostUsd : fallbackCostUsd(r.type);
+      bucket.items++;
+      const cached = r.fromCache != null ? !!r.fromCache : r.estimatedCostUsd === 0;
+      if (cached) bucket.cached++;
+    }
+
+    const usdToInr = await getUsdToInrRate();
+    const currentBalance = await getBalance(username);
+
+    // Everything on this page is already in USD and converted at render time
+    // by the currency toggle, so plan revenue is converted here rather than
+    // shipping a second currency the client would have to reconcile.
+    const revenuePerCreditUsd = (planPriceInr && planCredits && usdToInr)
+      ? (planPriceInr / planCredits) / usdToInr
+      : null;
+
+    let totalSpent = 0;
+    let totalCostUsd = 0;
+    let totalItems = 0;
+    let totalCached = 0;
+    let unreconciled = 0;
+
+    const runs = jobs.map((j) => {
+      const spent = (j.counts && j.counts.creditsSpent) || 0;
+      const cost = costByJob.get(String(j._id)) || { usd: 0, items: 0, cached: 0 };
+      const before = j.creditsBefore != null ? j.creditsBefore : null;
+      const after = j.creditsAfter != null ? j.creditsAfter : null;
+      // Only a run with both endpoints recorded can be checked at all;
+      // anything older is reported as unverifiable, never as reconciled.
+      const reconciled = (before != null && after != null) ? (before - spent === after) : null;
+      if (reconciled === false) unreconciled++;
+      totalSpent += spent;
+      totalCostUsd += cost.usd;
+      totalItems += cost.items;
+      totalCached += cost.cached;
+      const revenueUsd = revenuePerCreditUsd != null ? spent * revenuePerCreditUsd : null;
+      return {
+        jobId: String(j._id),
+        type: j.type,
+        status: j.status,
+        fileName: j.fileName || null,
+        at: j.startedAt || j.createdAt,
+        finishedAt: j.finishedAt || null,
+        itemsCharged: cost.items,
+        cachedItems: cost.cached,
+        creditsBefore: before,
+        creditsSpent: spent,
+        creditsAfter: after,
+        reconciled,
+        costUsd: cost.usd,
+        revenueUsd,
+        // Null rather than 0 when there is no revenue to compare against, so
+        // an internal run never renders as a 100% loss.
+        marginPct: (revenueUsd && revenueUsd > 0) ? ((revenueUsd - cost.usd) / revenueUsd) * 100 : null,
+      };
+    });
+
+    const totalRevenueUsd = revenuePerCreditUsd != null ? totalSpent * revenuePerCreditUsd : null;
+
+    res.json({
+      username,
+      runs,
+      plan,
+      unlimited,
+      planPriceInr,
+      planCredits,
+      // Meaningless as a countdown on an unlimited pool, so the client is
+      // told not to render it as one rather than being left to guess.
+      currentBalance: unlimited ? null : currentBalance,
+      days: days || 'all',
+      totalSpent,
+      totalCostUsd,
+      totalItems,
+      totalCached,
+      totalRevenueUsd,
+      totalMarginPct: (totalRevenueUsd && totalRevenueUsd > 0)
+        ? ((totalRevenueUsd - totalCostUsd) / totalRevenueUsd) * 100
+        : null,
+      unreconciled,
+      verifiable: runs.filter((r) => r.reconciled !== null).length,
+      usdToInr,
+    });
   } catch (err) {
     next(err);
   }

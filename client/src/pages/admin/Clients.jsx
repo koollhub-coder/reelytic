@@ -6,6 +6,7 @@ import { CopyButton } from '../../components/CopyButton';
 import { BrandLoader } from '../../components/BrandLoader';
 import { Select } from '../../components/Select';
 import { useToast } from '../../context/ToastContext';
+import { formatDate, formatDateTime, formatDayKey } from '../../utils/date';
 
 // override value -> Select value, and back. null/undefined (key never
 // touched) reads as "plan", matching hasFeature()'s fallback-to-plan rule.
@@ -206,8 +207,8 @@ export function Clients() {
                     {c.disabled ? 'Disabled' : 'Active'}
                   </span>
                 </td>
-                <td className="mono" style={{ color: 'var(--text-3)' }}>{new Date(c.createdAt).toLocaleDateString()}</td>
-                <td className="mono" style={{ color: 'var(--text-3)' }}>{c.lastLoginAt ? new Date(c.lastLoginAt).toLocaleString() : 'Never'}</td>
+                <td className="mono" style={{ color: 'var(--text-3)' }}>{formatDate(c.createdAt)}</td>
+                <td className="mono" style={{ color: 'var(--text-3)' }}>{c.lastLoginAt ? formatDateTime(c.lastLoginAt) : 'Never'}</td>
                 <td style={{ textAlign: 'right' }}>
                   <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                     <button className="btn btn-secondary" style={{ height: '28px', fontSize: 'var(--fs-xs)' }} onClick={() => openCreditModal(c)}>Credits</button>

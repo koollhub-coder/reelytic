@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { formatDate, formatDateTime, formatDayKey } from '../utils/date';
 
 // Big campaigns run into the hundreds of creators. Show a readable page at a
 // time on screen; the printed PDF and the Excel export always carry every row.
@@ -282,7 +283,7 @@ export function ReportSheet({ job, branding, context = {}, maxWidth = '1000px' }
   const logoPosition = branding.logoPosition || 'left';
   const showAgencyName = branding.showAgencyName !== false;
   const showHighlights = branding.showHighlights !== false;
-  const dateStr = new Date(job.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  const dateStr = formatDate(job.createdAt);
 
   const totalViews = successRows.reduce((sum, r) => sum + (Number(r.result[isReel ? 'views' : 'avgViews']) || 0), 0);
   const totalEngagement = isReel

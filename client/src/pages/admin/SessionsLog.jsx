@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../../api/client';
 import { BrandLoader } from '../../components/BrandLoader';
+import { formatDate, formatDateTime, formatDayKey } from '../../utils/date';
 
 const PAGE_SIZE = 50;
 
@@ -50,7 +51,7 @@ export function SessionsLog() {
               <tbody>
                 {sessions.map((s, i) => (
                   <tr key={i}>
-                    <td className="mono" style={{ color: 'var(--text-3)' }}>{new Date(s.at).toLocaleString()}</td>
+                    <td className="mono" style={{ color: 'var(--text-3)' }}>{formatDateTime(s.at)}</td>
                     <td style={{ fontWeight: 600 }}>{s.username}</td>
                     <td className="mono">{s.ip}</td>
                     <td style={{ color: 'var(--text-2)' }}>{s.userAgent}</td>

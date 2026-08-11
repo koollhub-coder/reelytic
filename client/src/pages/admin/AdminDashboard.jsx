@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../../api/client';
 import { StatCard } from '../../components/StatCard';
 import { BrandLoader } from '../../components/BrandLoader';
+import { formatDate, formatDateTime, formatDayKey } from '../../utils/date';
 
 export function AdminDashboard() {
   const [data, setData] = useState(null);
@@ -49,7 +50,7 @@ export function AdminDashboard() {
               <span><strong style={{ color: 'var(--text)', fontFamily: 'var(--font-data)' }}>{periodTotal.toLocaleString()}</strong> processed</span>
               <span>Active <strong style={{ color: 'var(--text)', fontFamily: 'var(--font-data)' }}>{activeDays}/14</strong> days</span>
               {busiestDay && busiestDay.count > 0 && (
-                <span>Busiest: <strong style={{ color: 'var(--text)', fontFamily: 'var(--font-data)' }}>{new Date(busiestDay.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</strong></span>
+                <span>Busiest: <strong style={{ color: 'var(--text)', fontFamily: 'var(--font-data)' }}>{formatDayKey(busiestDay.date)}</strong></span>
               )}
             </div>
           )}
@@ -70,7 +71,7 @@ export function AdminDashboard() {
               {activity.map((a, i) => {
                 const reelPct = (a.reels / maxCount) * 160;
                 const profilePct = (a.profiles / maxCount) * 160;
-                const dateLabel = new Date(a.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                const dateLabel = formatDayKey(a.date);
                 return (
                   // Themed tooltip (components.css) instead of a native title=
                   // box, which never themes for dark mode and effectively

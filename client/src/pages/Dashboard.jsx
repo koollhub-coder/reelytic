@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { BrandLoader } from '../components/BrandLoader';
+import { formatDate, formatDateTime, formatDayKey } from '../utils/date';
 
 const cardStyle = {
     background: 'var(--surface)',
@@ -108,7 +109,7 @@ export function Dashboard() {
                             <span><strong style={{ color: 'var(--text)', fontFamily: 'var(--font-data)' }}>{periodTotal.toLocaleString()}</strong> processed</span>
                             <span>Active <strong style={{ color: 'var(--text)', fontFamily: 'var(--font-data)' }}>{activeDays}/14</strong> days</span>
                             {busiestDay && busiestDay.total > 0 && (
-                                <span>Busiest: <strong style={{ color: 'var(--text)', fontFamily: 'var(--font-data)' }}>{new Date(busiestDay.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</strong></span>
+                                <span>Busiest: <strong style={{ color: 'var(--text)', fontFamily: 'var(--font-data)' }}>{formatDayKey(busiestDay.date)}</strong></span>
                             )}
                         </div>
                     )}
@@ -129,7 +130,7 @@ export function Dashboard() {
                             {daily.map((d, i) => {
                                 const reelPct = (d.reels / maxTotal) * 130;
                                 const profilePct = (d.profiles / maxTotal) * 130;
-                                const dateLabel = new Date(d.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                                const dateLabel = formatDayKey(d.date);
                                 return (
                                     // Native title= tooltips don't theme (always the browser's own
                                     // unstyled black box, wrong in dark mode) and effectively never
@@ -186,7 +187,7 @@ export function Dashboard() {
                                             {STATUS_LABELS[j.status] || j.status}
                                         </span>
                                     </td>
-                                    <td className="mono" style={{ color: 'var(--text-3)' }}>{new Date(j.createdAt).toLocaleDateString()}</td>
+                                    <td className="mono" style={{ color: 'var(--text-3)' }}>{formatDate(j.createdAt)}</td>
                                 </tr>
                             ))}
                         </tbody>

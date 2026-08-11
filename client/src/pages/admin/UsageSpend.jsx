@@ -4,6 +4,9 @@ import { StatCard } from '../../components/StatCard';
 import { BrandLoader } from '../../components/BrandLoader';
 import { PipelineModeBanner } from '../../components/PipelineModeBanner';
 import { Modal } from '../../components/Modal';
+import { formatDate, formatDateTime, formatAge } from '../../utils/date';
+import { scanMethodLabel, scanMethodHelp, costSourceLabel, costSourceHelp } from '../../utils/labels';
+import { CreditAuditModal } from '../../components/CreditAuditModal';
 
 const REFRESH_MS = 30000;
 
@@ -29,6 +32,8 @@ export function UsageSpend() {
     const [drilldownLoading, setDrilldownLoading] = useState(false);
     const [drilldownError, setDrilldownError] = useState('');
     const [drilldownPage, setDrilldownPage] = useState(1);
+    const [drilldownCachedCount, setDrilldownCachedCount] = useState(0);
+    const [auditUser, setAuditUser] = useState(null);
     const [showTechnical, setShowTechnical] = useState(false);
 
     const openDrilldown = (username) => {
@@ -36,9 +41,10 @@ export function UsageSpend() {
         setDrilldownItems(null);
         setDrilldownError('');
         setDrilldownPage(1);
+        setDrilldownCachedCount(0);
         setDrilldownLoading(true);
         apiFetch(`/admin/usage/by-user/${encodeURIComponent(username)}`)
-            .then((res) => setDrilldownItems(res.items || []))
+            .then((res) => { setDrilldownItems(res.items || []); setDrilldownCachedCount(res.cachedCount || 0); })
             .catch((err) => setDrilldownError(err.message || "Couldn't load this client's items"))
             .finally(() => setDrilldownLoading(false));
     };
@@ -127,7 +133,7 @@ export function UsageSpend() {
                 <StatCard label="Daily average" value={fmt(dailyAvgUsd, currency, rate)} />
                 <StatCard
                     label="Cycle"
-                    value={`${new Date(data.cycleStart).toLocaleDateString()} - ${new Date(data.cycleEnd).toLocaleDateString()}`}
+                    value={`${formatDate(data.cycleStart)} - ${formatDate(data.cycleEnd)}`}
                 />
             </div>
 
@@ -154,6 +160,7 @@ export function UsageSpend() {
                                 <th className="numeric">Reel reports</th>
                                 <th className="numeric">Reel spend</th>
                                 <th className="numeric">Total</th>
+                                <th></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -175,6 +182,17 @@ export function UsageSpend() {
                                     <td className="numeric mono">{row.reelCount || '-'}</td>
                                     <td className="numeric mono">{row.reelCount ? fmt(row.reelUsd, currency, rate) : '-'}</td>
                                     <td className="numeric mono" style={{ fontWeight: 700 }}>{fmt(row.totalUsd, currency, rate)}</td>
+                                    <td style={{ textAlign: 'right' }}>
+                                        <button
+                                            type="button"
+                                            className="btn btn-secondary"
+                                            style={{ height: '28px', fontSize: 'var(--fs-xs)', padding: '0 var(--s3)', whiteSpace: 'nowrap' }}
+                                            title="Opening balance, credits charged and closing balance for every report this client has run"
+                                            onClick={(e) => { e.stopPropagation(); setAuditUser(row.username); }}
+                                        >
+                                            Credit audit
+                                        </button>
+                                    </td>
                                 </tr>
                             ))}
                         </tbody>
@@ -257,7 +275,16 @@ export function UsageSpend() {
                 )}
             </div>
 
-            <Modal isOpen={!!drilldownUser} onClose={() => setDrilldownUser(null)} title={drilldownUser ? `${drilldownUser}: every item this cycle` : ''} width="720px">
+            <CreditAuditModal
+                username={auditUser}
+                isOpen={!!auditUser}
+                onClose={() => setAuditUser(null)}
+                currency={currency}
+                rate={rate}
+                fmtMoney={fmt}
+            />
+
+            <Modal isOpen={!!drilldownUser} onClose={() => setDrilldownUser(null)} title={drilldownUser ? `${drilldownUser}: every item this cycle` : ''} width="940px">
                 {drilldownLoading ? (
                     <BrandLoader variant="inline" message="Loading items..." />
                 ) : drilldownError ? (
@@ -266,17 +293,28 @@ export function UsageSpend() {
                     <div style={{ color: 'var(--text-3)', textAlign: 'center', padding: 'var(--s5)' }}>No items recorded for this client this cycle.</div>
                 ) : (
                     <>
-                        <p style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', marginBottom: 'var(--s3)' }}>
-                            {drilldownItems.length} item{drilldownItems.length === 1 ? '' : 's'} · reel items marked "measured" carry a real, per-run
-                            Apify cost captured at scrape time; everything else is the measured rate for whichever method was active.
+                        <p style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', marginBottom: 'var(--s3)', lineHeight: 1.6 }}>
+                            {drilldownItems.length} item{drilldownItems.length === 1 ? '' : 's'} this cycle.
+                            {' '}A <strong style={{ color: 'var(--text-2)' }}>Free</strong> item cost nothing because we already held that
+                            data and made no new lookup, and the age beside it tells you how current those figures were.
+                            {' '}<strong style={{ color: 'var(--text-2)' }}>Express scan</strong> is the cheaper single-lookup method,
+                            {' '}<strong style={{ color: 'var(--text-2)' }}>Standard scan</strong> is the older two-lookup one.
+                            {drilldownCachedCount > 0 && (
+                                <>
+                                    {' '}<span style={{ color: 'var(--ok)' }}>
+                                        {drilldownCachedCount} of these were reused at no cost.
+                                    </span>
+                                </>
+                            )}
                         </p>
                         <div className="rl-table-scroll"><table className="data-table">
                             <thead>
                                 <tr>
                                     <th>Link</th>
                                     <th>Type</th>
-                                    <th>Method</th>
+                                    <th>Scan method</th>
                                     <th className="numeric">Cost</th>
+                                    <th>Where this came from</th>
                                     <th>When</th>
                                 </tr>
                             </thead>
@@ -288,12 +326,26 @@ export function UsageSpend() {
                                         </td>
                                         <td style={{ textTransform: 'capitalize' }}>{it.type}</td>
                                         <td>
-                                            <span className="chip" style={{ padding: '2px 8px', fontSize: '10px' }}>
-                                                {it.pipelineMode || 'legacy'}{it.recordedLive ? ' · measured' : ' · estimated'}
+                                            <span
+                                                className="chip"
+                                                style={{ padding: '2px 8px', fontSize: '10px', whiteSpace: 'nowrap' }}
+                                                title={scanMethodHelp(it.pipelineMode)}
+                                            >
+                                                {scanMethodLabel(it.pipelineMode)}
                                             </span>
                                         </td>
-                                        <td className="numeric mono">{fmt(it.costUsd, currency, rate)}</td>
-                                        <td className="mono" style={{ color: 'var(--text-3)', fontSize: 'var(--fs-xs)' }}>{new Date(it.at).toLocaleString()}</td>
+                                        {/* A zero here is a fact, not a gap: say so in the cell rather
+                                            than leaving an unexplained 0.0000 next to a real cost. */}
+                                        <td className="numeric mono" style={it.cached ? { color: 'var(--ok)' } : null}>
+                                            {it.cached ? 'Free' : fmt(it.costUsd, currency, rate)}
+                                        </td>
+                                        <td
+                                            style={{ fontSize: 'var(--fs-xs)', color: it.cached ? 'var(--ok)' : 'var(--text-2)', whiteSpace: 'nowrap' }}
+                                            title={costSourceHelp(it.costSource)}
+                                        >
+                                            {costSourceLabel(it.costSource, it.cached ? formatAge(it.cachedAt) : '')}
+                                        </td>
+                                        <td className="mono" style={{ color: 'var(--text-3)', fontSize: 'var(--fs-xs)', whiteSpace: 'nowrap' }}>{formatDateTime(it.at)}</td>
                                     </tr>
                                 ))}
                             </tbody>

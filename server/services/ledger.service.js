@@ -1,8 +1,9 @@
 const { getDb } = require('../db');
 
-async function recordLedgerEntry({ username, type, jobId, url, result, resolvedUsername, metrics, pipelineMode, estimatedCostUsd, fromCache }) {
+async function recordLedgerEntry({ username, type, jobId, url, result, resolvedUsername, metrics, pipelineMode, estimatedCostUsd, fromCache, costSource, cachedAt }) {
   try {
     const db = getDb();
+    const cached = result === 'success' && !!fromCache;
     await db.collection('submittedLinks').insertOne({
       username,
       type,
@@ -16,7 +17,25 @@ async function recordLedgerEntry({ username, type, jobId, url, result, resolvedU
       // was active at the time -- see costEstimate.service.js. Powers the
       // per-client cost breakdown on the Usage & Spend page.
       pipelineMode: pipelineMode || null,
-      estimatedCostUsd: result === 'success' ? (fromCache ? 0 : (estimatedCostUsd ?? null)) : 0,
+      /*
+        How the cost figure on this row was arrived at. Without this the
+        drilldown could only ask "is estimatedCostUsd null?", which is false
+        for a cache hit's legitimate 0 and so labelled genuinely-free items
+        as "measured" next to an unexplained 0.0000.
+
+          cached    -- served from cache, no Apify call, cost is a true zero
+          measured  -- a real per-run Apify cost captured at scrape time
+                       (reels only; see scrapeReels' costPerRequestedUsd)
+          estimated -- the flat measured-rate estimate for the active method
+      */
+      fromCache: cached,
+      // When the reused figure was originally scraped. Admin-only: it is how
+      // you tell "free because we already had it" from "free because we are
+      // serving a number that is a week stale", which is a cache-TTL
+      // decision, not something a client ever needs to see.
+      cachedAt: cached && cachedAt ? new Date(cachedAt) : null,
+      costSource: result === 'success' ? (cached ? 'cached' : (costSource || 'estimated')) : null,
+      estimatedCostUsd: result === 'success' ? (cached ? 0 : (estimatedCostUsd ?? null)) : 0,
       // Flattened, report-shaped metrics snapshot so admin exports don't need
       // to re-join against the job doc later.
       metrics: metrics ? {

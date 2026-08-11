@@ -7,6 +7,7 @@ import { BrandLoader } from '../components/BrandLoader';
 import { ReportThemeStyles, ReportSheet, ThemeToggle } from '../components/ReportSheet';
 import { LockedFeatureButton, PREMIUM_FEATURES, ProBadge } from '../components/Premium';
 import { ShareDialog, LinkIcon } from '../components/ShareDialog';
+import { formatDate, formatDateTime, formatDayKey } from '../utils/date';
 
 // The one-line summary next to "Manage shareable link". Expiry is stated as
 // a date rather than a countdown, so it stays true whether the page has been
@@ -19,9 +20,9 @@ function linkStatusLabel({ shareExpiresAt, shareViews }) {
   if (!shareExpiresAt) return `Link is live, never expires · ${opens}`;
 
   const when = new Date(shareExpiresAt);
-  if (when.getTime() <= Date.now()) return `Link expired ${when.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} · ${opens}`;
+  if (when.getTime() <= Date.now()) return `Link expired ${formatDate(when)} · ${opens}`;
 
-  return `Expires ${when.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} · ${opens}`;
+  return `Expires ${formatDate(when)} · ${opens}`;
 }
 
 // Standalone route (no Shell sidebar) -- this page IS the preview: what's on
