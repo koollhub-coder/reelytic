@@ -51,11 +51,15 @@ export function costSourceLabel(source, agePhrase) {
     case 'measured':
       return 'Exact billed amount';
     case 'estimated':
-      return 'Our standard rate';
+      // Deliberately not "our standard rate": the neighbouring column already
+      // uses "Standard scan" to mean a scan METHOD, and the two readings
+      // collided badly enough that a row could read "Express scan / our
+      // standard rate" and look self-contradictory.
+      return 'Rate card estimate';
     case 'backfilled':
-      return 'Estimated, before cost tracking';
+      return 'Rate card (before tracking)';
     default:
-      return 'Our standard rate';
+      return 'Rate card estimate';
   }
 }
 
@@ -66,7 +70,7 @@ export function costSourceHelp(source) {
     case 'measured':
       return 'The real amount charged for the run that produced this item, read back from the billing API.';
     case 'estimated':
-      return 'Our measured per-item rate for whichever scan method was active. Real spend is billed across the whole account, not per item.';
+      return 'Our published per-item rate for whichever scan method was active. This is NOT the amount Apify charged for this specific item: Apify bills the account in bulk, not per request, so no per-item charge exists to read back. Compare the account totals to see how close the rate card is running.';
     case 'backfilled':
       return 'This item was recorded before per-item cost tracking existed, so a flat rate has been applied.';
     default:

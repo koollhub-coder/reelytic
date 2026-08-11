@@ -32,9 +32,24 @@ const { getV2FetchDepth } = require('./profilePipeline.service');
 */
 
 const PROFILE_STANDARD_COST_USD = 0.0165;
-const PROFILE_V2_MEASURED_AT_DEPTH_12_USD = 0.0105;
+/*
+  Re-measured 11 Aug 2026 by a controlled run against the live actors at
+  production batch sizes (5 profiles/run, 15 reels/run), reading
+  usageTotalUsd back per run. Four runs, perfectly repeatable: every profile
+  run billed exactly $0.0400 for 40 results, every reel run exactly $0.0295.
+
+    profile reels scraper : $0.001000 per result, so $0.012 at depth 12
+    reel analytics        : $0.001967 per reel
+
+  The previous 0.0105 was measured at a different time and ran ~14% under
+  what the actor bills today.
+*/
+const PROFILE_V2_MEASURED_AT_DEPTH_12_USD = 0.012;
 const REEL_STANDARD_COST_USD = 0.005643;
-const REEL_EXPRESS_COST_USD = 0.003907;
+// Analytics ($0.001967, measured above) + the Express follower lookup
+// ($0.000677, measured 2026-08-01). Only a fallback: the reel pipeline
+// captures its real per-run cost at scrape time and uses that instead.
+const REEL_EXPRESS_COST_USD = 0.002644;
 
 // Follower-lookup-only portion of the two reel rates above (used once the
 // reel analytics half is measured exactly per-run, see scrapeReels'
@@ -78,10 +93,23 @@ async function estimateItemCostUsd(type, pipelineMode) {
   return pipelineMode === 'v2' ? await profileExpressCostUsd() : PROFILE_STANDARD_COST_USD;
 }
 
-// Fallback rate for ledger entries recorded before estimatedCostUsd existed
-// -- best-effort, assumes whichever mode was the default at the time.
+/*
+  Fallback rate for ledger entries recorded before estimatedCostUsd existed.
+
+  This used to return the STANDARD (legacy) rates, which are 2-6x the
+  Express rates actually in use. Because a large share of historical rows
+  carry no recorded cost, that fallback dominated the per-client totals on
+  Usage & Spend: on 11 Aug 2026 the page reported $9.15 of client spend
+  against a real cycle bill of $2.39, and the whole gap was this function
+  pricing unrecorded rows at legacy rates. Summing only the rows that DO
+  carry a cost gave $2.73, which tracks the real bill within ~14%.
+
+  Express is what runs, so Express is what an unknown row should be priced
+  at. It is still an approximation, but a defensible one rather than a
+  systematic 3x overstatement.
+*/
 function fallbackCostUsd(type) {
-  return type === 'reel' ? REEL_STANDARD_COST_USD : PROFILE_STANDARD_COST_USD;
+  return type === 'reel' ? REEL_EXPRESS_COST_USD : (PROFILE_V2_MEASURED_AT_DEPTH_12_USD * (8 / 12));
 }
 
 module.exports = {

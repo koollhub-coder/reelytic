@@ -144,6 +144,7 @@ export function CostMonitor() {
                             <th>Unit</th>
                             <th className="numeric">Baseline</th>
                             <th className="numeric">Live avg (this cycle)</th>
+                            <th>Worked out from</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -157,18 +158,44 @@ export function CostMonitor() {
                                     <td style={{ color: 'var(--text-2)' }}>{a.unit}</td>
                                     <td className="numeric mono">{fromUsd(a.baselineUsd)}</td>
                                     <td className="numeric mono">
-                                        {a.liveAvgUsd != null ? fromUsd(a.liveAvgUsd) : <span style={{ color: 'var(--text-3)' }}>no runs yet</span>}
+                                        {a.liveAvgUsd != null
+                                            ? fromUsd(a.liveAvgUsd)
+                                            : (
+                                                <span style={{ color: 'var(--text-3)' }}>
+                                                    {a.unavailableReason === 'coverage' ? 'not measurable'
+                                                        : a.unavailableReason === 'no-units' ? 'no items to divide by'
+                                                            : 'no runs yet'}
+                                                </span>
+                                            )}
                                         {drift != null && Math.abs(drift) >= 15 && (
                                             <span style={{ marginLeft: 6, color: drift > 0 ? 'var(--err)' : 'var(--ok)', fontSize: 'var(--fs-xs)' }}>
                                                 {drift > 0 ? '▲' : '▼'} {Math.abs(drift).toFixed(0)}%
                                             </span>
                                         )}
                                     </td>
+                                    {/* Showing the working. A live rate is only trustworthy if
+                                        you can see what it was divided by, and this is exactly
+                                        where the old per-run/per-item mismatch hid. */}
+                                    <td style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>
+                                        {a.liveAvgUsd != null
+                                            ? `${fromUsd(a.liveSpendUsd, 2)} over ${a.liveUnits.toLocaleString()} ${a.unit.replace('per ', '')}${a.liveUnits === 1 ? '' : 's'}`
+                                            : '-'}
+                                    </td>
                                 </tr>
                             );
                         })}
                     </tbody>
                 </table></div>
+                {data.liveCoverage != null && data.liveCoverage < 0.6 && (
+                    <div style={{ marginTop: 'var(--s3)', padding: 'var(--s3) var(--s4)', background: 'var(--surface-2)', borderRadius: 'var(--r-md)', fontSize: 'var(--fs-xs)', color: 'var(--text-2)', lineHeight: 1.6 }}>
+                        <strong style={{ color: 'var(--text)' }}>Live per-step rates are not measurable this cycle.</strong>{' '}
+                        Apify only lists {fromUsd(data.liveObservedUsd, 2)} of runs against a real cycle bill of{' '}
+                        {fromUsd(data.cycleTotalUsd, 2)} ({Math.round(data.liveCoverage * 100)}% visible), because pay-per-result
+                        calls do not all appear as individual runs. A rate worked out from that slice would not reflect what you
+                        are actually paying, so it is withheld rather than shown. The baselines beside it are real measured rates
+                        and are what every cost figure in the product uses. Per-client spend on Usage &amp; Spend is unaffected.
+                    </div>
+                )}
                 {editModel && (
                     <div style={{ marginTop: 'var(--s4)', padding: 'var(--s4)', background: 'var(--surface-2)', borderRadius: 'var(--r-md)' }}>
                         <div style={{ ...labelStyle, marginBottom: 'var(--s3)' }}>Edit baseline costs (USD)</div>

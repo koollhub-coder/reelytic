@@ -524,7 +524,23 @@ router.get('/usage', requireAdmin, async (req, res, next) => {
       row.totalUsd += cost;
     }
     const byUser = [...byUserMap.values()].sort((a, b) => b.totalUsd - a.totalUsd);
+    /*
+      The gap between our per-item estimates and the real Apify bill, in BOTH
+      directions.
+
+      This used to be Math.max(0, spent - attributed), which could only ever
+      report "real spend we could not attribute to a client". The opposite
+      case -- our rate card charging more per item than Apify actually billed
+      -- clamped silently to zero. On 11 Aug 2026 that hid a real 4x
+      overstatement: estimates summed to $9.15 against a true cycle bill of
+      $2.24, and the page reported a clean 0 gap.
+
+      A cost model that drifts in either direction is worth seeing, so the
+      variance is now signed and the ratio travels with it.
+    */
     const unattributedUsd = Math.max(0, spent - attributedUsd);
+    const overAttributedUsd = Math.max(0, attributedUsd - spent);
+    const attributionRatio = spent > 0 ? attributedUsd / spent : null;
 
     res.json({
       cycleStart: u.usageCycle.startAt,
@@ -536,6 +552,8 @@ router.get('/usage', requireAdmin, async (req, res, next) => {
       byUser,
       attributedUsd,
       unattributedUsd,
+      overAttributedUsd,
+      attributionRatio,
       usdToInr,
       // Historical runs already reflect whichever actors were actually
       // called at the time -- this just tells the UI which mode is live NOW,
@@ -823,6 +841,11 @@ async function liveActorAverages(apiKey) {
     if (!usageRes.ok) return {};
     const usageJson = await usageRes.json();
     const cycleStart = usageJson.data.usageCycle.startAt;
+    // What Apify says the whole account actually spent this cycle. Used below
+    // as a sanity check on the run list, which does not see everything.
+    const cycleTotalUsd = usageJson.data.totalUsageCreditsUsdBeforeVolumeDiscount
+      ?? usageJson.data.totalUsageCreditsUsd
+      ?? null;
     const runsRes = await fetch(
       `https://api.apify.com/v2/actor-runs?token=${apiKey}&desc=1&limit=1000&startedAfter=${encodeURIComponent(cycleStart)}`
     );
@@ -845,14 +868,84 @@ async function liveActorAverages(apiKey) {
       cur.runs += v.runs;
       bySlug.set(slug, cur);
     }
+    /*
+      Raw totals only. This used to return usd/runs and the Cost Monitor
+      printed it straight into a column headed "per reel" / "per result",
+      which is not what it measured: one analytics run covers REEL_BATCH_SIZE
+      reels and one profile run covers PROFILE_BATCH_SIZE profiles at the
+      configured fetch depth. Comparing a per-RUN figure against a per-ITEM
+      baseline reported drifts of +955% and +5968% on a pipeline that was
+      costing exactly what it should. Dividing by the right denominator is
+      the caller's job now, because only the caller knows how many items
+      were actually sent to each actor.
+    */
     const out = {};
+    let observedUsd = 0;
     for (const [slug, v] of bySlug.entries()) {
-      out[slug] = v.runs > 0 ? v.usd / v.runs : null;
+      out[slug] = { usd: v.usd, runs: v.runs };
+      observedUsd += v.usd;
     }
-    return out;
+
+    /*
+      How much of the cycle's real spend this run list can actually see.
+
+      Measured on a live account on 11 Aug 2026: Apify reported 10 runs
+      totalling $0.08 for a cycle that actually billed $2.24, because
+      pay-per-result actor calls do not all surface as listable runs. A
+      per-unit rate derived from 4% of the spend is not a live average, it
+      is noise, and it is what made this table swing from +955% to -98%
+      depending only on which denominator was used.
+
+      So the coverage ratio travels with the data, and the caller refuses to
+      publish a rate when the runs it can see do not represent the bill.
+    */
+    const coverage = (cycleTotalUsd && cycleTotalUsd > 0) ? observedUsd / cycleTotalUsd : null;
+    return { bySlug: out, cycleStart, cycleTotalUsd, observedUsd, coverage };
   } catch (e) {
-    return {};
+    return { bySlug: {}, cycleStart: null, cycleTotalUsd: null, observedUsd: 0, coverage: null };
   }
+}
+
+// Below this, the visible runs are too small a slice of the real bill for a
+// per-unit rate computed from them to mean anything.
+const MIN_RUN_COVERAGE = 0.6;
+
+/*
+  How many billable units each actor was actually asked for this cycle,
+  counted from our own ledger. Cached items are excluded because no call was
+  made for them, so including them would understate the real per-unit rate.
+
+  The unit differs per actor and must match the baseline's unit exactly:
+  a reel actor is billed per reel, the profile reels scraper per RESULT
+  (so one profile counts as `fetchDepth` results), the follower lookup per
+  profile.
+*/
+async function liveActorDivisors(db, cycleStart, model, fetchDepth) {
+  const empty = { reelItems: 0, profileItems: 0 };
+  if (!cycleStart) return empty;
+  const rows = await db.collection('submittedLinks').find(
+    { result: 'success', at: { $gte: new Date(cycleStart) } },
+    { projection: { type: 1, fromCache: 1, estimatedCostUsd: 1 } }
+  ).toArray();
+
+  let reelItems = 0;
+  let profileItems = 0;
+  for (const r of rows) {
+    const cached = r.fromCache != null ? !!r.fromCache : r.estimatedCostUsd === 0;
+    if (cached) continue;
+    if (r.type === 'reel') reelItems++;
+    else profileItems++;
+  }
+
+  return {
+    reelItems,
+    profileItems,
+    'reel-scrape': reelItems,
+    'reel-analytics': reelItems,
+    'profile-reels': profileItems * (fetchDepth || 12),
+    'profile-post': profileItems * (model.profilePostsPerReport || 12),
+    'follower-lookup': profileItems,
+  };
 }
 
 router.get('/cost-monitor', requireAdmin, async (req, res, next) => {
@@ -900,14 +993,33 @@ router.get('/cost-monitor', requireAdmin, async (req, res, next) => {
       };
     });
 
+    const fetchDepth = await getV2FetchDepth();
+    const divisors = await liveActorDivisors(db, liveAverages.cycleStart, model, fetchDepth);
+
+    const coverageOk = liveAverages.coverage != null && liveAverages.coverage >= MIN_RUN_COVERAGE;
+
     const profileCostActors = profilePipelineMode === 'v2' ? PROFILE_COST_ACTORS_V2 : PROFILE_COST_ACTORS_LEGACY;
-    const actors = [...REEL_COST_ACTORS, ...profileCostActors].map((a) => ({
-      id: a.slug,
-      label: a.label,
-      unit: a.unit,
-      baselineUsd: model[a.key],
-      liveAvgUsd: liveAverages[a.slug] != null ? liveAverages[a.slug] : null,
-    }));
+    const actors = [...REEL_COST_ACTORS, ...profileCostActors].map((a) => {
+      const spend = liveAverages.bySlug[a.slug];
+      const units = divisors[a.slug] || 0;
+      const canCompute = coverageOk && spend && units > 0;
+      return {
+        id: a.slug,
+        label: a.label,
+        unit: a.unit,
+        baselineUsd: model[a.key],
+        // Real spend on this actor divided by the units we actually sent it,
+        // so it is directly comparable to the baseline beside it -- but only
+        // published when the visible runs actually represent the bill.
+        liveAvgUsd: canCompute ? spend.usd / units : null,
+        liveSpendUsd: spend ? spend.usd : null,
+        liveRuns: spend ? spend.runs : 0,
+        liveUnits: units,
+        unavailableReason: canCompute
+          ? null
+          : (!coverageOk ? 'coverage' : (!spend ? 'no-runs' : 'no-units')),
+      };
+    });
 
     res.json({
       model,
@@ -921,6 +1033,11 @@ router.get('/cost-monitor', requireAdmin, async (req, res, next) => {
       per1kProfilesUsd: profileCostUsd * 1000,
       actors,
       planMargins,
+      // Surfaced so the page can explain an empty Live column instead of
+      // leaving it looking broken.
+      liveCoverage: liveAverages.coverage,
+      liveObservedUsd: liveAverages.observedUsd,
+      cycleTotalUsd: liveAverages.cycleTotalUsd,
     });
   } catch (err) {
     next(err);

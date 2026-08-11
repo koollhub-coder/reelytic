@@ -85,6 +85,10 @@ export function UsageSpend() {
     const byUser = data.byUser || [];
     const unattributedUsd = data.unattributedUsd || 0;
     const showUnattributed = unattributedUsd > 0.001;
+    // The opposite case: our rate card billing more per item than Apify
+    // actually charged. Previously clamped to zero and therefore invisible.
+    const overAttributedUsd = data.overAttributedUsd || 0;
+    const showOverAttributed = overAttributedUsd > 0.001;
 
     return (
         <div>
@@ -197,6 +201,20 @@ export function UsageSpend() {
                             ))}
                         </tbody>
                     </table></div>
+                )}
+                {showOverAttributed && (
+                    <div style={{ marginTop: 'var(--s4)', padding: 'var(--s3) var(--s4)', background: 'var(--surface-2)', border: '1px solid var(--warn, var(--accent))', borderRadius: 'var(--r-md)', fontSize: 'var(--fs-xs)', color: 'var(--text-2)', lineHeight: 1.65 }}>
+                        <strong style={{ color: 'var(--text)' }}>
+                            These per-client figures add up to more than Apify actually billed.
+                        </strong>{' '}
+                        The table totals {fmt(data.attributedUsd, currency, rate)}, but the real bill for this cycle is{' '}
+                        {fmt(data.totalUsd, currency, rate)}
+                        {data.attributionRatio ? ` (${data.attributionRatio.toFixed(1)}x)` : ''}.
+                        Per-item costs are priced from our rate card, not read back per request, because Apify bills the account
+                        in bulk. When the rate card sits above what bulk usage really costs, every client looks dearer to serve
+                        than they are. Treat the client figures as an upper bound and the cycle total as the truth until the
+                        rate card is re-measured.
+                    </div>
                 )}
                 {showUnattributed && (
                     <div style={{ marginTop: 'var(--s4)', padding: 'var(--s3) var(--s4)', background: 'var(--surface-2)', borderRadius: 'var(--r-md)', fontSize: 'var(--fs-xs)', color: 'var(--text-2)' }}>
@@ -315,6 +333,7 @@ export function UsageSpend() {
                                     <th>Scan method</th>
                                     <th className="numeric">Cost</th>
                                     <th>Where this came from</th>
+                                    <th>Data age</th>
                                     <th>When</th>
                                 </tr>
                             </thead>
@@ -343,7 +362,16 @@ export function UsageSpend() {
                                             style={{ fontSize: 'var(--fs-xs)', color: it.cached ? 'var(--ok)' : 'var(--text-2)', whiteSpace: 'nowrap' }}
                                             title={costSourceHelp(it.costSource)}
                                         >
-                                            {costSourceLabel(it.costSource, it.cached ? formatAge(it.cachedAt) : '')}
+                                            {costSourceLabel(it.costSource, '')}
+                                        </td>
+                                        <td
+                                            className="mono"
+                                            style={{ fontSize: 'var(--fs-xs)', whiteSpace: 'nowrap', color: it.cached ? 'var(--text-2)' : 'var(--text-3)' }}
+                                            title={it.cached && it.cachedAt ? `Originally scraped ${formatDateTime(it.cachedAt)}` : 'Scraped fresh for this report'}
+                                        >
+                                            {it.cached
+                                                ? (it.cachedAt ? formatAge(it.cachedAt) : 'age not recorded')
+                                                : 'Fresh'}
                                         </td>
                                         <td className="mono" style={{ color: 'var(--text-3)', fontSize: 'var(--fs-xs)', whiteSpace: 'nowrap' }}>{formatDateTime(it.at)}</td>
                                     </tr>
