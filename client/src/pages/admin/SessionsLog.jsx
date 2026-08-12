@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../../api/client';
 import { BrandLoader } from '../../components/BrandLoader';
 import { formatDate, formatDateTime, formatDayKey } from '../../utils/date';
+import { TableSkeleton } from '../../components/TableSkeleton';
 
 const PAGE_SIZE = 50;
 
@@ -33,9 +34,7 @@ export function SessionsLog() {
     <div>
       <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-2xl)', fontWeight: 700, marginBottom: 'var(--s6)' }}>Sessions & Login Log</h1>
 
-      {loading ? (
-        <BrandLoader message="Loading sessions..." />
-      ) : (
+      {(
         <>
           <div className="data-table-container" style={{ marginBottom: 'var(--s4)' }}>
             <table className="data-table">
@@ -48,6 +47,7 @@ export function SessionsLog() {
                   <th>Status</th>
                 </tr>
               </thead>
+              {loading ? <TableSkeleton rows={10} columns={5} label="Loading sessions" /> : (
               <tbody>
                 {sessions.map((s, i) => (
                   <tr key={i}>
@@ -63,6 +63,7 @@ export function SessionsLog() {
                   </tr>
                 ))}
               </tbody>
+              )}
             </table>
           </div>
 

@@ -7,6 +7,7 @@ import { BrandLoader } from '../../components/BrandLoader';
 import { Select } from '../../components/Select';
 import { useToast } from '../../context/ToastContext';
 import { formatDate, formatDateTime, formatDayKey } from '../../utils/date';
+import { TableSkeleton } from '../../components/TableSkeleton';
 
 // override value -> Select value, and back. null/undefined (key never
 // touched) reads as "plan", matching hasFeature()'s fallback-to-plan rule.
@@ -178,9 +179,7 @@ export function Clients() {
         <button className="btn btn-primary" onClick={() => setNewModal(true)}>+ New Client</button>
       </div>
 
-      {loading ? (
-        <BrandLoader message="Loading clients..." />
-      ) : (
+      {(
       <div className="data-table-container">
         <table className="data-table">
           <thead>
@@ -195,6 +194,7 @@ export function Clients() {
               <th style={{ textAlign: 'right' }}>Actions</th>
             </tr>
           </thead>
+          {loading ? <TableSkeleton rows={10} columns={8} label="Loading clients" /> : (
           <tbody>
             {clients.map(c => (
               <tr key={c._id}>
@@ -252,6 +252,7 @@ export function Clients() {
               </tr>
             ))}
           </tbody>
+          )}
         </table>
       </div>
       )}

@@ -5,6 +5,7 @@ import { FileDrop } from '../components/FileDrop';
 import { BrandLoader } from '../components/BrandLoader';
 import { StatCard } from '../components/StatCard';
 import { ProgressBar } from '../components/ProgressBar';
+import { TableSkeleton } from '../components/TableSkeleton';
 import { CopyButton } from '../components/CopyButton';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { Modal } from '../components/Modal';
@@ -359,6 +360,13 @@ export function ReportEngine({ type = 'reel' }) {
   const [resultsSearch, setResultsSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [rows, setRows] = useState([]);
+  /*
+    True while a page of rows is in flight. Without this the preview table
+    rendered its header the instant jobState flipped to 'preview' and then
+    grew when the rows arrived, which is the glitch clients reported after
+    navigating away and back.
+  */
+  const [rowsLoading, setRowsLoading] = useState(false);
   const [totalRows, setTotalRows] = useState(0);
   const [overLimitModal, setOverLimitModal] = useState(false);
   const [overLimitCount, setOverLimitCount] = useState(0);
@@ -427,6 +435,9 @@ export function ReportEngine({ type = 'reel' }) {
     if (job.status === 'preview') {
       setJobState('preview');
       setCurrentPage(1);
+      // Set before the fetch, not inside it: the table renders on this same
+      // tick, and it must render as skeleton rather than as an empty shell.
+      setRowsLoading(true);
       fetchRowsPage(1, 'all', job._id);
     } else if (job.status === 'running' || job.status === 'paused') {
       setJobState(job.status);
@@ -523,6 +534,7 @@ export function ReportEngine({ type = 'reel' }) {
 
   const fetchRowsPage = async (page = 1, filter = activeFilter, targetJobId = jobId) => {
     if (!targetJobId) return;
+    setRowsLoading(true);
     try {
       const data = await apiFetch(`/jobs/${targetJobId}/rows?page=${page}&state=${filter}`);
       setRows(data.rows || []);
@@ -530,6 +542,8 @@ export function ReportEngine({ type = 'reel' }) {
       setCurrentPage(data.page || page);
     } catch (err) {
       console.error(err);
+    } finally {
+      setRowsLoading(false);
     }
   };
 
@@ -923,11 +937,38 @@ export function ReportEngine({ type = 'reel' }) {
                   Uses {counts.valid * previewData.creditsPerItem} credits
                 </span>
               )}
-              <button className="btn btn-primary" onClick={() => handleStartJob(false)}>
-                Start report, {counts.valid} links
+              <button
+                className="btn btn-primary"
+                onClick={() => handleStartJob(false)}
+                disabled={counts.valid === 0}
+                title={counts.valid === 0 ? 'There are no valid links in this sheet to run' : undefined}
+              >
+                {counts.valid === 0 ? 'No valid links to run' : `Start report, ${counts.valid} links`}
               </button>
             </div>
           </div>
+
+          {/* Says what to do about it, rather than leaving a dead button with
+              no explanation. Shown once, above the table, because at this
+              point the table is entirely red rows and needs a headline. */}
+          {counts.valid === 0 && counts.total > 0 && (
+            <div style={{
+              marginBottom: 'var(--s4)', padding: 'var(--s4)',
+              background: 'var(--err-soft)', border: '1px solid var(--err)',
+              borderRadius: 'var(--r-md)', fontSize: 'var(--fs-sm)', lineHeight: 1.6,
+            }}>
+              <strong style={{ color: 'var(--err)' }}>
+                None of these {counts.total} links can be used.
+              </strong>
+              <span style={{ color: 'var(--text-2)' }}>
+                {' '}Nothing will be charged and there is nothing to run. This usually means the column
+                picked up isn't the one holding the links, or the links are {type === 'reel'
+                  ? 'profile or story URLs rather than reel links'
+                  : 'reel or post URLs rather than profile links'}.
+                {' '}Discard this and upload again with the correct column.
+              </span>
+            </div>
+          )}
 
           <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-2)', marginBottom: 'var(--s2)' }}>
             🔒 These columns are filled in once the report runs, so you know exactly what's coming: <strong>{LOCKED_COLUMNS[type].join(', ')}</strong>
@@ -997,6 +1038,13 @@ export function ReportEngine({ type = 'reel' }) {
                   ))}
                 </tr>
               </thead>
+              {rowsLoading ? (
+                <TableSkeleton
+                  rows={Math.min(rows.length || 10, 10)}
+                  columns={3 + previewData.columns.length + LOCKED_COLUMNS[type].length}
+                  label="Loading links"
+                />
+              ) : (
               <tbody>
                 {rows.map(r => (
                   <tr key={r.i} style={{ backgroundColor: r.state === 'invalid' ? 'var(--err-soft)' : r.state === 'duplicate' ? 'var(--warn-soft)' : 'transparent' }}>
@@ -1022,6 +1070,7 @@ export function ReportEngine({ type = 'reel' }) {
                   </tr>
                 ))}
               </tbody>
+              )}
             </table>
           </div>
 
@@ -1060,8 +1109,13 @@ export function ReportEngine({ type = 'reel' }) {
             </div>
             <div style={{ display: 'flex', gap: 'var(--s3)' }}>
               <button className="btn btn-secondary" onClick={() => setConfirmDiscard(true)}>Discard</button>
-              <button className="btn btn-primary" onClick={() => handleStartJob(false)}>
-                Start report, {counts.valid} links
+              <button
+                className="btn btn-primary"
+                onClick={() => handleStartJob(false)}
+                disabled={counts.valid === 0}
+                title={counts.valid === 0 ? 'There are no valid links in this sheet to run' : undefined}
+              >
+                {counts.valid === 0 ? 'No valid links to run' : `Start report, ${counts.valid} links`}
               </button>
             </div>
           </div>

@@ -7,6 +7,7 @@ import { Modal } from '../components/Modal';
 import { Select } from '../components/Select';
 import { useToast } from '../context/ToastContext';
 import { formatDate, formatDateTime, formatDayKey } from '../utils/date';
+import { TableSkeleton } from '../components/TableSkeleton';
 
 const STATUS_LABELS = {
   preview: { label: 'Not started', chip: 'warn' },
@@ -120,7 +121,7 @@ function ReportRow({ job, campaigns, onReassign, navigate }) {
   );
 }
 
-function ReportsTable({ jobs, campaigns, navigate, onReassign }) {
+function ReportsTable({ jobs, campaigns, navigate, onReassign, loading = false }) {
   return (
     <div className="rl-table-scroll">
       <table className="data-table">
@@ -136,11 +137,13 @@ function ReportsTable({ jobs, campaigns, navigate, onReassign }) {
             <th style={{ textAlign: 'right' }}>Action</th>
           </tr>
         </thead>
+        {loading ? <TableSkeleton rows={6} columns={8} rowHeight={130} label="Loading your reports" /> : (
         <tbody>
           {jobs.map((j) => (
             <ReportRow key={j.id} job={j} navigate={navigate} campaigns={campaigns} onReassign={onReassign} />
           ))}
         </tbody>
+        )}
       </table>
     </div>
   );
@@ -493,7 +496,7 @@ export function History() {
       )}
 
       {loading ? (
-        <BrandLoader message="Loading your reports..." />
+        <ReportsTable jobs={[]} campaigns={[]} navigate={navigate} onReassign={() => {}} loading />
       ) : !hasAnyReports ? (
         <EmptyState
           icon="⏱️"

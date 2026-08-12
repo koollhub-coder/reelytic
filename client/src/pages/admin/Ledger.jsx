@@ -4,6 +4,7 @@ import { CopyButton } from '../../components/CopyButton';
 import { BrandLoader } from '../../components/BrandLoader';
 import { Select } from '../../components/Select';
 import { formatDate, formatDateTime, formatDayKey } from '../../utils/date';
+import { TableSkeleton } from '../../components/TableSkeleton';
 
 const PAGE_SIZE = 50;
 
@@ -69,9 +70,7 @@ export function Ledger() {
         </div>
       </div>
 
-      {loading ? (
-        <BrandLoader message="Loading ledger..." />
-      ) : (
+      {(
         <>
           <div className="data-table-container" style={{ marginBottom: 'var(--s4)' }}>
             <table className="data-table">
@@ -84,6 +83,7 @@ export function Ledger() {
                   <th>Result</th>
                 </tr>
               </thead>
+              {loading ? <TableSkeleton rows={10} columns={5} label="Loading ledger" /> : (
               <tbody>
                 {ledger.map((l, i) => (
                   <tr key={i}>
@@ -101,6 +101,7 @@ export function Ledger() {
                   </tr>
                 ))}
               </tbody>
+              )}
             </table>
           </div>
 

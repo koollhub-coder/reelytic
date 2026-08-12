@@ -380,3 +380,54 @@
   flex: 1 1 min(300px, 100%);
   max-width: 460px;
 }
+
+/* ============================================================
+   Table skeleton rows (see components/TableSkeleton.jsx).
+
+   Deliberately styled off the table's own td rules rather than
+   given its own box model: the whole point is that a skeleton
+   row and a real row occupy identical space, so the table never
+   changes height when the data lands.
+   ============================================================ */
+.rl-skel-row td {
+  /* Matches .data-table td padding so heights line up exactly. */
+  padding: var(--s3) var(--s4);
+  border-bottom: 1px solid var(--border);
+}
+.rl-skel-row:hover td {
+  /* A placeholder is not interactive; the hover tint implies it is. */
+  background-color: transparent;
+}
+.rl-skel {
+  display: block;
+  height: 12px;
+  border-radius: 3px;
+  background: linear-gradient(
+    90deg,
+    var(--surface-2) 25%,
+    var(--border) 37%,
+    var(--surface-2) 63%
+  );
+  background-size: 400% 100%;
+  animation: rl-shimmer 1.5s ease-in-out infinite;
+}
+@keyframes rl-shimmer {
+  0%   { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+/* The row that announces loading to screen readers: present in the
+   accessibility tree, takes no visual space. */
+.rl-visually-hidden-row {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rl-skel { animation: none; opacity: 0.55; }
+}
