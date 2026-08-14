@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { requireAdmin } = require('../middleware/auth');
+const { listErrors, unresolvedCount, resolveError } = require('../services/errorTracking.service');
 const { getDb } = require('../db');
 const { hashPassword, generateTempPassword } = require('../utils/password');
 const { parseUserAgent } = require('../utils/ua');
@@ -1061,6 +1062,44 @@ router.put('/cost-monitor', requireAdmin, async (req, res, next) => {
       { upsert: true }
     );
     res.json({ ok: true, model: { ...DEFAULT_COST_MODEL, ...clean } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/*
+  Application health: what is currently broken in production.
+
+  Grouped by fingerprint, so each row is a distinct fault with an occurrence
+  count rather than one row per occurrence. This is the page that is supposed
+  to tell us something is wrong before a client does.
+*/
+router.get('/health/errors', requireAdmin, async (req, res, next) => {
+  try {
+    const includeResolved = req.query.includeResolved === 'true';
+    const errors = await listErrors({ includeResolved, limit: Number(req.query.limit) || 100 });
+    res.json({ errors, unresolved: await unresolvedCount() });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Drives the badge in the admin nav. Kept separate and deliberately tiny
+// because it is polled: the full list would be wasteful to fetch on a timer.
+router.get('/health/count', requireAdmin, async (req, res, next) => {
+  try {
+    res.json({ unresolved: await unresolvedCount() });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Marking something resolved is a judgement call ("I have fixed this"), not a
+// deletion. The group stays, and reopens by itself if the fault happens again.
+router.patch('/health/errors/:id', requireAdmin, async (req, res, next) => {
+  try {
+    await resolveError(req.params.id, req.body && req.body.resolved !== false);
+    res.json({ success: true });
   } catch (err) {
     next(err);
   }

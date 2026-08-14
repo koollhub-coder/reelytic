@@ -1,3 +1,5 @@
+import { reportApiFailure } from '../utils/errorReporter';
+
 // Pages a signed-out visitor is meant to reach directly. A 401 from the
 // routine "am I logged in" check on any of these is expected, not a session
 // expiring mid-use, so it must never force-navigate away from them (that
@@ -40,6 +42,20 @@ export async function apiFetch(endpoint, options = {}) {
     const err = new Error(data.error || `HTTP error ${res.status}`);
     err.code = data.code;
     err.data = data;
+
+    /*
+      Report the ones that indicate something is actually wrong.
+
+      403 is excluded along with the 401 handled above: both are the app
+      working correctly (a paid feature correctly refused, a session
+      correctly expired), and recording them would bury real faults under
+      thousands of non-events. 5xx always counts. 4xx above 403 counts too,
+      because a 404 on a route the app itself just linked to, or a 400 on a
+      payload the app itself built, is a bug on our side.
+    */
+    if (res.status !== 403) {
+      reportApiFailure({ path: endpoint, status: res.status, message: err.message });
+    }
     throw err;
   }
 

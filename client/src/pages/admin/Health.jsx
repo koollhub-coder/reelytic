@@ -1,0 +1,247 @@
+import React, { useEffect, useState, useCallback } from 'react';
+import { apiFetch } from '../../api/client';
+import { BrandLoader } from '../../components/BrandLoader';
+import { EmptyState } from '../../components/EmptyState';
+import { formatDateTime } from '../../utils/date';
+import { WarningIcon, SuccessIcon, InfoIcon } from '../../components/Icon';
+
+/*
+  Application health.
+
+  The job of this page is to answer one question quickly: is anything broken
+  right now that I do not already know about. Everything here serves that and
+  nothing else -- no charts, no trends, no vanity metrics.
+
+  Rows are FAULTS, not occurrences. One bug hit nine thousand times is one row
+  saying 9,000, because the count is a severity signal and the list stays
+  readable during an incident. Ordered by most recent activity rather than by
+  volume: a new fault that has happened twice in the last minute matters more
+  than a known one that happened a thousand times last week.
+*/
+
+const KIND_LABEL = {
+  server: 'Server error',
+  'client-crash': 'Screen crashed',
+  'client-error': 'Script error',
+  'client-rejection': 'Unhandled promise',
+  'api-failure': 'API call failed',
+  'console-error': 'Logged error',
+};
+
+// Server faults and white screens are the ones that actually stop someone
+// working, so they are the ones allowed to look alarming.
+const KIND_TONE = {
+  server: 'err',
+  'client-crash': 'err',
+  'api-failure': 'warn',
+  'client-error': 'warn',
+  'client-rejection': 'warn',
+  'console-error': 'warn',
+};
+
+function timeAgo(iso) {
+  if (!iso) return '';
+  const secs = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
+  if (secs < 60) return `${secs}s ago`;
+  if (secs < 3600) return `${Math.round(secs / 60)}m ago`;
+  if (secs < 86400) return `${Math.round(secs / 3600)}h ago`;
+  return `${Math.round(secs / 86400)}d ago`;
+}
+
+function ErrorRow({ row, onResolve }) {
+  const [open, setOpen] = useState(false);
+  const tone = KIND_TONE[row.kind] || 'warn';
+  const ctx = row.lastContext || {};
+
+  return (
+    <div className="card" style={{ padding: 'var(--s4) var(--s5)', marginBottom: 'var(--s3)' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--s4)', flexWrap: 'wrap' }}>
+        <span className={`chip ${tone}`} style={{ flexShrink: 0, whiteSpace: 'nowrap' }}>
+          {KIND_LABEL[row.kind] || row.kind}
+        </span>
+
+        <div style={{ flex: '1 1 320px', minWidth: 0 }}>
+          <div style={{ fontWeight: 600, fontSize: 'var(--fs-sm)', lineHeight: 1.5, wordBreak: 'break-word' }}>
+            {row.message}
+          </div>
+          <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', marginTop: 4, display: 'flex', gap: 'var(--s3)', flexWrap: 'wrap' }}>
+            {row.route && <span className="mono">{row.route}</span>}
+            {row.status ? <span>HTTP {row.status}</span> : null}
+            {/* The page the user was on, and the component that threw. These
+                are the two things you need before you can reproduce anything,
+                so they sit in the summary rather than behind "Show detail". */}
+            {ctx.extra && ctx.extra.pagePath && ctx.extra.pagePath !== row.route && (
+              <span>on <span className="mono">{ctx.extra.pagePath}</span></span>
+            )}
+            {ctx.extra && ctx.extra.component && (
+              <span>in <strong style={{ color: 'var(--text-2)' }}>{ctx.extra.component}</strong></span>
+            )}
+            <span>Last seen {timeAgo(row.lastSeenAt)}</span>
+            {row.affectedUsers && row.affectedUsers.length > 0 && (
+              <span>{row.affectedUsers.length} user{row.affectedUsers.length === 1 ? '' : 's'} affected</span>
+            )}
+          </div>
+        </div>
+
+        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+          <div className="mono" style={{ fontWeight: 700, fontSize: 'var(--fs-md)', color: `var(--${tone})` }}>
+            {(row.count || 0).toLocaleString()}
+          </div>
+          <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>times</div>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 'var(--s3)', marginTop: 'var(--s3)', flexWrap: 'wrap' }}>
+        <button
+          type="button"
+          className="btn btn-ghost"
+          style={{ height: 28, fontSize: 'var(--fs-xs)', padding: '0 var(--s3)' }}
+          onClick={() => setOpen((v) => !v)}
+        >
+          {open ? 'Hide detail' : 'Show detail'}
+        </button>
+        {row.resolvedAt ? (
+          <button type="button" className="btn btn-ghost" style={{ height: 28, fontSize: 'var(--fs-xs)', padding: '0 var(--s3)' }} onClick={() => onResolve(row._id, false)}>
+            Reopen
+          </button>
+        ) : (
+          <button type="button" className="btn btn-secondary" style={{ height: 28, fontSize: 'var(--fs-xs)', padding: '0 var(--s3)' }} onClick={() => onResolve(row._id, true)}>
+            Mark fixed
+          </button>
+        )}
+      </div>
+
+      {open && (
+        <div style={{ marginTop: 'var(--s4)', paddingTop: 'var(--s4)', borderTop: '1px solid var(--border)', fontSize: 'var(--fs-xs)' }}>
+          <div style={{ color: 'var(--text-3)', marginBottom: 'var(--s2)' }}>
+            First seen {formatDateTime(row.firstSeenAt)} · Group {row._id}
+          </div>
+          {ctx.stack && (
+            <pre style={{
+              whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: '0 0 var(--s3)',
+              padding: 'var(--s3)', background: 'var(--surface-2)', borderRadius: 'var(--r-sm)',
+              color: 'var(--text-2)', fontFamily: 'var(--font-mono)', maxHeight: '220px', overflow: 'auto',
+            }}>
+              {ctx.stack}
+            </pre>
+          )}
+          {ctx.extra && ctx.extra.componentStack && (
+            <pre style={{
+              whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: '0 0 var(--s3)',
+              padding: 'var(--s3)', background: 'var(--surface-2)', borderRadius: 'var(--r-sm)',
+              color: 'var(--text-2)', fontFamily: 'var(--font-mono)', maxHeight: '180px', overflow: 'auto',
+            }}>
+              {ctx.extra.componentStack}
+            </pre>
+          )}
+          {row.affectedUsers && row.affectedUsers.length > 0 && (
+            <div style={{ color: 'var(--text-2)' }}>
+              Affected: <span className="mono">{row.affectedUsers.join(', ')}</span>
+            </div>
+          )}
+          {ctx.extra && (ctx.extra.pagePath || ctx.extra.viewport) && (
+            <div style={{ color: 'var(--text-2)', marginTop: 4 }}>
+              {ctx.extra.pagePath && <>Page <span className="mono">{ctx.extra.pagePath}</span></>}
+              {ctx.extra.viewport && <> · Viewport <span className="mono">{ctx.extra.viewport}</span></>}
+            </div>
+          )}
+          {ctx.userAgent && (
+            <div style={{ color: 'var(--text-3)', marginTop: 4, wordBreak: 'break-word' }}>{ctx.userAgent}</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function Health() {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState('');
+  const [showResolved, setShowResolved] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const res = await apiFetch(`/admin/health/errors?includeResolved=${showResolved}`);
+      setData(res);
+      setError('');
+    } catch (err) {
+      setError(err.message || 'Could not load health data.');
+    }
+  }, [showResolved]);
+
+  useEffect(() => { load(); }, [load]);
+
+  // Refreshed on a timer because this is the page you leave open during a
+  // deploy to watch whether anything starts failing.
+  useEffect(() => {
+    const t = setInterval(load, 30000);
+    return () => clearInterval(t);
+  }, [load]);
+
+  const resolve = async (id, resolved) => {
+    try {
+      await apiFetch(`/admin/health/errors/${id}`, { method: 'PATCH', body: JSON.stringify({ resolved }) });
+      load();
+    } catch (err) {
+      setError(err.message || 'Could not update that.');
+    }
+  };
+
+  if (!data && !error) return <BrandLoader variant="page" message="Checking application health..." />;
+
+  const rows = (data && data.errors) || [];
+  const unresolved = (data && data.unresolved) || 0;
+
+  return (
+    <div>
+      <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-2xl)', fontWeight: 700, marginBottom: 'var(--s2)' }}>
+        Application health
+      </h1>
+      <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)', marginBottom: 'var(--s5)', maxWidth: '68ch', lineHeight: 1.6 }}>
+        Errors your clients hit, grouped so one fault is one row however many times it happened. Server faults and
+        crashed screens are the ones worth acting on first. Refreshes itself every 30 seconds.
+      </p>
+
+      {error && (
+        <div className="card" style={{ padding: 'var(--s4)', marginBottom: 'var(--s4)', color: 'var(--err)' }}>{error}</div>
+      )}
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s4)', marginBottom: 'var(--s5)', flexWrap: 'wrap' }}>
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: 'var(--s3)',
+          padding: 'var(--s3) var(--s4)', borderRadius: 'var(--r-md)',
+          background: unresolved > 0 ? 'color-mix(in srgb, var(--err) 12%, transparent)' : 'color-mix(in srgb, var(--ok) 12%, transparent)',
+          border: `1px solid color-mix(in srgb, var(--${unresolved > 0 ? 'err' : 'ok'}) 28%, transparent)`,
+          color: `var(--${unresolved > 0 ? 'err' : 'ok'})`,
+        }}>
+          {unresolved > 0 ? <WarningIcon size={16} /> : <SuccessIcon size={16} />}
+          <span style={{ fontWeight: 700, fontSize: 'var(--fs-sm)' }}>
+            {unresolved > 0 ? `${unresolved} open issue${unresolved === 1 ? '' : 's'}` : 'No open issues'}
+          </span>
+        </div>
+
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: 'var(--fs-sm)', color: 'var(--text-2)', cursor: 'pointer' }}>
+          <input type="checkbox" checked={showResolved} onChange={(e) => setShowResolved(e.target.checked)} />
+          Include ones I have marked fixed
+        </label>
+      </div>
+
+      {rows.length === 0 ? (
+        <EmptyState
+          title={showResolved ? 'Nothing recorded yet' : 'Nothing is broken'}
+          description="No errors have been reported. This page fills in automatically when a client hits a server fault, a failed API call, or a screen that crashes."
+        />
+      ) : (
+        rows.map((row) => <ErrorRow key={row._id} row={row} onResolve={resolve} />)
+      )}
+
+      <p style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', marginTop: 'var(--s5)', display: 'flex', gap: '6px', alignItems: 'flex-start', maxWidth: '68ch', lineHeight: 1.6 }}>
+        <InfoIcon size={13} style={{ marginTop: 2 }} />
+        <span>
+          Passwords, tokens and session ids are stripped before anything is written, and email addresses are reduced to
+          their domain. Marking something fixed keeps the record: if it happens again it reopens by itself.
+        </span>
+      </p>
+    </div>
+  );
+}

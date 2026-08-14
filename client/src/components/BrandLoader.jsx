@@ -113,7 +113,15 @@ export function BrandLoader({ variant = 'page', message = 'Loading...', minHeigh
                on a cold mobile load, which is the "circle with no logo"
                state. The file is preloaded at high priority in index.html,
                so by the time React mounts it is normally already decoded. */
-            fetchPriority="high"
+            /*
+              Lowercase deliberately. React 18.2 does not know the
+              fetchPriority prop, so the camelCase spelling is passed through
+              as an unrecognised attribute and warns on every single page load
+              (this loader renders on every auth check). Lowercase is treated
+              as a plain custom attribute, reaches the DOM identically, and is
+              silent. Revisit if React is upgraded past 18.3.
+            */
+            fetchpriority="high"
             decoding="sync"
             style={{ width: size.mark, height: size.mark, display: 'block', objectFit: 'contain' }}
           />

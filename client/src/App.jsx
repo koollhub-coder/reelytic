@@ -24,6 +24,7 @@ import { Shell } from './components/Shell';
 import { NotFound } from './components/NotFound';
 import { BrandLoader } from './components/BrandLoader';
 import { UsageSpend } from './pages/admin/UsageSpend';
+import { Health } from './pages/admin/Health';
 import { Pricing } from './pages/Pricing';
 import { BillingPlans } from './pages/BillingPlans';
 import { Checkout } from './pages/Checkout';
@@ -161,6 +162,7 @@ export function App() {
                 <Route path="/admin/ledger" element={<Ledger />} />
                 <Route path="/admin/sessions" element={<SessionsLog />} />
                 <Route path="/admin/usage" element={<UsageSpend />} />
+                <Route path="/admin/health" element={<Health />} />
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/billing" element={<BillingPlans />} />
                 <Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />

@@ -70,6 +70,9 @@ async function startServer() {
   app.use('/api/pricing', require('./routes/pricing.routes'));
   app.use('/api/me', require('./routes/me.routes'));
   app.use('/api/campaigns', require('./routes/campaigns.routes'));
+  // Client-side error beacons. Intentionally not behind requireLogin --
+  // see the note in errors.routes.js.
+  app.use('/api/errors', require('./routes/errors.routes'));
   app.use('/api/benchmarks', require('./routes/benchmarks.routes'));
   app.use('/api/public', publicRoutes);
 

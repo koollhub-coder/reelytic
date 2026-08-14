@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Logo } from './Logo';
+import { ErrorBoundary } from './ErrorBoundary';
 import { WelcomeTour } from './WelcomeTour';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -14,6 +15,24 @@ export function Shell() {
   const { theme, toggleTheme } = useTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  /*
+    Unresolved production faults, shown as a badge beside the Health nav item.
+    Polled slowly: this is an ambient "is anything on fire" signal, not a
+    live feed, and the Health page itself refreshes properly when opened.
+  */
+  const [healthCount, setHealthCount] = useState(0);
+  useEffect(() => {
+    if (user?.role !== 'admin') return undefined;
+    let alive = true;
+    const check = () => {
+      apiFetch('/admin/health/count')
+        .then((r) => { if (alive) setHealthCount(r.unresolved || 0); })
+        .catch(() => {});
+    };
+    check();
+    const t = setInterval(check, 60000);
+    return () => { alive = false; clearInterval(t); };
+  }, [user]);
   // Only the automatic first-login show lives here. Settings' "Replay tour"
   // renders its own independent WelcomeTour instance -- simpler than
   // threading a trigger down through Outlet for what's just a modal toggle.
@@ -56,6 +75,9 @@ export function Shell() {
       heading: 'Overview',
       items: [
         { label: 'Admin Dashboard', path: '/admin/dashboard'},
+        // Sits in Overview rather than buried under a submenu: an
+        // unnoticed health page is the same as no health page.
+        { label: 'Health', path: '/admin/health', badge: healthCount },
       ],
     },
     {
@@ -143,7 +165,8 @@ export function Shell() {
                       onClick={() => { navigate(item.path); setMobileOpen(false); }}
                       style={{
                         display: 'flex',
-                        alignItem: 'center',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
                         gap: '12px',
                         width: '100%',
                         padding: '10px var(--s3)',
@@ -157,6 +180,23 @@ export function Shell() {
                       }}
                     >
                       <span>{item.label}</span>
+                      {/* Only rendered when something is actually wrong, so
+                          its presence alone is the signal. A permanent "0"
+                          badge is wallpaper and stops being noticed. */}
+                      {item.badge > 0 && (
+                        <span
+                          className="mono"
+                          title={`${item.badge} unresolved issue${item.badge === 1 ? '' : 's'}`}
+                          style={{
+                            backgroundColor: 'var(--err)', color: '#fff',
+                            fontSize: '10px', fontWeight: 700, lineHeight: 1,
+                            padding: '3px 6px', borderRadius: 'var(--r-full)',
+                            flexShrink: 0, minWidth: '18px', textAlign: 'center',
+                          }}
+                        >
+                          {item.badge > 99 ? '99+' : item.badge}
+                        </span>
+                      )}
                     </button>
                   ))}
                 </React.Fragment>
@@ -239,7 +279,13 @@ export function Shell() {
       {/* Main Content Area */}
       <main className="rl-shell-main" style={{ flex: 1, marginLeft: 'var(--sidebar-w)', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
         <div className="rl-shell-content" style={{ padding: 'var(--s6) var(--s7)', flex: 1, maxWidth: '1600px', width: '100%', margin: '0 auto' }}>
-          <Outlet />
+          {/* Wraps only the routed page, not the shell. A crash on one
+              screen therefore leaves the sidebar, navigation and account
+              menu intact, so the user can walk away from the broken page
+              instead of losing the whole app. */}
+          <ErrorBoundary>
+            <Outlet />
+          </ErrorBoundary>
         </div>
       </main>
 

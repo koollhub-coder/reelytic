@@ -1,6 +1,12 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
+import { installGlobalErrorReporting } from './utils/errorReporter';
+
+// Installed before React mounts so a crash during the very first render is
+// still reported. Anything set up inside a component would miss exactly the
+// failures that stop that component from existing.
+installGlobalErrorReporting();
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
