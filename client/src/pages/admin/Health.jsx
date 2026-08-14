@@ -154,6 +154,162 @@ function ErrorRow({ row, onResolve }) {
   );
 }
 
+/*
+  Pre-deploy checks, on the machine you are developing on.
+
+  The whole section is driven by whether /devtools/tasks answers. On a
+  deployed server that route is not mounted, the probe 404s, and none of
+  this renders -- there is no flag to remember to turn off, because the
+  absence of the endpoint IS the switch.
+*/
+function DevChecks() {
+  const [tasks, setTasks] = useState(null);
+  const [run, setRun] = useState(null);
+  const [output, setOutput] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const logRef = React.useRef(null);
+  const seenRef = React.useRef(0);
+
+  useEffect(() => {
+    apiFetch('/devtools/tasks')
+      .then(setTasks)
+      // A 404 here is the normal, expected answer on any deployed server.
+      .catch(() => setTasks(null));
+  }, []);
+
+  // Poll while something is running, asking only for output it has not
+  // already been given.
+  useEffect(() => {
+    if (!busy) return undefined;
+    const t = setInterval(async () => {
+      try {
+        const res = await apiFetch(`/devtools/run?since=${seenRef.current}`);
+        if (res.run) {
+          if (res.run.chunk) {
+            seenRef.current = res.run.length;
+            setOutput((prev) => prev + res.run.chunk);
+          }
+          setRun(res.run);
+          if (res.run.status === 'done') setBusy(false);
+        }
+      } catch (e) {
+        setErr(e.message || 'Lost contact with the check.');
+        setBusy(false);
+      }
+    }, 1000);
+    return () => clearInterval(t);
+  }, [busy]);
+
+  // Follow the tail, the way a terminal does.
+  useEffect(() => {
+    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
+  }, [output]);
+
+  const start = async (task) => {
+    if (task.spends && !window.confirm(
+      'This runs one real reel and one real profile through Apify, which costs about a rupee. Continue?'
+    )) return;
+    setErr('');
+    setOutput('');
+    seenRef.current = 0;
+    try {
+      const res = await apiFetch(`/devtools/run/${task.id}`, { method: 'POST' });
+      setRun({ ...res, status: 'running' });
+      setBusy(true);
+    } catch (e) {
+      setErr(e.message || 'Could not start that check.');
+    }
+  };
+
+  const stop = async () => {
+    try { await apiFetch('/devtools/stop', { method: 'POST' }); } catch (e) { /* already gone */ }
+    setBusy(false);
+  };
+
+  if (!tasks || !tasks.available) return null;
+
+  // A deliberate Stop leaves exitCode null, same shape as a real failure
+  // would if the process never got the chance to exit -- without this check
+  // stopping a check on purpose would render the same red "something failed"
+  // banner as an actual broken build.
+  const stopped = run && run.status === 'done' && run.exitCode === null;
+  const passed = run && run.status === 'done' && run.exitCode === 0;
+  const failed = run && run.status === 'done' && run.exitCode !== 0 && run.exitCode !== null;
+
+  return (
+    <div className="card" style={{ padding: 'var(--s5)', marginBottom: 'var(--s5)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s3)', marginBottom: 'var(--s2)', flexWrap: 'wrap' }}>
+        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 700 }}>
+          Pre-deploy checks
+        </h2>
+        <span className="chip" style={{ flexShrink: 0 }}>Local machine only</span>
+      </div>
+      <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)', marginBottom: 'var(--s4)', maxWidth: '72ch', lineHeight: 1.6 }}>
+        Run these before you deploy. They use a throwaway test database and stubbed scrapers, so nothing here can touch
+        real client data. This section does not exist on the deployed site.
+      </p>
+
+      {err && <div style={{ color: 'var(--err)', fontSize: 'var(--fs-sm)', marginBottom: 'var(--s3)' }}>{err}</div>}
+
+      <div style={{ display: 'flex', gap: 'var(--s3)', flexWrap: 'wrap', marginBottom: 'var(--s4)' }}>
+        {tasks.tasks.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            className={t.spends ? 'btn btn-ghost' : 'btn btn-secondary'}
+            style={{ flexDirection: 'column', alignItems: 'flex-start', height: 'auto', padding: 'var(--s3) var(--s4)', textAlign: 'left', maxWidth: '260px' }}
+            disabled={busy}
+            onClick={() => start(t)}
+            title={t.description}
+          >
+            <span style={{ fontWeight: 600 }}>{t.label}</span>
+            <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', fontWeight: 400 }}>
+              about {t.minutes} min{t.spends ? ' · spends ~₹1' : ' · free'}
+            </span>
+          </button>
+        ))}
+        {busy && (
+          <button type="button" className="btn btn-ghost" onClick={stop} style={{ alignSelf: 'flex-start' }}>
+            Stop
+          </button>
+        )}
+      </div>
+
+      {run && (
+        <div style={{
+          padding: 'var(--s3) var(--s4)', borderRadius: 'var(--r-md)', marginBottom: 'var(--s3)',
+          fontSize: 'var(--fs-sm)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px',
+          background: (busy || stopped) ? 'var(--surface-2)' : `color-mix(in srgb, var(--${passed ? 'ok' : 'err'}) 12%, transparent)`,
+          color: (busy || stopped) ? 'var(--text-2)' : `var(--${passed ? 'ok' : 'err'})`,
+        }}>
+          {(busy || stopped) ? null : (passed ? <SuccessIcon size={16} /> : <WarningIcon size={16} />)}
+          <span>
+            {busy && `Running ${run.label}...`}
+            {stopped && `${run.label}: stopped before it finished. This tells you nothing either way.`}
+            {passed && `${run.label}: everything passed. Safe to deploy.`}
+            {failed && `${run.label}: something failed. The detail is below, do not deploy until it is green.`}
+          </span>
+        </div>
+      )}
+
+      {output && (
+        <pre
+          ref={logRef}
+          className="mono"
+          style={{
+            background: 'var(--surface-2)', borderRadius: 'var(--r-md)', padding: 'var(--s4)',
+            fontSize: 'var(--fs-xs)', lineHeight: 1.6, maxHeight: '420px', overflow: 'auto',
+            whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0,
+          }}
+        >
+          {output}
+        </pre>
+      )}
+    </div>
+  );
+}
+
 export function Health() {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
@@ -205,6 +361,8 @@ export function Health() {
       {error && (
         <div className="card" style={{ padding: 'var(--s4)', marginBottom: 'var(--s4)', color: 'var(--err)' }}>{error}</div>
       )}
+
+      <DevChecks />
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s4)', marginBottom: 'var(--s5)', flexWrap: 'wrap' }}>
         <div style={{

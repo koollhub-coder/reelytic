@@ -7,7 +7,13 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
+        /*
+          Overridable so the regression suite can point the dev server at its
+          own throwaway API (test database, stubbed scraper) instead of your
+          real one. Unset, this is exactly the previous behaviour, so normal
+          `npm run dev` is unaffected.
+        */
+        target: process.env.VITE_API_PROXY_TARGET || 'http://localhost:3000',
         changeOrigin: true
       }
     }

@@ -463,12 +463,25 @@ async function retryFailedRows(jobId) {
     processed: resumeCursor
   };
 
+  /*
+    Deliberately does NOT set status to 'running' here.
+
+    startJob() opens with `if (job.status === 'running') return;` -- a guard
+    against double-starting the same report. Setting the status to running
+    before calling it therefore tripped that guard every time: the rows were
+    reset to pending, the report was marked running, and then the processing
+    loop was never started. From the client's side "Retry failed" put the
+    report into a running state that never progressed and never finished.
+
+    Leaving the status alone lets startJob see a non-running report, flip it
+    to running itself, and actually start the loop.
+  */
   await jobsColl.updateOne(
     { _id: queryId(jobId) },
-    { $set: { rows, counts, cursor: resumeCursor, status: 'running' } }
+    { $set: { rows, counts, cursor: resumeCursor } }
   );
 
-  startJob(jobId);
+  await startJob(jobId);
 }
 
 module.exports = { startJob, pauseJob, resetJob, retryFailedRows };

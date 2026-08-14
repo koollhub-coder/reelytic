@@ -539,9 +539,19 @@ router.post('/:id/retry-failed', requireLogin, requireChangePasswordCheck, async
 router.get('/:id/progress', requireLogin, requireChangePasswordCheck, async (req, res, next) => {
   try {
     const after = parseInt(req.query.after || '0', 10);
-    const db = getDb();
-    const job = await db.collection('jobs').findOne({ _id: queryId(req.params.id) });
-    if (!job) return res.status(404).json({ error: 'Report not found' });
+
+    /*
+      Ownership is enforced here like every other per-job route.
+
+      This used to be a bare findOne by id, which made it the one endpoint
+      that would serve any report to any signed-in account. It is also one of
+      the worst to leak: the response carries currentRows (the actual source
+      URLs) and updates (each row's scraped result -- creator handles, views,
+      likes), so polling it against someone else's id streamed their campaign
+      data out live. Found by the regression suite, 2026-08-14.
+    */
+    const job = await loadOwnedJob(req, res);
+    if (!job) return undefined;
 
     // Delta updates: rows with index > after whose state changed or finished
     const updates = job.rows

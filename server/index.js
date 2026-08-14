@@ -76,6 +76,19 @@ async function startServer() {
   app.use('/api/benchmarks', require('./routes/benchmarks.routes'));
   app.use('/api/public', publicRoutes);
 
+  /*
+    The pre-deploy checks, runnable from the Health page. This router starts
+    processes, so on a production server it is never mounted at all and its
+    paths 404 like any other unknown route. It refuses non-loopback requests
+    and re-checks the environment per request as well, but not mounting it
+    is the fence that matters.
+  */
+  const devtools = require('./routes/devtools.routes');
+  if (devtools.isAvailable()) {
+    app.use('/api/devtools', devtools);
+    console.log('[Reelytic] Developer checks enabled at /api/devtools (local only, never in production).');
+  }
+
   // Static client build in production
   const clientDist = path.join(__dirname, '../client/dist');
   app.use(express.static(clientDist));

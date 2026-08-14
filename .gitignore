@@ -8,3 +8,8 @@ uploads/
 dist/
 client/dist/
 *.log
+
+# Local agent workspace and test output
+.claude/
+test-results/
+playwright-report/

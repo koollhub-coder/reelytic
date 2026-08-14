@@ -269,6 +269,14 @@ class MemoryDb {
   }
 }
 
+/*
+  Kept so the connection can be closed deliberately. Nothing in production
+  calls closeDb -- the process holds one pool for its lifetime -- but a test
+  process that cannot close it never exits, because an open Mongo pool keeps
+  the event loop alive forever.
+*/
+let mongoClient = null;
+
 async function connectDb() {
   if (dbInstance && !isFallback) return dbInstance;
   try {
@@ -277,6 +285,7 @@ async function connectDb() {
       tlsAllowInvalidCertificates: true
     });
     await client.connect();
+    mongoClient = client;
     dbInstance = client.db(config.dbName);
     isFallback = false;
     console.log('[Reelytic DB] Connected to MongoDB Atlas successfully.');
@@ -328,4 +337,14 @@ function isUsingFallback() {
   return isFallback;
 }
 
-module.exports = { connectDb, getDb, ensureIndexes, queryId, isUsingFallback };
+// Test-only in practice: releases the pool so a script can exit on its own
+// rather than being force-killed.
+async function closeDb() {
+  if (mongoClient) {
+    try { await mongoClient.close(); } catch (e) { /* already closing */ }
+    mongoClient = null;
+  }
+  dbInstance = null;
+}
+
+module.exports = { connectDb, getDb, ensureIndexes, queryId, isUsingFallback, closeDb };

@@ -892,9 +892,63 @@ async function scrapeProfilesBatchV2(usernamesOrUrls) {
   return result;
 }
 
-module.exports = {
+/*
+  Test seam: lets the regression suite run the whole job pipeline without
+  calling Apify or spending money.
+
+  WHY IT EXISTS. Every scrape costs real money, so without this the only way
+  to exercise the job lifecycle (start, partial failure, all-invalid, retry,
+  discard, resume) is to pay for it, which means in practice nobody ever
+  tests it. This is the one seam that makes that whole layer free.
+
+  WHY IT IS SAFE.
+    - It is refused outright when NODE_ENV is production. Not a warning, not
+      a fallback: a throw. There is no configuration of a production box that
+      can swap the scrapers.
+    - It is off unless REELYTIC_SCRAPER_STUB names a module, so the default
+      path is byte-for-byte the real one.
+    - Dispatch happens at CALL time through `impl`, which is what makes the
+      substitution work at all: jobEngine destructures these functions when it
+      is required, so replacing module.exports afterwards would have no
+      effect on the references it already holds.
+*/
+const impl = {
   scrapeReel, scrapeReels, scrapeProfile, scrapeProfilesBatch, scrapeFollowers, scrapeFollowersBatch,
-  scrapeFollowersBatchExpress, scrapeFollowersBatchWithCost,
-  scrapeProfilesBatchV2,
+  scrapeFollowersBatchExpress, scrapeFollowersBatchWithCost, scrapeProfilesBatchV2,
+};
+
+(function loadStubIfRequested() {
+  const stubPath = process.env.REELYTIC_SCRAPER_STUB;
+  if (!stubPath) return;
+
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'REELYTIC_SCRAPER_STUB is set but NODE_ENV is production. '
+      + 'Refusing to replace the scrapers on a production server.'
+    );
+  }
+
+  // eslint-disable-next-line global-require, import/no-dynamic-require
+  const stub = require(stubPath);
+  for (const key of Object.keys(impl)) {
+    if (typeof stub[key] === 'function') impl[key] = stub[key];
+  }
+  console.warn(`[Apify] SCRAPER STUB ACTIVE (${stubPath}) -- no real requests will be made.`);
+}());
+
+module.exports = {
+  // Dispatched through `impl` so the stub can take effect. Behaviour is
+  // identical to calling the functions directly when no stub is loaded.
+  scrapeReel: (...a) => impl.scrapeReel(...a),
+  scrapeReels: (...a) => impl.scrapeReels(...a),
+  scrapeProfile: (...a) => impl.scrapeProfile(...a),
+  scrapeProfilesBatch: (...a) => impl.scrapeProfilesBatch(...a),
+  scrapeFollowers: (...a) => impl.scrapeFollowers(...a),
+  scrapeFollowersBatch: (...a) => impl.scrapeFollowersBatch(...a),
+  scrapeFollowersBatchExpress: (...a) => impl.scrapeFollowersBatchExpress(...a),
+  scrapeFollowersBatchWithCost: (...a) => impl.scrapeFollowersBatchWithCost(...a),
+  scrapeProfilesBatchV2: (...a) => impl.scrapeProfilesBatchV2(...a),
+
+  // Pure helpers: no network, nothing to stub.
   normalizeReelItem, normalizeProfileReelItemV2, selectProfileReels, selectProfileReelsV2, extractUsername,
 };

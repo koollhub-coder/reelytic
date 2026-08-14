@@ -661,7 +661,7 @@ router.get('/usage/credits/:username', requireAdmin, async (req, res, next) => {
 
     const jobs = await db.collection('jobs').find(
       jobFilter,
-      { projection: { type: 1, status: 1, counts: 1, createdAt: 1, startedAt: 1, finishedAt: 1, creditsBefore: 1, creditsAfter: 1, fileName: 1 } }
+      { projection: { type: 1, status: 1, counts: 1, createdAt: 1, startedAt: 1, finishedAt: 1, creditsBefore: 1, creditsAfter: 1, fileName: 1, creditDriftReason: 1 } }
     ).sort({ startedAt: -1 }).limit(500).toArray();
 
     /*
@@ -727,6 +727,7 @@ router.get('/usage/credits/:username', requireAdmin, async (req, res, next) => {
     let totalItems = 0;
     let totalCached = 0;
     let unreconciled = 0;
+    let explained = 0;
 
     const runs = jobs.map((j) => {
       const spent = (j.counts && j.counts.creditsSpent) || 0;
@@ -736,7 +737,17 @@ router.get('/usage/credits/:username', requireAdmin, async (req, res, next) => {
       // Only a run with both endpoints recorded can be checked at all;
       // anything older is reported as unverifiable, never as reconciled.
       const reconciled = (before != null && after != null) ? (before - spent === after) : null;
-      if (reconciled === false) unreconciled++;
+      /*
+        A mismatch that has already been traced to the lost-update race and
+        signed off by scripts/credit-reconcile.js. It stays visible, and the
+        gap is still shown, but it stops counting towards the alarm: a known,
+        fixed, closed fault reported as an open one forever is how a warning
+        light gets ignored, and it would hide the next real mismatch among
+        the noise.
+      */
+      const driftExplained = reconciled === false && !!j.creditDriftReason;
+      if (reconciled === false && !driftExplained) unreconciled++;
+      if (driftExplained) explained++;
       totalSpent += spent;
       totalCostUsd += cost.usd;
       totalItems += cost.items;
@@ -755,6 +766,8 @@ router.get('/usage/credits/:username', requireAdmin, async (req, res, next) => {
         creditsSpent: spent,
         creditsAfter: after,
         reconciled,
+        driftExplained,
+        driftReason: j.creditDriftReason || null,
         costUsd: cost.usd,
         revenueUsd,
         // Null rather than 0 when there is no revenue to compare against, so
@@ -785,6 +798,7 @@ router.get('/usage/credits/:username', requireAdmin, async (req, res, next) => {
         ? ((totalRevenueUsd - totalCostUsd) / totalRevenueUsd) * 100
         : null,
       unreconciled,
+      explained,
       verifiable: runs.filter((r) => r.reconciled !== null).length,
       usdToInr,
     });

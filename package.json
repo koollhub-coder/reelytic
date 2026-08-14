@@ -8,7 +8,13 @@
     "dev": "concurrently \"node server/index.js\" \"cd client && npm run dev\"",
     "build": "cd client && npm install && npm run build",
     "postinstall": "cd client && npm install",
-    "alert:test": "node scripts/alert-test.js"
+    "alert:test": "node scripts/alert-test.js",
+    "regress": "node scripts/regress.js",
+    "regress:api": "node scripts/regress.js api",
+    "regress:ui": "node scripts/regress.js ui",
+    "regress:free": "node scripts/regress.js --no-spend",
+    "regress:canary": "node scripts/canary.js",
+    "credits:audit": "node scripts/credit-reconcile.js"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",
@@ -22,6 +28,7 @@
     "multer": "^1.4.5-lts.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "concurrently": "^8.2.2"
   }
 }

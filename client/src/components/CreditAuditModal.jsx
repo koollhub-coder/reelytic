@@ -265,8 +265,23 @@ export function CreditAuditModal({ username, isOpen, onClose, currency, rate, fm
             </div>
           ) : data.unreconciled === 0 ? (
             <div style={{ padding: 'var(--s3) var(--s4)', background: 'var(--accent-soft)', borderRadius: 'var(--r-md)', fontSize: 'var(--fs-sm)', marginBottom: 'var(--s4)' }}>
-              <strong style={{ color: 'var(--ok)' }}>All {data.verifiable} checkable run{data.verifiable === 1 ? '' : 's'} balance exactly.</strong>
-              <span style={{ color: 'var(--text-2)' }}>Opening balance minus credits used equals the closing balance on every one.</span>
+              {/* Explained runs do not balance, they are only accounted for.
+                  Folding them into "all balance exactly" would be the page
+                  telling a small lie to look tidier. */}
+              {data.explained > 0 ? (
+                <>
+                  <strong style={{ color: 'var(--ok)' }}>Nothing outstanding across {data.verifiable} checkable run{data.verifiable === 1 ? '' : 's'}.</strong>
+                  <span style={{ color: 'var(--text-2)' }}>
+                    {' '}{data.verifiable - data.explained} balance exactly. The other {data.explained} carry a gap
+                    that was traced to the credit-charging bug fixed on 14-aug-26 and signed off, shown below.
+                  </span>
+                </>
+              ) : (
+                <>
+                  <strong style={{ color: 'var(--ok)' }}>All {data.verifiable} checkable run{data.verifiable === 1 ? '' : 's'} balance exactly.</strong>
+                  <span style={{ color: 'var(--text-2)' }}>Opening balance minus credits used equals the closing balance on every one.</span>
+                </>
+              )}
             </div>
           ) : (
             <div style={{ padding: 'var(--s3) var(--s4)', background: 'var(--surface-2)', border: '1px solid var(--err)', borderRadius: 'var(--r-md)', fontSize: 'var(--fs-sm)', marginBottom: 'var(--s4)' }}>
@@ -394,14 +409,22 @@ export function CreditAuditModal({ username, isOpen, onClose, currency, rate, fm
                         const expected = r.creditsBefore - r.creditsSpent;
                         const diff = r.creditsAfter - expected;
                         const under = diff > 0;
+                        /*
+                          An explained gap is shown in full but without the
+                          red: the cause is known and already fixed, so
+                          dressing it as an open fault every time this page
+                          opens trains you to scroll past exactly the column
+                          that would show the next real one.
+                        */
+                        const explained = r.driftExplained;
                         return (
                           <span
-                            style={{ color: 'var(--err)', fontWeight: 600 }}
-                            title={`Expected ${expected.toLocaleString()} after the run (${r.creditsBefore.toLocaleString()} before minus ${r.creditsSpent.toLocaleString()} used), but the account actually held ${r.creditsAfter.toLocaleString()}. ${under ? 'They kept credits we counted as spent, so this run was undercharged.' : 'More credits left the account than this run counted.'}`}
+                            style={{ color: explained ? 'var(--text-2)' : 'var(--err)', fontWeight: 600 }}
+                            title={`Expected ${expected.toLocaleString()} after the run (${r.creditsBefore.toLocaleString()} before minus ${r.creditsSpent.toLocaleString()} used), but the account actually held ${r.creditsAfter.toLocaleString()}. ${under ? 'They kept credits we counted as spent, so this run was undercharged.' : 'More credits left the account than this run counted.'}${explained ? ' Traced to the credit-charging bug fixed on 14-aug-26, and signed off. Nothing further is outstanding on this run.' : ''}`}
                           >
                             Off by {Math.abs(diff).toLocaleString()}
                             <span style={{ display: 'block', fontWeight: 400, fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>
-                              {under ? 'undercharged' : 'overcharged'}
+                              {explained ? 'known issue, resolved' : (under ? 'undercharged' : 'overcharged')}
                             </span>
                           </span>
                         );
