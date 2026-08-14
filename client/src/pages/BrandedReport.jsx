@@ -46,7 +46,21 @@ export function BrandedReport() {
   // exactly what prints, so this is also how "download the dark variant" vs
   // "download the light variant" works: there's no separate render path,
   // just this toggle.
-  const [theme, setTheme] = useState('light');
+  /*
+    Opens in whatever theme the workspace is currently in, rather than always
+    light. Hardcoding light meant an agency working in dark mode clicked
+    "Preview branded report" and got a light sheet dropped into a dark app,
+    where the surrounding chrome (the toggle labels, the branding hint) was
+    still painted for dark and became unreadable against it.
+
+    Read from the resolved attribute ThemeProvider stamps on <html>, not from
+    the stored preference, because the stored value can be "system" and this
+    needs the theme that actually ended up on screen. Still a toggle: the
+    agency can flip it to check the other variant before sending.
+  */
+  const [theme, setTheme] = useState(
+    () => (document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light')
+  );
   const [shareState, setShareState] = useState({ shareToken: null, shareExpiresAt: null, shareViews: 0 });
   const [shareOpen, setShareOpen] = useState(false);
 
@@ -147,8 +161,8 @@ export function BrandedReport() {
         <div className="rl-print-hide" style={{ display: 'flex', alignItems: 'center', gap: 'var(--s2)', flexWrap: 'wrap', marginBottom: 'var(--s4)' }}>
           {shareState.shareToken ? (
             <>
-              <button className="btn btn-secondary" onClick={() => setShareOpen(true)} style={{ gap: 'var(--s2)' }}>
-                <LinkIcon /> Manage link
+              <button className="btn btn-secondary" data-tour="share-link" onClick={() => setShareOpen(true)} style={{ gap: 'var(--s2)' }}>
+                <LinkIcon />Manage link
               </button>
               {/* The status the agency actually needs at a glance: is it
                   still live, and did the client open it. Anything more
@@ -158,13 +172,13 @@ export function BrandedReport() {
               </span>
             </>
           ) : user?.features?.shareableLinks ? (
-            <button className="btn btn-secondary" onClick={() => setShareOpen(true)} style={{ gap: 'var(--s2)' }}>
-              <LinkIcon /> Get shareable link
+            <button className="btn btn-secondary" data-tour="share-link" onClick={() => setShareOpen(true)} style={{ gap: 'var(--s2)' }}>
+              <LinkIcon />Get shareable link
             </button>
           ) : (
             // Same slot, same shape as the real button, just locked -- the
             // feature reads as available-but-not-yours rather than missing.
-            <LockedFeatureButton label="Get shareable link" feature={PREMIUM_FEATURES.shareableLinks} />
+            <LockedFeatureButton label="Get shareable link" feature={PREMIUM_FEATURES.shareableLinks} dataTour="share-link" />
           )}
 
           {/* A setup nudge, not a warning. Amber said "something is broken"

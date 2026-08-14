@@ -20,7 +20,7 @@ export function PipelineModeBanner({ mode, info }) {
         backgroundColor: 'var(--ok-soft)',
       }}
     >
-      <div style={{ fontSize: '22px', lineHeight: 1 }}>✅</div>
+      <div style={{ fontSize: '22px', lineHeight: 1 }}></div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 'var(--fs-xs)', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-3)', fontWeight: 700, marginBottom: '2px' }}>
           Profile Scan Method, Live Now

@@ -118,7 +118,7 @@ export function Login() {
 
           {reason === 'revoked' && (
             <div className="chip err" style={{ width: '100%', padding: 'var(--s3)', marginBottom: 'var(--s4)', borderRadius: 'var(--r-md)' }}>
-              ⚠️ You were signed out by an administrator.
+               You were signed out by an administrator.
             </div>
           )}
 

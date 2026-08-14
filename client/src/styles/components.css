@@ -431,3 +431,46 @@
 @media (prefers-reduced-motion: reduce) {
   .rl-skel { animation: none; opacity: 0.55; }
 }
+
+/* ------------------------------------------------------------
+   Dates must not wrap.
+
+   The house date format (1-Aug-26, 11:10 PM) contains hyphens and
+   a space, every one of which is a legal line-break opportunity.
+   In a narrow column the browser took all of them, turning a
+   one-line cell into four and dragging table rows to ~195px.
+
+   Scoped to monospace cells because that is where dates and other
+   fixed-width values live. Cells holding long URLs already set
+   their own max-width and ellipsis inline, which still wins.
+   ------------------------------------------------------------ */
+.data-table td.mono,
+.data-table th.numeric {
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------
+   Guided tour: the highlighted control sits above the dim layer
+   so it stays clickable while everything else is blocked.
+   Applied and removed by DemoGuide as the step changes.
+   ------------------------------------------------------------ */
+.rl-tour-raised {
+  position: relative;
+  z-index: 1295;
+}
+
+/*
+  Tour card entrance. Driven by the card's key changing between steps rather
+  than by React state: an earlier version tracked visibility in state and fed
+  it from live measurements, which meant placement and measurement chased each
+  other every frame and the card never finished fading in.
+*/
+@keyframes rl-tour-pop {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.rl-tour-pop { animation: rl-tour-pop 220ms cubic-bezier(.4, 0, .2, 1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rl-tour-pop { animation-duration: 1ms; }
+}

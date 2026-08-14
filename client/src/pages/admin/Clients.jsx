@@ -9,7 +9,7 @@ import { useToast } from '../../context/ToastContext';
 import { formatDate, formatDateTime, formatDayKey } from '../../utils/date';
 import { TableSkeleton } from '../../components/TableSkeleton';
 
-// override value -> Select value, and back. null/undefined (key never
+// override value ->Select value, and back. null/undefined (key never
 // touched) reads as "plan", matching hasFeature()'s fallback-to-plan rule.
 const OVERRIDE_OPTIONS = [
   { value: 'plan', label: 'Plan default' },

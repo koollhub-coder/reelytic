@@ -1,3 +1,4 @@
+import { LockIcon } from './Icon';
 import React, { useState } from 'react';
 import { Modal } from './Modal';
 
@@ -18,14 +19,6 @@ import { Modal } from './Modal';
   accent at low opacity instead.
 */
 
-function LockIcon({ size = 10 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
-      <rect x="5" y="11" width="14" height="10" rx="2" fill="currentColor" />
-      <path d="M8 11V7a4 4 0 0 1 8 0v4" stroke="currentColor" strokeWidth="2.4" fill="none" />
-    </svg>
-  );
-}
 
 // Soft-tinted, not a saturated gradient pill. A monetisation badge should
 // register as a quiet label, not compete with the primary action next to it.
@@ -43,7 +36,7 @@ export function ProBadge({ style, label = 'Pro' }) {
         ...style,
       }}
     >
-      <LockIcon />
+      <LockIcon size={11} strokeWidth={2.5} />
       {label}
     </span>
   );
@@ -103,13 +96,19 @@ export function UpgradeDialog({ isOpen, onClose, feature }) {
   absent. Stays clickable on purpose -- the click is the upsell moment, and a
   dead control that swallows clicks is its own kind of cheap.
 */
-export function LockedFeatureButton({ label, feature, className = 'btn btn-secondary', style }) {
+export function LockedFeatureButton({ label, feature, className = 'btn btn-secondary', style, dataTour }) {
   const [open, setOpen] = useState(false);
   return (
     <>
       <button
         type="button"
         className={className}
+        // Locked buttons still need to be findable by the product tour. The
+        // share step pointed at a selector that only existed on the unlocked
+        // version, so on a free account the tour had nothing to point at and
+        // stopped dead. Showing someone a feature they do not have yet is the
+        // entire purpose of the tour.
+        data-tour={dataTour}
         onClick={() => setOpen(true)}
         title={`${feature.title} is available on Pro and Agency`}
         style={{

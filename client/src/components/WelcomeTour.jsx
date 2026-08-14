@@ -1,61 +1,98 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { apiFetch } from '../api/client';
+import { startDemoGuide } from './DemoGuide';
 
-// First-login orientation for a new client. Purely a UI walkthrough of
-// existing, already-shipped features -- no new capability, no vendor/actor
-// name, no cost figure, same client-safe language as the rest of the app.
-// Shown once (see WelcomeTour usage in Shell.jsx, gated on user.hasSeenTour),
-// but replayable any time from Settings.
+/*
+  First-login onboarding.
+
+  This used to be six slides of prose that described the product and then
+  dropped the user on an empty upload screen. The pattern every good SaaS
+  onboarding has converged on instead is: put something real in front of
+  them immediately, and let them touch it. An empty product teaches nothing,
+  and a carousel is read once and forgotten.
+
+  So this is short (three panels, not six) and ends by opening an actual
+  finished report seeded with sample data. From there the Getting Started
+  checklist takes over and walks them through sharing it, exporting it, and
+  running their own.
+
+  The sample report unlocks the paid features so a free-tier account can see
+  what they do, but only on that one sandboxed report -- the boundary is
+  enforced server-side, see server/services/demo.service.js. Nothing here
+  grants a real entitlement.
+*/
+
 const STEPS = [
   {
-    icon: '👋',
+    icon: '',
     heading: 'Welcome to Reelytic',
-    body: 'A quick look at what you can do here, about a minute, then you\'re free to explore on your own.',
+    body: 'You give us a sheet of Instagram links. You get back a report your client will accept. Let us show you with a finished example, it takes about a minute.',
   },
   {
-    icon: '🎬',
-    heading: 'Reel Reports',
-    body: 'Paste a list of reel links and get views, likes, comments, and engagement rate for each one, side by side, ready to export.',
+    icon: '',
+    heading: 'Your sheet, your columns',
+    body: 'Upload the spreadsheet you already keep. Your own columns stay exactly where you put them, and the views, likes, comments and engagement rate get filled in alongside them.',
   },
   {
-    icon: '👤',
-    heading: 'Profile Reports',
-    body: 'Point it at a creator\'s profile and get a stable read on their typical performance. Outliers, pinned posts, and sponsored content are automatically excluded, so the number reflects real, organic reach.',
-  },
-  {
-    icon: '⏱️',
-    heading: 'Every report, always available',
-    body: 'Every report you run is saved to your History and stays there even after you log out. Group related reports into a campaign to compare performance across a whole roster of creators.',
-  },
-  {
-    icon: 'ℹ️',
-    heading: 'Nothing hidden',
-    body: 'Every number comes from a plain formula, not a black box. "How Is This Calculated" walks through exactly how, with a worked example you can check yourself.',
-  },
-  {
-    icon: '🚀',
-    heading: 'You\'re ready',
-    body: 'Start with your first report, or explore on your own. You can always come back to this tour later from Settings.',
+    icon: '',
+    heading: 'Have a look at a real one',
+    body: 'We have made you a sample report using example creators. Nothing was charged and no data was pulled, it is there purely so you can click around a finished report before running your own.',
     final: true,
   },
 ];
 
-export function WelcomeTour({ onDone }) {
+export function WelcomeTour({ onDone, username }) {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
   const current = STEPS[step];
-  const isLast = step === STEPS.length - 1;
 
-  const handleStart = () => {
-    onDone();
-    navigate('/reels');
+  /*
+    Opens (or re-creates) the sample and hands off to the guided tour.
+
+    Retries once because this failed for a user on a transient server blip
+    and left them staring at an error with no way forward, which is the worst
+    possible first impression. The sample endpoint is idempotent, so a second
+    attempt is free and cannot produce a duplicate.
+  */
+  const openSample = async () => {
+    setBusy(true);
+    setError('');
+    const attempt = () => apiFetch('/jobs/demo', { method: 'POST' });
+    try {
+      let res;
+      try {
+        res = await attempt();
+      } catch (first) {
+        await new Promise((r) => setTimeout(r, 900));
+        res = await attempt();
+      }
+      // Mark the first checklist item done before navigating, so the
+      // checklist is already one step in when they land.
+      try { localStorage.setItem('rl-onboarding-sample-seen', '1'); } catch (e) { /* private mode */ }
+      // Hand off to the in-context walkthrough: the modal's job ends here.
+      startDemoGuide(res.jobId, username);
+      onDone();
+      navigate(`/reels?job=${res.jobId}`);
+    } catch (err) {
+      // Never trap someone in onboarding because a sample failed to build.
+      setError('Could not open the sample just now. Try again, or explore on your own.');
+      setBusy(false);
+    }
   };
 
   return (
-    <div className="rl-modal-overlay" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200, padding: 'var(--s4)' }}>
+    <div
+      className="rl-modal-overlay"
+      style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200, padding: 'var(--s4)' }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Welcome to Reelytic"
+    >
       <div className="card rl-modal-sheet" style={{ width: '480px', maxWidth: '100%', padding: 'var(--s7) var(--s6) var(--s6)', textAlign: 'center' }}>
         <div className="rl-modal-handle" style={{ display: 'none' }} aria-hidden="true" />
-        <div style={{ fontSize: '44px', marginBottom: 'var(--s4)' }}>{current.icon}</div>
         <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-xl)', fontWeight: 700, marginBottom: 'var(--s3)' }}>
           {current.heading}
         </h2>
@@ -76,13 +113,23 @@ export function WelcomeTour({ onDone }) {
           ))}
         </div>
 
+        {error && (
+          <p style={{ color: 'var(--err)', fontSize: 'var(--fs-sm)', marginBottom: 'var(--s3)' }}>{error}</p>
+        )}
+
         {current.final ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <button type="button" className="btn btn-primary" style={{ width: '100%', height: '40px' }} onClick={handleStart}>
-              Start my first report
+            <button
+              type="button"
+              className="btn btn-primary"
+              style={{ width: '100%', height: '40px' }}
+              onClick={openSample}
+              disabled={busy}
+            >
+              {busy ? 'Opening your sample...' : 'Show me the sample report'}
             </button>
             <button type="button" className="btn btn-ghost" style={{ width: '100%', height: '40px' }} onClick={onDone}>
-              Explore on my own
+              Skip, I'll explore on my own
             </button>
           </div>
         ) : (

@@ -7,7 +7,7 @@ import React, { useState } from 'react';
 // every page that shows a nav.
 export function AccountMenu({ user, onGoToWorkspace, onSwitchAccount, onLogOut }) {
   const [open, setOpen] = useState(false);
-  const initial = (user.name || user.username || '?').charAt(0).toUpperCase();
+  const initial = (user.username || '?').charAt(0).toUpperCase();
 
   return (
     <div style={{ position: 'relative', flexShrink: 0 }}>

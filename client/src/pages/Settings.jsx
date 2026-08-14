@@ -3,6 +3,7 @@ import { PasswordInput } from '../components/PasswordInput';
 import { Select } from '../components/Select';
 import { ProBadge, PREMIUM_FEATURES } from '../components/Premium';
 import { WelcomeTour } from '../components/WelcomeTour';
+import { PencilIcon, ReplayIcon } from '../components/Icon';
 import { apiFetch } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -47,7 +48,7 @@ export function Settings() {
       setLogoError('Logo must be a PNG, JPG, WEBP, or SVG file.');
       return;
     }
-    if (file.size > MAX_LOGO_BYTES) {
+    if (file.size >MAX_LOGO_BYTES) {
       setLogoError('Logo file is too large. Use an image under 1MB.');
       return;
     }
@@ -119,7 +120,7 @@ export function Settings() {
     }
   };
 
-  const displayName = user?.name || user?.username;
+  const displayName = user?.username;
   const initial = (displayName || '?').charAt(0).toUpperCase();
 
   return (
@@ -215,15 +216,20 @@ export function Settings() {
                   title="Edit username"
                   aria-label="Edit username"
                   style={{
-                    width: '26px', height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: 'var(--surface-2)', border: '1px solid var(--border-strong)', borderRadius: '50%',
-                    color: 'var(--text-2)', cursor: 'pointer', fontSize: '13px', lineHeight: 1, flexShrink: 0,
-                    transition: 'background var(--t-fast), color var(--t-fast)',
+                    // A rounded square, not a circle. A 26px circle around a
+                    // 14px glyph reads as an avatar or a status dot; every
+                    // toolbar-style edit affordance in this class of product
+                    // is a soft-cornered square, and it stops the control
+                    // competing with the username beside it.
+                    width: '28px', height: '28px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    background: 'transparent', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)',
+                    color: 'var(--text-3)', cursor: 'pointer', lineHeight: 0, flexShrink: 0, padding: 0,
+                    transition: 'background var(--t-fast), color var(--t-fast), border-color var(--t-fast)',
                   }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--accent-soft)'; e.currentTarget.style.color = 'var(--accent)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface-2)'; e.currentTarget.style.color = 'var(--text-2)'; }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2)'; e.currentTarget.style.color = 'var(--text)'; e.currentTarget.style.borderColor = 'var(--border-strong)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-3)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
                 >
-                  ✎
+                  <PencilIcon size={14} />
                 </button>
               </div>
               </>
@@ -242,24 +248,55 @@ export function Settings() {
             )}
             {/* flexWrap so the button drops onto its own line on a phone
                 instead of being squeezed flat against the card edge. */}
-            <div style={{ gridColumn: '1 / -1', marginTop: 'var(--s3)', paddingTop: 'var(--s4)', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 'var(--s3)', flexWrap: 'wrap' }}>
-              <div>
-                <div style={{ fontWeight: 600, fontSize: 'var(--fs-sm)' }}>Welcome tour</div>
-                <div style={{ color: 'var(--text-3)', fontSize: 'var(--fs-xs)', marginTop: 2 }}>A quick orientation to Reel Reports, Profile Reports, and where everything lives.</div>
+            {/*
+              The guided tour, given the weight of a real feature rather than
+              a footnote under the account fields. It is the fastest way for
+              someone to understand the whole product, so a 12px grey line and
+              a small secondary button was underselling it badly: accent-
+              tinted panel, icon, what it actually covers, and a primary
+              action.
+            */}
+            <div style={{
+              gridColumn: '1 / -1', marginTop: 'var(--s3)', paddingTop: 'var(--s5)',
+              borderTop: '1px solid var(--border)',
+            }}>
+              <div style={{
+                display: 'flex', alignItems: 'flex-start', gap: 'var(--s4)', flexWrap: 'wrap',
+                padding: 'var(--s5)', borderRadius: 'var(--r-md)',
+                background: 'color-mix(in srgb, var(--accent) 7%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--accent) 22%, transparent)',
+              }}>
+                <div style={{
+                  width: '40px', height: '40px', borderRadius: 'var(--r-md)', flexShrink: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: 'color-mix(in srgb, var(--accent) 14%, transparent)',
+                  color: 'var(--accent)',
+                }}>
+                  <ReplayIcon size={19} />
+                </div>
+                <div style={{ flex: '1 1 220px', minWidth: 0 }}>
+                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 'var(--fs-md)', marginBottom: 4 }}>
+                    Take the guided tour
+                  </div>
+                  <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)', lineHeight: 1.6, margin: '0 0 var(--s3)' }}>
+                    Six stops through a finished report, the Excel export, the client version, the share link and your branding.
+                    Runs on sample data, so nothing is charged and none of your own work is touched.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowTour(true)}
+                    className="btn btn-primary"
+                    style={{ height: '36px', padding: '0 var(--s5)' }}
+                  >
+                    Start the tour
+                  </button>
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowTour(true)}
-                className="btn btn-secondary"
-                style={{ height: '34px', fontSize: 'var(--fs-xs)', padding: '0 var(--s4)', flexShrink: 0 }}
-              >
-                Replay
-              </button>
             </div>
           </div>
         </div>
 
-        {showTour && <WelcomeTour onDone={() => setShowTour(false)} />}
+        {showTour && <WelcomeTour onDone={() => setShowTour(false)} username={user?.username} />}
 
         <div className="card">
           <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 700, marginBottom: 'var(--s1)' }}>Change Password</h3>
@@ -285,7 +322,7 @@ export function Settings() {
             1 and this card alone on row 2). Full width also gives the form
             room for a real two-column layout below instead of every field
             stacked single-file in a ~340px column. */}
-        <div className="card" style={{ gridColumn: '1 / -1' }}>
+        <div className="card" data-tour="branding-card" style={{ gridColumn: '1 / -1' }}>
           <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 700, marginBottom: 'var(--s1)' }}>Report branding</h3>
           <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)', marginBottom: 'var(--s4)' }}>
             Your logo and color appear on branded client reports. Set this once, every report uses it after.

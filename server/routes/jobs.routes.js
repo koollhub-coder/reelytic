@@ -8,6 +8,7 @@ const { costForRun, costPerItem } = require('../services/credits.service');
 const { getActiveJobPointer, clearActiveJobPointer } = require('../services/activeJob.service');
 const { hasFeature } = require('../services/features.service');
 const { buildReportContext } = require('../services/reportContext.service');
+const { getOrCreateDemoJob, deleteDemoJob } = require('../services/demo.service');
 
 // Escapes regex special characters in free-text search input before it's
 // used to build a MongoDB $regex -- otherwise a search term like "a.b*c"
@@ -455,7 +456,15 @@ router.post('/:id/share', requireLogin, requireChangePasswordCheck, async (req, 
       // Minting a brand-new link requires the feature; a report that
       // already has one keeps working below regardless -- same
       // grandfathering rule as report branding (see settings.routes.js).
-      if (!(await hasFeature(req.currentUser, 'shareableLinks'))) {
+      /*
+        The sample report is exempt so a free-tier client can see what a
+        client-facing link actually does. The exemption is written here, at
+        the point of use, and keys off this specific job's isDemo flag -- it
+        cannot widen to a real report, and hasFeature() itself is unchanged.
+        See demo.service.js for the full boundary.
+      */
+      const isDemoJob = job.isDemo === true;
+      if (!isDemoJob && !(await hasFeature(req.currentUser, 'shareableLinks'))) {
         return res.status(403).json({ error: 'Shareable links aren\'t available on your current plan. Upgrade to share reports with clients.', code: 'FEATURE_LOCKED' });
       }
       shareToken = crypto.randomBytes(16).toString('hex');
@@ -549,6 +558,31 @@ router.get('/:id/progress', requireLogin, requireChangePasswordCheck, async (req
       finishedAt: job.finishedAt || null,
       updates
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/*
+  The guided sample report. Creates (or returns) a finished demo job for this
+  client so a brand-new account has something real to look at instead of an
+  empty History. Charges nothing and scrapes nothing: see demo.service.js.
+*/
+router.post('/demo', requireLogin, requireChangePasswordCheck, async (req, res, next) => {
+  try {
+    const job = await getOrCreateDemoJob(req.currentUser.username);
+    res.json({ jobId: String(job._id), isDemo: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Lets a client clear the sample out once they have their own reports, so it
+// does not sit in History forever pretending to be real work.
+router.delete('/demo', requireLogin, requireChangePasswordCheck, async (req, res, next) => {
+  try {
+    await deleteDemoJob(req.currentUser.username);
+    res.json({ success: true });
   } catch (err) {
     next(err);
   }

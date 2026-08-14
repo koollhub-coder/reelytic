@@ -21,10 +21,12 @@ import React from 'react';
 
   `rowHeight` exists because "same space" is not free. The default row here
   is a single line of text (~36px, matching .data-table td padding), which is
-  right for most tables. History's rows carry dropdowns and buttons and run
-  ~130px, so a default skeleton there would under-reserve by 94px per row and
-  reintroduce the very jump this component exists to remove. Measure the real
-  row and pass it rather than assuming.
+  right for most tables. History's rows carry a campaign dropdown and action
+  buttons and run ~67px, so a default skeleton there under-reserves and
+  reintroduces the very jump this component exists to remove. Measure the
+  real row and pass it rather than assuming: this number was 130px until a
+  date-wrapping fix halved the row height, and a stale constant here is a
+  layout shift that hides in plain sight.
 */
 
 const WIDTHS = [78, 54, 92, 63, 85, 47, 71, 58];

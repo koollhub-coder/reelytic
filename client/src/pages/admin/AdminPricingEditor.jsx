@@ -323,7 +323,7 @@ export function AdminPricingEditor() {
             {/* Unsaved warning */}
             {dirty && (
                 <div style={{ background: 'var(--warn-soft)', border: '1px solid var(--warn)', borderRadius: 'var(--r-md)', padding: 'var(--s3) var(--s4)', marginBottom: 'var(--s4)', fontSize: 'var(--fs-sm)', color: 'var(--warn)', display: 'flex', alignItems: 'center', gap: 'var(--s2)' }}>
-                    <span>●</span> Unsaved changes - your /pricing page still shows the old prices until you save
+                    <span>●</span>Unsaved changes - your /pricing page still shows the old prices until you save
                 </div>
             )}
 

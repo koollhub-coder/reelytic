@@ -23,7 +23,7 @@ export function Signup() {
     setError('');
     setLoading(true);
     try {
-      await signup({ email, password, name });
+      await signup({ email, password, username: name });
       navigate('/reels');
     } catch (err) {
       setError(err.message || 'Could not create your account.');
@@ -98,9 +98,29 @@ export function Signup() {
           </div>
 
           <form onSubmit={handleSubmit}>
+            {/* Asked for directly rather than being derived from the email.
+                This is the name shown throughout the workspace, so defaulting
+                it to the address is what left accounts displaying
+                "someone@gmail.com" in the sidebar. */}
             <div className="input-group">
-              <label className="input-label" htmlFor="name">Name or agency name</label>
-              <input type="text" id="name" className="input-field" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Kapoor Media" required minLength={2} />
+              <label className="input-label" htmlFor="username">Username</label>
+              <input
+                type="text"
+                id="username"
+                className="input-field"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder="e.g. kapoormedia"
+                required
+                minLength={3}
+                maxLength={32}
+                autoComplete="username"
+                pattern="[A-Za-z0-9._-]{3,32}"
+                title="3-32 characters: letters, numbers, dots, dashes or underscores"
+              />
+              <p style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', marginTop: '6px' }}>
+                This is how your name appears across Reelytic. You can change it later in Settings.
+              </p>
             </div>
             <div className="input-group">
               <label className="input-label" htmlFor="email">Work email</label>

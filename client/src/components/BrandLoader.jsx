@@ -57,17 +57,34 @@ export function BrandLoader({ variant = 'page', message = 'Loading...', minHeigh
     return () => window.removeEventListener('resize', measure);
   }, [variant, minHeight]);
 
+  /*
+    The full-screen variant is pinned to the viewport, exactly like the boot
+    splash in index.html (position: fixed; inset: 0).
+
+    It used to be a normal in-flow block with min-height: 100vh, and on a phone
+    those two are not the same box: 100vh is the LARGE viewport, the height the
+    page would have with the browser's URL bar hidden, which is taller than
+    what is actually on screen. Centring inside it therefore put the mark lower
+    than the splash had it, so at the hand-off from the splash to React the
+    logo visibly dropped a few pixels. Pull-to-refresh made it obvious because
+    that is when the URL bar is showing and the gap is widest. Same box, same
+    centre, no movement.
+  */
+  const isFull = variant === 'full';
+
   return (
     <div
       ref={ref}
       style={{
-        minHeight: minHeight || (fillHeight != null ? `${fillHeight}px` : size.minHeight),
+        ...(isFull
+          ? { position: 'fixed', inset: 0, zIndex: 40 }
+          : { minHeight: minHeight || (fillHeight != null ? `${fillHeight}px` : size.minHeight), width: '100%' }),
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         padding: 'var(--s5) var(--s4)',
-        backgroundColor: variant === 'full' ? 'var(--bg)' : 'transparent',
-        width: '100%',
+        backgroundColor: isFull ? 'var(--bg)' : 'transparent',
+        boxSizing: 'border-box',
       }}
     >
       {/* .rl-loader-ring / .rl-loader-mark and their keyframes live in

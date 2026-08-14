@@ -237,7 +237,7 @@ function metricCells(row, type, onViewReels) {
 
 const FLAG_STYLE = {
   approved: { label: '✓ Approved', color: 'var(--ok)' },
-  flagged: { label: '⚑ Flagged', color: 'var(--err)' },
+  flagged: { label: 'Flagged', color: 'var(--err)' },
 };
 
 // Triage note/flag button -- only meaningful once a row has actually
@@ -886,7 +886,9 @@ export function ReportEngine({ type = 'reel' }) {
             {jobState === 'preview' && 'Review parsed links, rename columns, and start your run.'}
             {jobState === 'running' && 'Fetching live metrics from Instagram with audited ledger rules.'}
             {jobState === 'paused' && 'This report is paused. Resume anytime.'}
-            {jobState === 'done' && 'Report complete. Inspect results below or download styled Excel/CSV.'}
+            {jobState === 'done' && (counts.success === 0
+              ? 'Report finished, but none of these links could be read.'
+              : 'Report complete. Inspect results below or download styled Excel/CSV.')}
           </p>
         </div>
 
@@ -903,7 +905,7 @@ export function ReportEngine({ type = 'reel' }) {
 
       {isHistoryView && (
         <div className="chip accent" style={{ display: 'inline-flex', padding: '6px 12px', marginBottom: 'var(--s5)' }}>
-          📜 Viewing a past report from your history. This isn't your current run.
+           Viewing a past report from your history. This isn't your current run.
         </div>
       )}
 
@@ -922,7 +924,7 @@ export function ReportEngine({ type = 'reel' }) {
       {jobState === 'preview' && previewData && (
         <div>
           <div style={{ display: 'flex', gap: 'var(--s3)', marginBottom: 'var(--s5)', flexWrap: 'wrap', alignItems: 'center' }}>
-            <span className="chip" style={{ padding: '6px 12px', fontWeight: 600 }}>📄 {previewData.fileName}</span>
+            <span className="chip" style={{ padding: '6px 12px', fontWeight: 600 }}> {previewData.fileName}</span>
             <button onClick={() => handleFilterChange('all')} className={`chip ${activeFilter === 'all' ? 'accent' : ''}`} style={{ cursor: 'pointer', padding: '6px 12px' }}>All ({counts.total})</button>
             <button onClick={() => handleFilterChange('valid')} className={`chip ${activeFilter === 'valid' ? 'ok' : ''}`} style={{ cursor: 'pointer', padding: '6px 12px' }}>Valid ({counts.valid})</button>
             <button onClick={() => handleFilterChange('invalid')} className={`chip ${activeFilter === 'invalid' ? 'err' : ''}`} style={{ cursor: 'pointer', padding: '6px 12px' }}>Invalid ({counts.invalid})</button>
@@ -930,7 +932,7 @@ export function ReportEngine({ type = 'reel' }) {
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--s1)', flexWrap: 'wrap', gap: 'var(--s2)' }}>
-            <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>💡 Click a column name to rename it, drag to reorder, or use × to remove it, all before you run.</div>
+            <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>Click a column name to rename it, drag to reorder, or use × to remove it, all before you run.</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s3)' }}>
               {previewData.creditsPerItem != null && (
                 <span className="chip accent" style={{ padding: '6px 12px' }}>
@@ -971,7 +973,7 @@ export function ReportEngine({ type = 'reel' }) {
           )}
 
           <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-2)', marginBottom: 'var(--s2)' }}>
-            🔒 These columns are filled in once the report runs, so you know exactly what's coming: <strong>{LOCKED_COLUMNS[type].join(', ')}</strong>
+             These columns are filled in once the report runs, so you know exactly what's coming: <strong>{LOCKED_COLUMNS[type].join(', ')}</strong>
           </div>
 
           <div className="data-table-container" style={{ marginBottom: 'var(--s4)' }}>
@@ -1016,7 +1018,7 @@ export function ReportEngine({ type = 'reel' }) {
                               style={{ cursor: 'pointer' }}
                               title="Click to rename"
                             >
-                              {colName} ✏️
+                              {colName} 
                             </span>
                           )}
                           <button
@@ -1033,7 +1035,7 @@ export function ReportEngine({ type = 'reel' }) {
                   })}
                   {LOCKED_COLUMNS[type].map(name => (
                     <th key={name} className="numeric" style={{ backgroundColor: 'var(--locked)', color: 'var(--text-2)', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                      🔒 {name}
+                       {name}
                     </th>
                   ))}
                 </tr>
@@ -1134,7 +1136,7 @@ export function ReportEngine({ type = 'reel' }) {
             <StatCard label="Est. Remaining" value={jobState === 'paused' ? 'Paused' : formatEta(displayEtaMs)} sub={jobState === 'paused' ? 'Report paused' : 'Learns over time'} />
           </div>
 
-          <div className="card" style={{ marginBottom: 'var(--s5)' }}>
+          <div className="card" data-tour="results-table" style={{ marginBottom: 'var(--s5)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--s2)', fontSize: 'var(--fs-sm)', fontWeight: 600 }}>
               <span>{jobState === 'paused' ? 'Paused' : 'Fetching your metrics...'}</span>
               <span className="mono">{counts.total > 0 ? Math.round((counts.processed / counts.total) * 100) : 0}%</span>
@@ -1155,7 +1157,7 @@ export function ReportEngine({ type = 'reel' }) {
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'var(--s4)', flexWrap: 'wrap', gap: 'var(--s3)' }}>
               <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>
-                🔒 This report keeps going even if you close the tab. Come back anytime.
+                 This report keeps going even if you close the tab. Come back anytime.
               </div>
               <div style={{ display: 'flex', gap: 'var(--s3)' }}>
                 {jobState === 'running' ? (
@@ -1209,28 +1211,45 @@ export function ReportEngine({ type = 'reel' }) {
         <div>
           <div className="card" style={{ marginBottom: 'var(--s6)', textAlign: 'center', padding: 'var(--s6)' }}>
             <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-xl)', fontWeight: 700, marginBottom: 'var(--s2)' }}>
-              🎉 Report Ready: {counts.success} of {counts.total} Succeeded
+               {counts.success === 0
+                 ? `No results: 0 of ${counts.total} links could be read`
+                 : `Report Ready: ${counts.success} of ${counts.total} Succeeded`}
             </h2>
             <p style={{ color: 'var(--text-2)', maxWidth: '440px', margin: '0 auto var(--s2) auto', fontSize: 'var(--fs-base)' }}>
-              Verify results in the live preview below or download your professional Excel/CSV export.
+              {counts.success === 0
+                ? 'None of these links could be read, so there is nothing to export or send. Check the links and try again.'
+                : 'Verify results in the live preview below or download your professional Excel/CSV export.'}
             </p>
             {processingTimeLabel() && (
               <p style={{ color: 'var(--text-3)', fontSize: 'var(--fs-sm)', marginBottom: 'var(--s5)' }}>
                 Processed {counts.total} items in {processingTimeLabel()}.
               </p>
             )}
+            {/*
+              Every action that produces a document needs at least one row to
+              put in it. With all links invalid these still rendered, so the
+              obvious next click handed the user an empty spreadsheet or a
+              branded report with no creators in it: a junk screen that looks
+              like the product is broken rather than like the links were bad.
+              Retry and "run another report" stay, because those are the two
+              things that actually help from here.
+            */}
             <div style={{ display: 'flex', justifyContent: 'center', gap: 'var(--s3)', flexWrap: 'wrap' }}>
-              <a href={`/api/export/${jobId}.xlsx`} className="btn btn-primary" download>
-                Download Excel (.xlsx) ↓
-              </a>
-              <a href={`/api/export/${jobId}.csv`} className="btn btn-secondary" download>
-                Download CSV ↓
-              </a>
-              <button type="button" className="btn btn-secondary" onClick={() => navigate(`/reports/${jobId}/branded`)}>
-                Preview branded report
-              </button>
+              {counts.success > 0 && (
+                <>
+                  <a href={`/api/export/${jobId}.xlsx`} className="btn btn-primary" data-tour="download-excel" download>
+                    Download Excel (.xlsx) ↓
+                  </a>
+                  <a href={`/api/export/${jobId}.csv`} className="btn btn-secondary" download>
+                    Download CSV ↓
+                  </a>
+                  <button type="button" className="btn btn-secondary" data-tour="preview-branded" onClick={() => navigate(`/reports/${jobId}/branded`)}>
+                    Preview branded report
+                  </button>
+                </>
+              )}
               {counts.failed > 0 && (
-                <button className="btn btn-secondary" onClick={handleRetryFailed}>
+                <button className={`btn ${counts.success === 0 ? 'btn-primary' : 'btn-secondary'}`} onClick={handleRetryFailed}>
                   Retry failed ({counts.failed})
                 </button>
               )}
@@ -1242,7 +1261,7 @@ export function ReportEngine({ type = 'reel' }) {
 
           {/* Highlights: plain-English summary + best/worst performer callouts */}
           {insights && (
-            <div className="card" style={{ marginBottom: 'var(--s6)', padding: 'var(--s5)' }}>
+            <div className="card" data-tour="highlights" style={{ marginBottom: 'var(--s6)', padding: 'var(--s5)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--s2)' }}>
                 <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-md)', fontWeight: 700 }}>
                   Highlights
@@ -1274,7 +1293,7 @@ export function ReportEngine({ type = 'reel' }) {
                     style={{ display: 'block', padding: 'var(--s4)', borderRadius: 'var(--r-md)', backgroundColor: 'var(--surface-2)', border: '1px solid var(--border)', textDecoration: 'none' }}
                   >
                     <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: 'var(--s1)' }}>
-                      🏆 Top performer
+                       Top performer
                     </div>
                     <div className="mono" style={{ color: 'var(--accent)', fontWeight: 700, fontSize: 'var(--fs-base)' }}>@{insights.top.name}</div>
                     <div style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)', marginTop: 'var(--s1)' }}>
@@ -1361,7 +1380,7 @@ export function ReportEngine({ type = 'reel' }) {
             style={{ cursor: 'pointer', padding: '6px 14px' }}
             onClick={() => setNoteFlagInput(noteFlagInput === 'flagged' ? null : 'flagged')}
           >
-            ⚑ Flagged
+             Flagged
           </button>
         </div>
         <div className="input-group">

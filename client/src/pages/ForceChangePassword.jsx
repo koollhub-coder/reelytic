@@ -35,7 +35,7 @@ export function ForceChangePassword() {
         body: JSON.stringify({ newPassword })
       });
       await refreshUser();
-      addToast('Password updated. Welcome to Reelytic 👋', 'ok');
+      addToast('Password updated. Welcome to Reelytic ', 'ok');
       navigate('/reels');
     } catch (err) {
       setError(err.message || 'Failed to update password');

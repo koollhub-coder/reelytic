@@ -29,10 +29,10 @@ export function AuthProvider({ children }) {
     return data.user;
   };
 
-  const signup = async ({ email, password, name }) => {
+  const signup = async ({ email, password, username }) => {
     const data = await apiFetch('/auth/signup', {
       method: 'POST',
-      body: JSON.stringify({ email, password, name })
+      body: JSON.stringify({ email, password, username })
     });
     setUser(data.user);
     return data.user;

@@ -1,0 +1,270 @@
+{
+ "total": 61,
+ "distinct": 36,
+ "glyphs": [
+  {
+   "g": "✓",
+   "n": 11,
+   "where": [
+    ".\\components\\CopyButton.jsx:14 {copied ? '✓' : '📋'}",
+    ".\\components\\GettingStarted.jsx:49 {done ? '✓' : ''}"
+   ]
+  },
+  {
+   "g": "📊",
+   "n": 3,
+   "where": [
+    ".\\components\\EmptyState.jsx:3 export function EmptyState({ icon = '📊', title, description, action })",
+    ".\\components\\Shell.jsx:38 ...(isAdmin ? [] : [{ label: 'Dashboard', path: '/dashboard', icon: '📊"
+   ]
+  },
+  {
+   "g": "☀️",
+   "n": 3,
+   "where": [
+    ".\\components\\Shell.jsx:92 <button className=\"rl-icon-btn\" aria-label=\"Toggle theme\" onClick={tog",
+    ".\\components\\Shell.jsx:234 {theme === 'dark' ? '☀️' : '🌙'}"
+   ]
+  },
+  {
+   "g": "🌙",
+   "n": 3,
+   "where": [
+    ".\\components\\Shell.jsx:92 <button className=\"rl-icon-btn\" aria-label=\"Toggle theme\" onClick={tog",
+    ".\\components\\Shell.jsx:234 {theme === 'dark' ? '☀️' : '🌙'}"
+   ]
+  },
+  {
+   "g": "🔒",
+   "n": 3,
+   "where": [
+    ".\\pages\\ReportEngine.jsx:974 🔒 These columns are filled in once the report runs, so you know exactl",
+    ".\\pages\\ReportEngine.jsx:1036 🔒 {name}"
+   ]
+  },
+  {
+   "g": "👁️",
+   "n": 2,
+   "where": [
+    ".\\components\\PasswordInput.jsx:50 {show ? '👁️‍🗨️' : '👁️'}",
+    ".\\components\\PasswordInput.jsx:50 {show ? '👁️‍🗨️' : '👁️'}"
+   ]
+  },
+  {
+   "g": "🎬",
+   "n": 2,
+   "where": [
+    ".\\components\\Shell.jsx:36 { label: 'Reel Report', path: '/reels', icon: '🎬' },",
+    ".\\pages\\Landing.jsx:162 <div className=\"step-number\">🎬</div>"
+   ]
+  },
+  {
+   "g": "👤",
+   "n": 2,
+   "where": [
+    ".\\components\\Shell.jsx:37 { label: 'Profile Report', path: '/profiles', icon: '👤' },",
+    ".\\pages\\Landing.jsx:167 <div className=\"step-number\">👤</div>"
+   ]
+  },
+  {
+   "g": "🔐",
+   "n": 2,
+   "where": [
+    ".\\components\\Shell.jsx:64 { label: 'Sessions Log', path: '/admin/sessions', icon: '🔐' },",
+    ".\\pages\\admin\\DevUnlock.jsx:36 <div style={{ fontSize: '36px', marginBottom: 'var(--s3)' }}>🔐</div>"
+   ]
+  },
+  {
+   "g": "👋",
+   "n": 2,
+   "where": [
+    ".\\components\\WelcomeTour.jsx:28 icon: '👋',",
+    ".\\pages\\ForceChangePassword.jsx:38 addToast('Password updated. Welcome to Reelytic 👋', 'ok');"
+   ]
+  },
+  {
+   "g": "📄",
+   "n": 2,
+   "where": [
+    ".\\components\\WelcomeTour.jsx:33 icon: '📄',",
+    ".\\pages\\ReportEngine.jsx:925 <span className=\"chip\" style={{ padding: '6px 12px', fontWeight: 600 }"
+   ]
+  },
+  {
+   "g": "⚑",
+   "n": 2,
+   "where": [
+    ".\\pages\\ReportEngine.jsx:240 flagged: { label: '⚑ Flagged', color: 'var(--err)' },",
+    ".\\pages\\ReportEngine.jsx:1364 ⚑ Flagged"
+   ]
+  },
+  {
+   "g": "📋",
+   "n": 1,
+   "where": [
+    ".\\components\\CopyButton.jsx:14 {copied ? '✓' : '📋'}"
+   ]
+  },
+  {
+   "g": "📂",
+   "n": 1,
+   "where": [
+    ".\\components\\FileDrop.jsx:44 <div style={{ fontSize: '36px', marginBottom: 'var(--s3)' }}>📂</div>"
+   ]
+  },
+  {
+   "g": "✕",
+   "n": 1,
+   "where": [
+    ".\\components\\Modal.jsx:29 <button onClick={onClose} aria-label=\"Close modal\" className=\"rl-modal"
+   ]
+  },
+  {
+   "g": "🗨️",
+   "n": 1,
+   "where": [
+    ".\\components\\PasswordInput.jsx:50 {show ? '👁️‍🗨️' : '👁️'}"
+   ]
+  },
+  {
+   "g": "✅",
+   "n": 1,
+   "where": [
+    ".\\components\\PipelineModeBanner.jsx:23 <div style={{ fontSize: '22px', lineHeight: 1 }}>✅</div>"
+   ]
+  },
+  {
+   "g": "☀",
+   "n": 1,
+   "where": [
+    ".\\components\\ReportSheet.jsx:228 ☀<span className=\"rl-label-full\"> Light</span>"
+   ]
+  },
+  {
+   "g": "⚙️",
+   "n": 1,
+   "where": [
+    ".\\components\\Shell.jsx:41 { label: 'Settings', path: '/settings', icon: '⚙️' },"
+   ]
+  },
+  {
+   "g": "💳",
+   "n": 1,
+   "where": [
+    ".\\components\\Shell.jsx:48 ...(isAdmin ? [] : [{ label: 'Pricing & Plans', path: '/billing', icon"
+   ]
+  },
+  {
+   "g": "📈",
+   "n": 1,
+   "where": [
+    ".\\components\\Shell.jsx:57 { label: 'Admin Dashboard', path: '/admin/dashboard', icon: '📈' },"
+   ]
+  },
+  {
+   "g": "👥",
+   "n": 1,
+   "where": [
+    ".\\components\\Shell.jsx:63 { label: 'Clients', path: '/admin/clients', icon: '👥' },"
+   ]
+  },
+  {
+   "g": "📖",
+   "n": 1,
+   "where": [
+    ".\\components\\Shell.jsx:70 { label: 'Ledger', path: '/admin/ledger', icon: '📖' },"
+   ]
+  },
+  {
+   "g": "💰",
+   "n": 1,
+   "where": [
+    ".\\components\\Shell.jsx:71 { label: 'Pricing Editor', path: '/admin/pricing', icon: '💰' },"
+   ]
+  },
+  {
+   "g": "💸",
+   "n": 1,
+   "where": [
+    ".\\components\\Shell.jsx:73 { label: 'Usage & Spend', path: '/admin/usage', icon: '💸' },"
+   ]
+  },
+  {
+   "g": "🔀",
+   "n": 1,
+   "where": [
+    ".\\components\\Shell.jsx:79 { label: 'Scan Settings', path: '/admin/scan-settings', icon: '🔀' },"
+   ]
+  },
+  {
+   "g": "☰",
+   "n": 1,
+   "where": [
+    ".\\components\\Shell.jsx:90 <button className=\"rl-icon-btn rl-hamburger\" aria-label=\"Open navigati"
+   ]
+  },
+  {
+   "g": "✨",
+   "n": 1,
+   "where": [
+    ".\\components\\WelcomeTour.jsx:38 icon: '✨',"
+   ]
+  },
+  {
+   "g": "🔎",
+   "n": 1,
+   "where": [
+    ".\\pages\\History.jsx:509 icon=\"🔎\""
+   ]
+  },
+  {
+   "g": "⚠️",
+   "n": 1,
+   "where": [
+    ".\\pages\\Login.jsx:121 ⚠️ You were signed out by an administrator."
+   ]
+  },
+  {
+   "g": "📜",
+   "n": 1,
+   "where": [
+    ".\\pages\\ReportEngine.jsx:906 📜 Viewing a past report from your history. This isn't your current run"
+   ]
+  },
+  {
+   "g": "💡",
+   "n": 1,
+   "where": [
+    ".\\pages\\ReportEngine.jsx:933 <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>💡 Cl"
+   ]
+  },
+  {
+   "g": "✏️",
+   "n": 1,
+   "where": [
+    ".\\pages\\ReportEngine.jsx:1019 {colName} ✏️"
+   ]
+  },
+  {
+   "g": "🎉",
+   "n": 1,
+   "where": [
+    ".\\pages\\ReportEngine.jsx:1212 🎉 Report Ready: {counts.success} of {counts.total} Succeeded"
+   ]
+  },
+  {
+   "g": "🏆",
+   "n": 1,
+   "where": [
+    ".\\pages\\ReportEngine.jsx:1277 🏆 Top performer"
+   ]
+  },
+  {
+   "g": "✎",
+   "n": 1,
+   "where": [
+    ".\\pages\\Settings.jsx:226 ✎"
+   ]
+  }
+ ]
+}

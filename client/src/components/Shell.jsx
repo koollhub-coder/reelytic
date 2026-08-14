@@ -5,6 +5,7 @@ import { WelcomeTour } from './WelcomeTour';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { apiFetch } from '../api/client';
+import { SunIcon, MoonIcon, MenuIcon } from './Icon';
 
 export function Shell() {
   const navigate = useNavigate();
@@ -33,19 +34,19 @@ export function Shell() {
   // showing the plain client-facing one too just reads as a copy-paste
   // mistake (two near-identical ℹ️ items).
   const navItems = [
-    { label: 'Reel Report', path: '/reels', icon: '🎬' },
-    { label: 'Profile Report', path: '/profiles', icon: '👤' },
-    ...(isAdmin ? [] : [{ label: 'Dashboard', path: '/dashboard', icon: '📊' }]),
-    { label: 'History', path: '/history', icon: '⏱️' },
-    ...(isAdmin ? [] : [{ label: 'How Is This Calculated?', path: '/how-it-works', icon: 'ℹ️' }]),
-    { label: 'Settings', path: '/settings', icon: '⚙️' },
+    { label: 'Reel Report', path: '/reels'},
+    { label: 'Profile Report', path: '/profiles'},
+    ...(isAdmin ? [] : [{ label: 'Dashboard', path: '/dashboard'}]),
+    { label: 'History', path: '/history'},
+    ...(isAdmin ? [] : [{ label: 'How Is This Calculated?', path: '/how-it-works'}]),
+    { label: 'Settings', path: '/settings'},
     // Previously the only way here was clicking the unlabeled credits box
     // below -- not discoverable. Points at /billing (rendered inside this
     // same Shell), not the public /pricing marketing page -- that page has
     // its own separate nav bar and no sidebar, so routing here to it used to
     // eject the user from their whole workspace for what looked like a
     // different site. Admin has unlimited credits and never needs this.
-    ...(isAdmin ? [] : [{ label: 'Pricing & Plans', path: '/billing', icon: '💳' }]),
+    ...(isAdmin ? [] : [{ label: 'Pricing & Plans', path: '/billing'}]),
   ];
 
   // Grouped by real admin workflow (overview, then people, then money,
@@ -54,30 +55,30 @@ export function Shell() {
     {
       heading: 'Overview',
       items: [
-        { label: 'Admin Dashboard', path: '/admin/dashboard', icon: '📈' },
+        { label: 'Admin Dashboard', path: '/admin/dashboard'},
       ],
     },
     {
       heading: 'Clients & Access',
       items: [
-        { label: 'Clients', path: '/admin/clients', icon: '👥' },
-        { label: 'Sessions Log', path: '/admin/sessions', icon: '🔐' },
+        { label: 'Clients', path: '/admin/clients'},
+        { label: 'Sessions Log', path: '/admin/sessions'},
       ],
     },
     {
       heading: 'Billing & Costs',
       items: [
-        { label: 'Ledger', path: '/admin/ledger', icon: '📖' },
-        { label: 'Pricing Editor', path: '/admin/pricing', icon: '💰' },
-        { label: 'Cost Monitor', path: '/admin/cost-monitor', icon: '📊' },
-        { label: 'Usage & Spend', path: '/admin/usage', icon: '💸' },
+        { label: 'Ledger', path: '/admin/ledger'},
+        { label: 'Pricing Editor', path: '/admin/pricing'},
+        { label: 'Cost Monitor', path: '/admin/cost-monitor'},
+        { label: 'Usage & Spend', path: '/admin/usage'},
       ],
     },
     {
       heading: 'Scan Configuration',
       items: [
-        { label: 'Scan Settings', path: '/admin/scan-settings', icon: '🔀' },
-        { label: 'How It\'s Calculated', path: '/admin/profile-methodology', icon: 'ℹ️' },
+        { label: 'Scan Settings', path: '/admin/scan-settings'},
+        { label: 'How It\'s Calculated', path: '/admin/profile-methodology'},
       ],
     },
   ];
@@ -87,9 +88,9 @@ export function Shell() {
       {/* Sidebar Desktop */}
       {/* Mobile top bar, only visible <=768px (display:none on desktop via .rl-mobile-only) */}
       <header className="rl-mobile-only rl-topbar">
-        <button className="rl-icon-btn rl-hamburger" aria-label="Open navigation menu" onClick={() => setMobileOpen(true)}>☰</button>
+        <button className="rl-icon-btn rl-hamburger" aria-label="Open navigation menu" onClick={() => setMobileOpen(true)}><MenuIcon size={18} /></button>
         <Logo />
-        <button className="rl-icon-btn" aria-label="Toggle theme" onClick={toggleTheme}>{theme === 'dark' ? '☀️' : '🌙'}</button>
+        <button className="rl-icon-btn" aria-label="Toggle theme" onClick={toggleTheme}>{theme === 'dark' ? <SunIcon size={16} /> : <MoonIcon size={16} />}</button>
       </header>
 
       {/* Backdrop behind the open drawer (mobile only) */}
@@ -125,7 +126,6 @@ export function Shell() {
                 transition: 'background var(--t-fast)'
               }}
             >
-              <span>{item.icon}</span>
               <span>{item.label}</span>
             </button>
           ))}
@@ -156,7 +156,6 @@ export function Shell() {
                         cursor: 'pointer'
                       }}
                     >
-                      <span>{item.icon}</span>
                       <span>{item.label}</span>
                     </button>
                   ))}
@@ -208,10 +207,10 @@ export function Shell() {
               style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', flex: 1 }}
             >
               <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '14px' }}>
-                {(user?.name || user?.username)?.[0]?.toUpperCase() || 'U'}
+                {user?.username?.[0]?.toUpperCase() || 'U'}
               </div>
               <div style={{ overflow: 'hidden' }}>
-                <div style={{ fontSize: 'var(--fs-sm)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={user?.email || user?.username}>{user?.name || user?.username}</div>
+                <div style={{ fontSize: 'var(--fs-sm)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={user?.email || user?.username}>{user?.username}</div>
                 {user?.role === 'admin' && (
                   <div
                     style={{
@@ -231,7 +230,7 @@ export function Shell() {
               aria-label="Toggle theme"
               style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', padding: '6px', borderRadius: 'var(--r-sm)' }}
             >
-              {theme === 'dark' ? '☀️' : '🌙'}
+              {theme === 'dark' ? <SunIcon size={16} /> : <MoonIcon size={16} />}
             </button>
           </div>
         </div>
@@ -244,7 +243,7 @@ export function Shell() {
         </div>
       </main>
 
-      {showTour && <WelcomeTour onDone={handleTourDone} />}
+      {showTour && <WelcomeTour onDone={handleTourDone} username={user?.username} />}
     </div>
   );
 }

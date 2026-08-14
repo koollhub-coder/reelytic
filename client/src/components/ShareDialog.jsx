@@ -1,3 +1,4 @@
+export { LinkIcon } from './Icon';
 import React, { useEffect, useState } from 'react';
 import { Modal } from './Modal';
 import { apiFetch } from '../api/client';
@@ -57,16 +58,6 @@ function toLocalInputValue(date) {
   dialog can carry the same mark, which is what makes the control readable at
   a glance instead of being a wall of words.
 */
-export function LinkIcon({ size = 14 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
-      <path
-        d="M10 13a5 5 0 0 0 7.07 0l3-3A5 5 0 0 0 13 3l-1.5 1.5M14 11a5 5 0 0 0-7.07 0l-3 3A5 5 0 0 0 11 21l1.5-1.5"
-        stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
 
 function defaultCustomValue() {
   const d = new Date();
@@ -140,6 +131,7 @@ export function ShareDialog({ isOpen, onClose, jobId, onStateChange }) {
         body: JSON.stringify({ expiresInHours: hours }),
       });
       applyState(res);
+      // Derived from the real action, not from opening the dialog.
       if (copyAfter) {
         await navigator.clipboard.writeText(`${window.location.origin}/share/${res.shareToken}`);
         addToast('Shareable link copied. Anyone with it can view this report, no login needed.', 'ok');

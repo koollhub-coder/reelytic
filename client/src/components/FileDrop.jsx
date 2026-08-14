@@ -41,7 +41,7 @@ export function FileDrop({ onFileSelected, type = 'reel' }) {
             accept=".xlsx,.xls,.csv,.txt"
             onChange={e => e.target.files[0] && onFileSelected(e.target.files[0])}
           />
-          <div style={{ fontSize: '36px', marginBottom: 'var(--s3)' }}>📂</div>
+          <div style={{ fontSize: '36px', marginBottom: 'var(--s3)' }}></div>
           <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-md)', fontWeight: 600, marginBottom: 'var(--s2)' }}>
             {isDragOver ? 'Drop it here!' : 'Drop your spreadsheet here, or browse'}
           </div>

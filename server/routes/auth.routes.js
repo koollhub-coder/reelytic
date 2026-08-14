@@ -6,6 +6,7 @@ const { requireLogin } = require('../middleware/auth');
 const { parseUserAgent } = require('../utils/ua');
 const { defaultsForNewUser } = require('../services/credits.service');
 const { getUserFeatures } = require('../services/features.service');
+const { isDisposableEmail, validateUsername, uniqueUsername } = require('../services/identity.service');
 
 // Shared shape for anything we hand back to the client about the logged-in
 // user. Async because feature flags depend on a plans lookup (see
@@ -258,17 +259,35 @@ router.post('/dev-unlock', requireLogin, async (req, res, next) => {
 // ---- Self-service email signup (open, free tier) -------------------------
 router.post('/signup', async (req, res, next) => {
   try {
-    const { email, password, name } = req.body || {};
+    const { email, password, name, username } = req.body || {};
     const cleanEmail = (email || '').trim().toLowerCase();
     if (!EMAIL_RE.test(cleanEmail)) {
       return res.status(400).json({ error: 'Enter a valid email address.' });
     }
+    /*
+      Throwaway addresses are refused at the door. Every new account is handed
+      free credits, so a temp-mail tab is a way to spend our scraping budget
+      indefinitely for nothing. Checked before anything is written.
+    */
+    if (isDisposableEmail(cleanEmail)) {
+      return res.status(400).json({
+        error: 'Please sign up with a permanent email address. Temporary and disposable inboxes are not accepted.',
+      });
+    }
     if (!password || password.length < 8) {
       return res.status(400).json({ error: 'Password must be at least 8 characters.' });
     }
-    const cleanName = (name || '').trim().replace(/\s+/g, ' ');
-    if (cleanName.length < 2) {
-      return res.status(400).json({ error: 'Please enter your name or agency name (at least 2 characters).' });
+
+    /*
+      A username is asked for directly rather than being silently set to the
+      email address. It is the name shown throughout the app, so letting it
+      default to a full email address is how accounts ended up displaying
+      "someone@gmail.com" in the sidebar. Falls back to the old `name` field
+      for any client still sending that.
+    */
+    const check = validateUsername(username || name || cleanEmail.split('@')[0]);
+    if (!check.ok) {
+      return res.status(400).json({ error: check.error });
     }
 
     const db = getDb();
@@ -276,12 +295,15 @@ router.post('/signup', async (req, res, next) => {
     if (existing) {
       return res.status(409).json({ error: 'An account with this email already exists. Try logging in.' });
     }
+    const nameTaken = await db.collection('users').findOne({ username: check.username }, { projection: { _id: 1 } });
+    if (nameTaken) {
+      return res.status(409).json({ error: 'That username is already taken. Try another.' });
+    }
 
     const passwordHash = await hashPassword(password);
     const doc = {
-      username: cleanEmail,
+      username: check.username,
       email: cleanEmail,
-      name: cleanName,
       passwordHash,
       authProvider: 'local',
       role: 'client',
@@ -345,15 +367,30 @@ router.post('/google', async (req, res, next) => {
       return res.status(400).json({ error: 'Google did not return a usable email.' });
     }
 
+    if (isDisposableEmail(cleanEmail)) {
+      return res.status(400).json({
+        error: 'Please sign in with a permanent email address. Temporary and disposable inboxes are not accepted.',
+      });
+    }
+
     const db = getDb();
     let user = await db.collection('users').findOne({ $or: [{ username: cleanEmail }, { email: cleanEmail }] });
     const cleanName = String(name || '').trim().replace(/\s+/g, ' ');
 
     if (!user) {
+      /*
+        The username comes from the Google display name, not from the email
+        address. This is the single source of truth the rest of the app
+        shows, so seeding it with the full email is what put
+        "someone@gmail.com" in the sidebar. uniqueUsername resolves a
+        collision by appending a number rather than failing the sign-in,
+        because the user is not being asked anything here.
+      */
+      const derived = await uniqueUsername(db, cleanName, cleanEmail.split('@')[0]);
       user = {
-        username: cleanEmail,
+        username: derived,
         email: cleanEmail,
-        name: cleanName || cleanEmail.split('@')[0],
+        name: cleanName || derived,
         authProvider: 'google',
         googleId,
         passwordHash: null,

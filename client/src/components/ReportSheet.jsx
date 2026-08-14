@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { formatDate, formatDateTime, formatDayKey } from '../utils/date';
+import { SunIcon, MoonIcon } from './Icon';
 
 // Big campaigns run into the hundreds of creators. Show a readable page at a
 // time on screen; the printed PDF and the Excel export always carry every row.
@@ -109,7 +110,7 @@ function computeReportInsights(rows, type) {
 
   // Surfaced so the report can say plainly that some rows were left out of
   // the ranking, rather than silently dropping them.
-  const unreliable = successful.filter((r) => (Number(r.result[erKey]) || 0) > MAX_PLAUSIBLE_ER).length;
+  const unreliable = successful.filter((r) => (Number(r.result[erKey]) || 0) >MAX_PLAUSIBLE_ER).length;
 
   return { count: successful.length, avgViews, avgEr, medianEr, top, bottom, hasSpread, unreliable };
 }
@@ -216,19 +217,33 @@ export function ReportThemeStyles({ theme }) {
 // Light/dark segmented control for the report chrome. Shared so the
 // authenticated preview and the public share view stay identical.
 export function ThemeToggle({ theme, setTheme }) {
+  /*
+    A sun and a moon, not "○" and "●".
+
+    Those two characters were a stand-in left behind when emoji were stripped
+    out of the codebase, and they read as a radio button rather than as
+    light/dark: at small sizes an open circle beside the word "Light" looks
+    like an unselected option, which is precisely backwards when that side is
+    the active one. The active segment is now carried by the filled
+    background and weight alone, with a real icon beside each label.
+  */
   const btn = (active) => ({
+    display: 'inline-flex', alignItems: 'center', gap: '6px',
     height: '30px', padding: '0 12px', fontSize: 'var(--fs-xs)',
     fontWeight: active ? 700 : 500, borderRadius: 'var(--r-sm)', border: 'none',
     cursor: 'pointer', backgroundColor: active ? 'var(--surface-2)' : 'transparent',
-    color: 'var(--text)', whiteSpace: 'nowrap',
+    color: active ? 'var(--text)' : 'var(--text-3)', whiteSpace: 'nowrap',
+    transition: 'background var(--t-fast), color var(--t-fast)',
   });
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '2px', backgroundColor: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', padding: '3px', flexShrink: 0 }}>
-      <button type="button" onClick={() => setTheme('light')} style={btn(theme === 'light')} title="Light">
-        ☀<span className="rl-label-full"> Light</span>
+      <button type="button" onClick={() => setTheme('light')} style={btn(theme === 'light')} title="Light" aria-pressed={theme === 'light'}>
+        <SunIcon size={14} />
+        <span className="rl-label-full">Light</span>
       </button>
-      <button type="button" onClick={() => setTheme('dark')} style={btn(theme === 'dark')} title="Dark">
-        ●<span className="rl-label-full"> Dark</span>
+      <button type="button" onClick={() => setTheme('dark')} style={btn(theme === 'dark')} title="Dark" aria-pressed={theme === 'dark'}>
+        <MoonIcon size={14} />
+        <span className="rl-label-full">Dark</span>
       </button>
     </div>
   );
@@ -321,7 +336,7 @@ export function ReportSheet({ job, branding, context = {}, maxWidth = '1000px' }
   }, [page, totalPages]);
 
   return (
-    <div className="rl-print-sheet" style={{ maxWidth, margin: '0 auto', backgroundColor: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', overflow: 'hidden' }}>
+    <div className="rl-print-sheet" data-tour="branded-sheet" style={{ maxWidth, margin: '0 auto', backgroundColor: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', overflow: 'hidden' }}>
       <div className="rl-section-pad" style={{ padding: 'var(--s6)', borderBottom: `3px solid ${accent}` }}>
         <div style={{
           display: 'flex', alignItems: 'center', gap: 'var(--s3)', marginBottom: 'var(--s4)',

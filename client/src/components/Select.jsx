@@ -1,3 +1,4 @@
+import { ChevronDownIcon } from './Icon';
 import React, { useState, useRef, useEffect } from 'react';
 
 // A native <select>'s closed box can be themed with CSS, but its open
@@ -42,16 +43,14 @@ export function Select({ value, onChange, options, placeholder = 'Select...', st
             misaligned, and thinner than every other stroke on screen. An SVG
             with an explicit stroke width matches the rest of the UI and
             rotates cleanly when the menu opens. */}
-        <svg
-          width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"
+        <ChevronDownIcon
+          size={14}
           style={{
-            color: 'var(--text-2)', flexShrink: 0,
+            color: 'var(--text-2)',
             transform: open ? 'rotate(180deg)' : 'none',
             transition: 'transform var(--t-fast)',
           }}
-        >
-          <path d="M6 9.5 12 15.5 18 9.5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+        />
       </button>
       {open && (
         <div

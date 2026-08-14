@@ -58,7 +58,12 @@ function ReportRow({ job, campaigns, onReassign, navigate }) {
           {job.type}
         </span>
       </td>
-      <td style={{ fontWeight: 600 }}>{job.fileName}</td>
+      {/* Filenames are arbitrary length and were wrapping to two lines,
+          which set the height of every row. Truncate with the full name on
+          hover instead of letting one long name reflow the table. */}
+      <td style={{ fontWeight: 600, maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={job.fileName}>
+        {job.fileName}
+      </td>
       <td className="numeric mono">{job.counts?.total || 0}</td>
       <td>
         <span className={`chip ${statusInfo.chip}`}>{statusInfo.label}</span>
@@ -123,7 +128,7 @@ function ReportRow({ job, campaigns, onReassign, navigate }) {
 
 function ReportsTable({ jobs, campaigns, navigate, onReassign, loading = false }) {
   return (
-    <div className="rl-table-scroll">
+    <div className="rl-table-scroll" data-tour="history-table">
       <table className="data-table">
         <thead>
           <tr>
@@ -137,7 +142,7 @@ function ReportsTable({ jobs, campaigns, navigate, onReassign, loading = false }
             <th style={{ textAlign: 'right' }}>Action</th>
           </tr>
         </thead>
-        {loading ? <TableSkeleton rows={6} columns={8} rowHeight={130} label="Loading your reports" /> : (
+        {loading ? <TableSkeleton rows={6} columns={8} rowHeight={67} label="Loading your reports" /> : (
         <tbody>
           {jobs.map((j) => (
             <ReportRow key={j.id} job={j} navigate={navigate} campaigns={campaigns} onReassign={onReassign} />
@@ -499,20 +504,17 @@ export function History() {
         <ReportsTable jobs={[]} campaigns={[]} navigate={navigate} onReassign={() => {}} loading />
       ) : !hasAnyReports ? (
         <EmptyState
-          icon="⏱️"
           title="No reports yet"
           description="Your finished and in-progress reports will live here across sessions."
           action={<button className="btn btn-primary" onClick={() => navigate('/reels')}>New reel report</button>}
         />
       ) : creatorSearch.trim() && jobs.length === 0 ? (
         <EmptyState
-          icon="🔎"
           title="No reports match that creator"
           description={`Nothing found for "${creatorSearch.trim()}". Check the spelling or try a shorter search.`}
         />
       ) : filteredJobs.length === 0 ? (
         <EmptyState
-          icon="⏱️"
           title="No reports of this type yet"
           description="Switch filters above, or start a new report."
         />

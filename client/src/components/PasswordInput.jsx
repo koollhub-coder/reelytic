@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { EyeIcon, EyeOffIcon } from './Icon';
 
 export function PasswordInput({ value, onChange, placeholder = 'Password', autoComplete = 'current-password', showStrength = false, name, id }) {
   const [show, setShow] = useState(false);
@@ -47,7 +48,7 @@ export function PasswordInput({ value, onChange, placeholder = 'Password', autoC
         aria-label={show ? 'Hide password' : 'Show password'}
         style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-3)', cursor: 'pointer', fontSize: '14px' }}
       >
-        {show ? '👁️‍🗨️' : '👁️'}
+        {show ? <EyeOffIcon size={16} /> : <EyeIcon size={16} />}
       </button>
 
       {capsLockOn && (

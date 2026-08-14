@@ -46,15 +46,40 @@ async function getBalance(username) {
   return u ? (u.credits || 0) : 0;
 }
 
-// Adjust a user's balance by delta (can be negative). Never lets it go below 0.
-// Returns the new balance, or null if the user doesn't exist.
+/*
+  Adjust a user's balance by delta (can be negative). Never lets it go below 0.
+  Returns the new balance, or null if the user doesn't exist.
+
+  ATOMIC ON PURPOSE. This used to read the document, compute `credits + delta`
+  in Node, and write the result back. The job engine charges one item at a time
+  and does not await each charge, so a run with N successful items had N of
+  these read-modify-write cycles overlapping: they all read the same starting
+  balance and then wrote their own total over each other. Almost every charge
+  in a batch was lost, and the credit audit caught it as runs that "do not
+  balance" -- 30 profiles counted as 150 credits used while the account only
+  dropped by 15.
+
+  Doing the arithmetic inside the update, as a pipeline, means the database
+  applies each charge to whatever the balance actually is at that moment, so
+  concurrent charges add up instead of clobbering one another. The $max keeps
+  the floor at zero without needing a separate read.
+*/
 async function adjustCredits(username, delta) {
   const db = getDb();
-  const u = await db.collection('users').findOne({ username });
-  if (!u) return null;
-  const next = Math.max(0, (u.credits || 0) + delta);
-  await db.collection('users').updateOne({ username }, { $set: { credits: next } });
-  return next;
+  const res = await db.collection('users').findOneAndUpdate(
+    { username },
+    [{
+      $set: {
+        credits: {
+          $max: [0, { $add: [{ $ifNull: ['$credits', 0] }, delta] }],
+        },
+      },
+    }],
+    { returnDocument: 'after', projection: { credits: 1 } }
+  );
+  const doc = res && (res.value !== undefined ? res.value : res);
+  if (!doc) return null;
+  return doc.credits;
 }
 
 // Explicitly set a user's balance (admin "set to N"). Clamped at 0.

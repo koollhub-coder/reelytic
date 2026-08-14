@@ -1,3 +1,4 @@
+import { Mail } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../api/client';
@@ -35,14 +36,6 @@ function loadRazorpayScript() {
     });
 }
 
-function MailIcon() {
-    return (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <rect x="2.5" y="5" width="19" height="14" rx="2.5" stroke="currentColor" strokeWidth="1.8" />
-            <path d="M3.5 7l8.5 6 8.5-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-    );
-}
 
 export function Checkout() {
     const location = useLocation();
@@ -231,7 +224,7 @@ export function Checkout() {
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     marginBottom: 'var(--s4)',
                 }}>
-                    <MailIcon />
+                    <Mail size={20} strokeWidth={1.75} aria-hidden="true" />
                 </div>
 
                 <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)', lineHeight: 1.65, marginBottom: 'var(--s4)' }}>

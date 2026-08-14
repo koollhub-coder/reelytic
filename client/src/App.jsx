@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { ToastProvider } from './context/ToastContext';
@@ -37,6 +37,26 @@ import { PublicReport } from './pages/PublicReport';
 import './styles/base.css';
 import './styles/components.css';
 import './styles/mobile.css';
+import { DemoGuide } from './components/DemoGuide';
+
+/*
+  Renders the guided tour only for a signed-in user, and keys its progress to
+  that user's name so two accounts sharing one browser never inherit each
+  other's position in the tour.
+*/
+// Public pages the tour must never appear over, even for a signed-in user:
+// landing, pricing, and the "you're signed in as X, switch account?" screen
+// that /login shows. Being logged in is not enough on its own -- that is how
+// a half-finished tour ended up floating over the login form.
+const NO_TOUR_ROUTES = ['/', '/login', '/signup', '/pricing', '/change-password'];
+
+function TourHost() {
+  const { user, loading } = useAuth();
+  const { pathname } = useLocation();
+  if (loading || !user) return null;
+  if (NO_TOUR_ROUTES.includes(pathname) || pathname.startsWith('/share/')) return null;
+  return <DemoGuide username={user.username} />;
+}
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -57,7 +77,7 @@ function ProtectedRoute({ children }) {
 // accounts; this makes both explicit.
 function AlreadySignedIn() {
   const { user, logout } = useAuth();
-  const displayName = user?.name || user?.username;
+  const displayName = user?.username;
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg)', padding: 'var(--s6)' }}>
@@ -149,6 +169,13 @@ export function App() {
 
               <Route path="*" element={<NotFound />} />
             </Routes>
+            {/* Inside the router because the tour spans the results page
+                (in Shell) and the branded report (standalone), so it cannot
+                live in either. Gated on being signed in because it used to
+                render on /login too: tour state lives in localStorage, which
+                is per browser rather than per account, so switching accounts
+                floated a half-finished tour over the login form. */}
+            <TourHost />
           </BrowserRouter>
         </AuthProvider>
       </ToastProvider>

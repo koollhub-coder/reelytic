@@ -218,7 +218,7 @@ export function UsageSpend() {
                 )}
                 {showUnattributed && (
                     <div style={{ marginTop: 'var(--s4)', padding: 'var(--s3) var(--s4)', background: 'var(--surface-2)', borderRadius: 'var(--r-md)', fontSize: 'var(--fs-xs)', color: 'var(--text-2)' }}>
-                        <strong>Unattributed usage this cycle: {fmt(unattributedUsd, currency, rate)}.</strong> This is real spend on your account
+                        <strong>Unattributed usage this cycle: {fmt(unattributedUsd, currency, rate)}.</strong>{' '}This is real spend on your account
                         that didn't come from a client's report: internal testing, direct API checks, or anything run outside the normal
                         report flow. It's the gap between the client table above and the account-wide total.
                     </div>
@@ -378,7 +378,7 @@ export function UsageSpend() {
                                 ))}
                             </tbody>
                         </table></div>
-                        {drilldownItems.length > DRILLDOWN_PAGE_SIZE && (
+                        {drilldownItems.length >DRILLDOWN_PAGE_SIZE && (
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'var(--s3)' }}>
                                 <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>
                                     Showing {(drilldownPage - 1) * DRILLDOWN_PAGE_SIZE + 1}-{Math.min(drilldownPage * DRILLDOWN_PAGE_SIZE, drilldownItems.length)} of {drilldownItems.length}

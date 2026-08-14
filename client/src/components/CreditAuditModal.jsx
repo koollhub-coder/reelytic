@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Modal } from './Modal';
 import { apiFetch } from '../api/client';
 import { BrandLoader } from './BrandLoader';
+import { InfoIcon } from './Icon';
 import { formatDate, formatDateTime } from '../utils/date';
 
 /*
@@ -265,12 +266,12 @@ export function CreditAuditModal({ username, isOpen, onClose, currency, rate, fm
           ) : data.unreconciled === 0 ? (
             <div style={{ padding: 'var(--s3) var(--s4)', background: 'var(--accent-soft)', borderRadius: 'var(--r-md)', fontSize: 'var(--fs-sm)', marginBottom: 'var(--s4)' }}>
               <strong style={{ color: 'var(--ok)' }}>All {data.verifiable} checkable run{data.verifiable === 1 ? '' : 's'} balance exactly.</strong>
-              <span style={{ color: 'var(--text-2)' }}> Opening balance minus credits used equals the closing balance on every one.</span>
+              <span style={{ color: 'var(--text-2)' }}>Opening balance minus credits used equals the closing balance on every one.</span>
             </div>
           ) : (
             <div style={{ padding: 'var(--s3) var(--s4)', background: 'var(--surface-2)', border: '1px solid var(--err)', borderRadius: 'var(--r-md)', fontSize: 'var(--fs-sm)', marginBottom: 'var(--s4)' }}>
               <strong style={{ color: 'var(--err)' }}>{data.unreconciled} of {data.verifiable} runs do not balance.</strong>
-              <span style={{ color: 'var(--text-2)' }}> Either the balance was changed while the report was running, or a charge did not land. The rows are marked below.</span>
+              <span style={{ color: 'var(--text-2)' }}>Either the balance was changed while the report was running, or a charge did not land. The rows are marked below.</span>
             </div>
           )}
 
@@ -336,7 +337,17 @@ export function CreditAuditModal({ username, isOpen, onClose, currency, rate, fm
                 <th className="numeric" style={groupEdge}>Before</th>
                 <th className="numeric">Used</th>
                 <th className="numeric">After</th>
-                <th>Balances?</th>
+                <th>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                    Balances?
+                    <span
+                      title={'Does the arithmetic add up? We check Before minus Used against After.\n\nYes: the balance fell by exactly the credits counted, so the charge landed correctly.\n\n"Off by N": it did not. The account moved by a different amount than we counted, so either a charge failed to land or the balance was changed by something else while the report was running (a top-up, a plan reset, or another report running at the same time).\n\nNot recorded: this run finished before we started saving opening and closing balances, so there is nothing to check it against.'}
+                      style={{ display: 'inline-flex', color: 'var(--text-3)', cursor: 'help' }}
+                    >
+                      <InfoIcon size={13} />
+                    </span>
+                  </span>
+                </th>
                 <th className="numeric" style={groupEdge}>Cost to us</th>
                 {showMoney && <th className="numeric">They paid</th>}
                 {showMoney && <th className="numeric">Margin</th>}
@@ -375,9 +386,26 @@ export function CreditAuditModal({ username, isOpen, onClose, currency, rate, fm
                     ) : r.reconciled ? (
                       <span style={{ color: 'var(--ok)' }}>Yes</span>
                     ) : (
-                      <span style={{ color: 'var(--err)', fontWeight: 600 }}>
-                        Off by {Math.abs((r.creditsBefore - r.creditsSpent) - r.creditsAfter).toLocaleString()}
-                      </span>
+                      (() => {
+                        // Signed, not absolute: the direction is the whole
+                        // point. Undercharged means we counted more credits
+                        // than actually left the account, which is money we
+                        // failed to collect; overcharged is the reverse.
+                        const expected = r.creditsBefore - r.creditsSpent;
+                        const diff = r.creditsAfter - expected;
+                        const under = diff > 0;
+                        return (
+                          <span
+                            style={{ color: 'var(--err)', fontWeight: 600 }}
+                            title={`Expected ${expected.toLocaleString()} after the run (${r.creditsBefore.toLocaleString()} before minus ${r.creditsSpent.toLocaleString()} used), but the account actually held ${r.creditsAfter.toLocaleString()}. ${under ? 'They kept credits we counted as spent, so this run was undercharged.' : 'More credits left the account than this run counted.'}`}
+                          >
+                            Off by {Math.abs(diff).toLocaleString()}
+                            <span style={{ display: 'block', fontWeight: 400, fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>
+                              {under ? 'undercharged' : 'overcharged'}
+                            </span>
+                          </span>
+                        );
+                      })()
                     )}
                   </td>
                   <td className="numeric mono" style={groupEdge}>{fmtMoney(r.costUsd, currency, rate)}</td>
@@ -404,7 +432,7 @@ export function CreditAuditModal({ username, isOpen, onClose, currency, rate, fm
             from the account when the report starts and again when it finishes, while credits are counted per successful item as it
             runs. That is why the Balances column is a real check rather than the same figure repeated.
             {showMoney && ` They paid is what those credits are worth on the ${data.plan} plan (₹${data.planPriceInr?.toLocaleString('en-IN')} for ${data.planCredits?.toLocaleString()} credits). Cost to us counts cached items as zero, because no lookup was made.`}
-            {unlimited && ' This is an internal account with an unlimited pool, so there is no balance to run down and no revenue to compare against. Cost to us is still real money.'}
+            {unlimited && 'This is an internal account with an unlimited pool, so there is no balance to run down and no revenue to compare against. Cost to us is still real money.'}
             {freePlan && ` This client is on the free plan, so they pay nothing and there is no margin to show. Cost to us is real money we spent on them. Move them to a paid plan and the revenue and margin columns fill in automatically.`}
           </p>
         </>
