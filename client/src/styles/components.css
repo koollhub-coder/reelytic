@@ -474,3 +474,21 @@
 @media (prefers-reduced-motion: reduce) {
   .rl-tour-pop { animation-duration: 1ms; }
 }
+
+/* Label/value settings rows (Settings.jsx Account card and similar).
+   A hairline between rows plus a right-aligned value is the standard
+   enterprise-settings shape (Stripe, Linear, GitHub) -- and unlike a
+   CSS-grid label/value pair, it needs no separate mobile breakpoint: a
+   flex row with space-between reads the same at any width. */
+.rl-info-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+  padding: var(--s3) 0;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--fs-base);
+}
+.rl-info-row:last-child { border-bottom: none; }
+.rl-info-label { color: var(--text-2); flex-shrink: 0; }
+.rl-info-value { font-weight: 600; text-align: right; min-width: 0; }

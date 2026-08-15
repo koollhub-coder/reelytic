@@ -93,8 +93,51 @@ async function scrapeFollowersBatchWithCost(usernames) {
 
 // Eight recent reels per creator, descending in age, so the outlier trimming
 // and averaging in metrics.service have realistic material to work on.
+//
+// A name containing ALLCOLLAB is the one deliberate exception: real Apify
+// candidates fetched, but every single one excluded (collab, in this case),
+// same as selectProfileReelsV2 in apify.service.js would produce for an
+// account whose recent posts are entirely collabs. Everything else here
+// returns posts pre-filtered, bypassing that selection step entirely -- this
+// is the one case a test needs to reach the "candidates fetched, nothing
+// eligible survived" path in jobEngine.service.js.
 function profileEntry(name) {
   const seed = seedOf(name);
+  if (/ALLCOLLAB/i.test(name)) {
+    return {
+      username: name,
+      posts: [],
+      candidates: Array.from({ length: 5 }, (_, i) => ({
+        shortCode: `${name}_r${i}`, included: false, reason: 'collab',
+      })),
+      candidatesFetched: 5,
+      reelsSkippedAsOutliers: 0,
+      followerInfo: { username: name, followersCount: 10000 + (seed % 5000) },
+    };
+  }
+  // Thin but non-zero: stands in for what scrapeProfilesBatchV2 hands back
+  // AFTER its own widen-retry has already run (that retry, and the network
+  // call it makes, is only exercisable against the real actor -- this
+  // covers what jobEngine.service.js does with whatever count it is finally
+  // given, which is the part that can be tested for free).
+  if (/THIN/i.test(name)) {
+    const posts = Array.from({ length: 2 }, (_, i) => ({
+      shortCode: `${name}_r${i}`,
+      videoViewCount: 3000 + i * 100,
+      videoPlayCount: 3000 + i * 100,
+      likesCount: 300 + i * 10,
+      commentsCount: 15 + i,
+      timestamp: new Date(Date.now() - i * 86400000).toISOString(),
+    }));
+    return {
+      username: name,
+      posts,
+      candidates: posts.map((p) => ({ shortCode: p.shortCode, included: true, reason: 'included' })),
+      candidatesFetched: posts.length,
+      reelsSkippedAsOutliers: 0,
+      followerInfo: { username: name, followersCount: 10000 + (seed % 5000) },
+    };
+  }
   const posts = Array.from({ length: 8 }, (_, i) => ({
     shortCode: `${name}_r${i}`,
     videoViewCount: 2000 + i * 100 + (seed % 100),

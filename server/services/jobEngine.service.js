@@ -1,5 +1,5 @@
 const { getDb, queryId } = require('../db');
-const { scrapeReels, scrapeProfilesBatch, scrapeProfilesBatchV2, scrapeFollowersBatch, scrapeFollowersBatchExpress, scrapeFollowersBatchWithCost, extractUsername } = require('./apify.service');
+const { scrapeReels, scrapeProfilesBatch, scrapeProfilesBatchV2, scrapeFollowersBatch, scrapeFollowersBatchExpress, scrapeFollowersBatchWithCost, extractUsername, PROFILE_MIN_RELIABLE_SAMPLE } = require('./apify.service');
 const { getCachedEntry, setCache } = require('./cache.service');
 const { computeReelMetrics, computeProfileMetrics, computeProfileMetricsV2 } = require('./metrics.service');
 const { recordLedgerEntry } = require('./ledger.service');
@@ -192,12 +192,53 @@ async function processProfileChunk(chunk, pipelineMode) {
     if (!profile || profile.candidatesFetched === 0) {
       return { index, state: 'failed', error: 'Instagram returned no data for this profile' };
     }
+    /*
+      Candidates were fetched, but every single one got excluded (collab,
+      sponsored/paid partnership, pinned, or missing view data) -- there is
+      nothing left in profile.posts to average.
+
+      Before this check, that empty sample fell straight into
+      computeProfileMetrics(V2) anyway. logMean/avgViews of [] returns 0 by
+      design (a real zero, not NaN), so the row came back as a normal
+      'done' success: 0 avg views, 0.0% engagement, charged like any other
+      report -- indistinguishable from a genuinely dead account, when the
+      truth was "nothing eligible was ever measured." Found 2026-08-14: 8 of
+      one client's rows across recent runs were exactly this, most often an
+      account whose last 8 posts were entirely collabs. Failing the row
+      instead means it is free (see the charge gate below) and the reason is
+      visible instead of a silent, wrong 0%.
+    */
+    if (!profile.posts || profile.posts.length === 0) {
+      return {
+        index,
+        state: 'failed',
+        error: `All ${profile.candidatesFetched} fetched posts were excluded (collab, sponsored, pinned, or missing view data) -- nothing eligible left to analyze`,
+      };
+    }
     const followerInfo = pipelineMode === 'v2' ? (profile.followerInfo || null) : (followersMap.get(key) || null);
     const metricsFn = pipelineMode === 'v2' ? computeProfileMetricsV2 : computeProfileMetrics;
     const result = metricsFn(profile.posts, followerInfo, {
       reelsSkippedAsOutliers: profile.reelsSkippedAsOutliers,
       candidates: profile.candidates,
     });
+    /*
+      Genuinely thin but non-zero (the empty case above already failed the
+      row instead of reaching here). A creator with only 2-3 eligible posts
+      is real information worth reporting -- it should not fail or go
+      uncharged -- but it must not look exactly as confident as a row
+      averaged from 6-8. V2's scrapeProfilesBatchV2 already tried ONE wider
+      re-fetch before handing back a thin profile.posts, so this is the
+      final count either way.
+    */
+    if (profile.posts.length < PROFILE_MIN_RELIABLE_SAMPLE) {
+      result.lowSample = true;
+    }
+    // Stored purely for observability -- lets a real run be inspected
+    // directly (support, debugging, or a verification script) to confirm
+    // whether the widen-retry actually fired, instead of having to infer it
+    // from reelsAnalyzed and candidatesFetched after the fact.
+    result.candidatesFetched = profile.candidatesFetched;
+    if (profile.widenedFetch) result.widenedFetch = true;
     setCache(row.input.url, 'profile', result).catch(() => { });
     return { index, state: 'done', result, fromCache: false };
   });
@@ -309,6 +350,17 @@ async function processJobLoop(jobId) {
     const batchPipelineMode = job.type === 'reel' ? reelPipelineMode : pipelineMode;
     const itemCostUsd = await estimateItemCostUsd(job.type, batchPipelineMode);
 
+    /*
+      Apify is still called once per batch above -- that batching is the
+      margin-critical part (see processReelBatch's cost note) and stays
+      untouched. What changes is bookkeeping: each row below is fully
+      committed to Mongo (charge decision, ledger, row state, cursor)
+      before the next one starts, instead of the whole batch being
+      accumulated in memory and written back in one shot at the end. A
+      crash can now only ever leave AT MOST one row's bookkeeping
+      incomplete, never a whole batch's -- and even that one row is made
+      safe to replay by the charge gate below, not just made rarer.
+    */
     for (const res of batchResults) {
       const row = rows[res.index];
       row.state = res.state;
@@ -321,7 +373,19 @@ async function processJobLoop(jobId) {
         row.fromCache = res.fromCache;
         row.error = null;
         counts.success++;
-        recordLedgerEntry({
+
+        /*
+          The ledger insert is the idempotency gate, not the credit charge
+          itself -- see the partial unique index on submittedLinks (db.js).
+          recordLedgerEntry() reports whether ITS OWN insert actually won (a
+          genuinely new success for this job+url) or lost to an existing
+          record. Charging is gated on winning that race: a row replayed
+          after a crash gets re-scraped (wasted Apify spend, unavoidable
+          without changing the batching above) but is only ever billed
+          once, because the second insert attempt for the same job+url
+          fails at the database, not by hoping the timing works out.
+        */
+        const ledgerOutcome = await recordLedgerEntry({
           username: job.ownerUsername, type: job.type, jobId, url: row.input.url, result: 'success',
           resolvedUsername: res.result && res.result.username, metrics: res.result,
           pipelineMode: batchPipelineMode,
@@ -335,43 +399,45 @@ async function processJobLoop(jobId) {
           fromCache: res.fromCache,
           cachedAt: res.cachedAt || null,
         });
-        // Charge credits per successful item (failures are free).
-        chargeSuccess(job.ownerUsername, job.type).catch(() => { });
-        counts.creditsSpent = (counts.creditsSpent || 0) + costPerItem(job.type);
+
+        if (ledgerOutcome.inserted) {
+          await chargeSuccess(job.ownerUsername, job.type)
+            .catch((e) => console.warn(`[JobEngine] charge failed for ${row.input.url}:`, e.message));
+          counts.creditsSpent = (counts.creditsSpent || 0) + costPerItem(job.type);
+        } else if (ledgerOutcome.duplicate) {
+          console.warn(`[JobEngine] Job ${jobId} row ${row.input.url} was already billed -- skipping duplicate charge on replay.`);
+        }
         duplicateUrlMap.set(row.input.url, res.result);
       } else if (res.state === 'failed') {
         row.error = res.error;
         counts.failed++;
-        recordLedgerEntry({ username: job.ownerUsername, type: job.type, jobId, url: row.input.url, result: 'failed' });
+        await recordLedgerEntry({ username: job.ownerUsername, type: job.type, jobId, url: row.input.url, result: 'failed' });
       } else if (res.state === 'duplicate') {
         // Never scraped, never charged -- just a free preview of the row it duplicates.
         row.result = duplicateUrlMap.get(row.input.url) || row.result;
         row.fromCache = true;
       } else if (res.state === 'invalid') {
-        recordLedgerEntry({ username: job.ownerUsername, type: job.type, jobId, url: row.input.url, result: 'invalid' });
+        await recordLedgerEntry({ username: job.ownerUsername, type: job.type, jobId, url: row.input.url, result: 'invalid' });
       } else if (res.state === 'already-done') {
         // Already counted (success/credits/ledger) in an earlier pass -- row stays as-is.
         row.state = 'done';
       }
+
+      cursor = res.index + 1;
+
+      // One row committed at a time -- see the comment above this loop.
+      await jobsColl.updateOne(
+        { _id: queryId(jobId) },
+        { $set: { [`rows.${res.index}`]: row, cursor, counts, updatedAt: new Date() } }
+      );
     }
 
-    cursor += batchSlice.length;
     const batchAvg = batchSlice.length > 0 ? totalBatchMs / batchSlice.length : 1500;
     avgRowMs = Math.round((avgRowMs * 0.7) + (batchAvg * 0.3));
-
-    // Update DB atomically
-    await jobsColl.updateOne(
-      { _id: queryId(jobId) },
-      {
-        $set: {
-          rows,
-          counts,
-          cursor,
-          avgRowMs,
-          updatedAt: new Date()
-        }
-      }
-    );
+    // Timing estimate only -- not part of the correctness/idempotency story
+    // above, so it stays a single lightweight write per batch rather than
+    // riding along with every row's commit.
+    await jobsColl.updateOne({ _id: queryId(jobId) }, { $set: { avgRowMs } });
 
     // Breather between batches
     await new Promise(r => setTimeout(r, 250));

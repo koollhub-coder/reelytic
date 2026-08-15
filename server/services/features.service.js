@@ -18,7 +18,7 @@ const { DEFAULT_PLANS } = require('../routes/pricing.routes');
   paid-feature gate. Admins already have full editing control to turn it on.
 */
 
-const FEATURE_KEYS = ['reportBranding', 'shareableLinks'];
+const FEATURE_KEYS = ['reportBranding', 'shareableLinks', 'pdfExport'];
 
 async function getPlans() {
   const db = getDb();

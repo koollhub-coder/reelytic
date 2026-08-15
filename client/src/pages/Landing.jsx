@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Logo } from '../components/Logo';
 import { ReportHero } from '../components/ReportHero';
 import { AccountMenu } from '../components/AccountMenu';
+import { SunIcon, MoonIcon, ReelIcon, ProfileIcon } from '../components/Icon';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import '../styles/landing.css';
@@ -19,8 +20,8 @@ export function Landing() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s4)' }}>
           <a href="#how-it-works" className="rl-landing-navlink" style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)', fontWeight: 500 }}>How it works</a>
           <a href="/pricing" style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)', fontWeight: 500 }} onClick={(e) => { e.preventDefault(); navigate('/pricing'); }}>Pricing</a>
-          <button onClick={toggleTheme} aria-label="Toggle theme" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px' }}>
-            {theme === 'dark' ? '' : ''}
+          <button onClick={toggleTheme} aria-label="Toggle theme" style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'inline-flex', color: 'var(--text-2)' }}>
+            {theme === 'dark' ? <SunIcon size={18} /> : <MoonIcon size={18} />}
           </button>
           {user ? (
             <AccountMenu
@@ -159,12 +160,12 @@ export function Landing() {
         <h2 className="section-title">Two report types, one workflow</h2>
         <div className="steps-grid">
           <div className="step-card">
-            <div className="step-number"></div>
+            <div className="step-number"><ReelIcon size={19} /></div>
             <h3 className="step-heading">Reel Report</h3>
             <p className="step-desc">Paste a list of reel links and get views, likes, comments, shares, saves and engagement rate for each one, lined up side by side.</p>
           </div>
           <div className="step-card">
-            <div className="step-number"></div>
+            <div className="step-number"><ProfileIcon size={19} /></div>
             <h3 className="step-heading">Profile Report</h3>
             <p className="step-desc">Give us a creator's profile and get a fair read on how they normally perform, with one-off viral posts left out so the average means something.</p>
           </div>

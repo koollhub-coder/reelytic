@@ -34,6 +34,29 @@ const OUTLIER_LOWER_BOUND_ENABLED = String(process.env.OUTLIER_LOWER_BOUND_ENABL
 const PROFILE_TARGET_REELS = 6;
 
 /*
+  Below this many organic (post-filter) reels, a profile's average is
+  reported with a caveat rather than presented as equal in confidence to
+  every other row. Matches the admin panel's own floor on the fetch-depth
+  input (min=4) -- that number was already treated as the edge of usable
+  before this constant existed.
+
+  V2 ONLY. Used two ways, by design the same threshold both times:
+    1. scrapeProfilesBatchV2 below: below this AND the account's own recent
+       history could plausibly hold more (Apify gave us everything we asked
+       for), it is worth ONE wider re-fetch before giving up.
+    2. jobEngine.service.js: after that re-fetch (or the decision to skip
+       it), still below this means the row reports as-is but carries
+       lowSample: true so the client sees the caveat instead of a number
+       that looks exactly as confident as an 8-post average.
+*/
+const PROFILE_MIN_RELIABLE_SAMPLE = Number(process.env.PROFILE_MIN_RELIABLE_SAMPLE || 4);
+// How much wider the one retry asks, and the hard ceiling on that ask --
+// doubling an already-generous depth should never turn into an unbounded
+// or surprisingly expensive single call.
+const RETRY_FETCH_MULTIPLIER = 2;
+const RETRY_FETCH_MAX_DEPTH = 30;
+
+/*
   Both reel actors are normalized into ONE flat shape so metrics.service.js
   never has to care which actor ran:
     views, likes, comments, shares, reposts, saves,
@@ -834,6 +857,24 @@ function normalizeProfileReelItemV2(item) {
 }
 
 /*
+  The retry decision, pulled out as its own pure function so it can be unit
+  tested directly against synthetic data -- the network call it gates on
+  lives inside scrapeProfilesBatchV2 below and can only really be exercised
+  against the real actor (the paid canary), so the DECISION is where the
+  free regression suite's coverage has to live instead.
+
+  Only worth retrying if BOTH:
+    - the organic sample is thin (below PROFILE_MIN_RELIABLE_SAMPLE), and
+    - Apify actually gave us everything we asked for (candidatesFetched >=
+      fetchDepth). If it gave us less than we asked, the account itself
+      doesn't have more reels to offer -- asking wider would just spend an
+      Apify call to learn that same fact a second time.
+*/
+function needsWiderFetch(selectedCount, candidatesFetched, fetchDepth) {
+  return selectedCount < PROFILE_MIN_RELIABLE_SAMPLE && candidatesFetched >= fetchDepth;
+}
+
+/*
   V2 equivalent of scrapeProfilesBatch() -- SAME signature, SAME return shape
   (Map<username, { posts, reelsAnalyzed, reelsSkippedAsOutliers, candidatesFetched, candidates, followerInfo }>),
   so the job engine's dispatch point can call either one with zero downstream
@@ -846,6 +887,39 @@ function normalizeProfileReelItemV2(item) {
   NOT also call scrapeFollowersBatch() for this pipeline, that would be a
   wasted second call defeating the entire cost advantage.
 */
+function groupByOwner(items) {
+  const byUser = new Map();
+  for (const item of items) {
+    const key = String(item.ownerUsername || '').toLowerCase();
+    if (!key) continue;
+    if (!byUser.has(key)) byUser.set(key, []);
+    byUser.get(key).push(item);
+  }
+  return byUser;
+}
+
+function buildProfileEntry(posts, { widenedFetch = false } = {}) {
+  const { selected, reelsSkippedAsOutliers, candidates } = selectProfileReelsV2(posts);
+  const followers = posts[0] && posts[0].ownerFollowersCount;
+  return {
+    posts: selected,
+    reelsAnalyzed: selected.length,
+    reelsSkippedAsOutliers,
+    candidatesFetched: posts.length,
+    candidates,
+    // Bundled with the same call -- never coerced to 0 when genuinely absent.
+    followerInfo: posts[0] ? {
+      followersCount: followers === undefined ? null : followers,
+      userName: posts[0].ownerUsername,
+      userFullName: posts[0].ownerFullName,
+      userUrl: `https://www.instagram.com/${posts[0].ownerUsername}`,
+    } : null,
+    // Surfaced only for "how is this calculated" transparency -- never
+    // affects charging or the metrics themselves.
+    widenedFetch,
+  };
+}
+
 async function scrapeProfilesBatchV2(usernamesOrUrls) {
   const list = Array.isArray(usernamesOrUrls) ? usernamesOrUrls : [usernamesOrUrls];
   const clean = list.map(extractUsername);
@@ -859,36 +933,53 @@ async function scrapeProfilesBatchV2(usernamesOrUrls) {
   // any run-summary item count -- Apify's platform has a confirmed stale-
   // summary race condition, not specific to one actor.
   const items = (raw || []).map(normalizeProfileReelItemV2);
-
-  const byUser = new Map();
-  for (const item of items) {
-    const key = String(item.ownerUsername || '').toLowerCase();
-    if (!key) continue;
-    if (!byUser.has(key)) byUser.set(key, []);
-    byUser.get(key).push(item);
-  }
+  const byUser = groupByOwner(items);
 
   const result = new Map();
+  const needsRetry = [];
   for (const uname of clean) {
     const key = uname.toLowerCase();
     const posts = byUser.get(key) || [];
-    const { selected, reelsSkippedAsOutliers, candidates } = selectProfileReelsV2(posts);
-    const followers = posts[0] && posts[0].ownerFollowersCount;
-    result.set(key, {
-      posts: selected,
-      reelsAnalyzed: selected.length,
-      reelsSkippedAsOutliers,
-      candidatesFetched: posts.length,
-      candidates,
-      // Bundled with the same call -- never coerced to 0 when genuinely absent.
-      followerInfo: posts[0] ? {
-        followersCount: followers === undefined ? null : followers,
-        userName: posts[0].ownerUsername,
-        userFullName: posts[0].ownerFullName,
-        userUrl: `https://www.instagram.com/${posts[0].ownerUsername}`,
-      } : null,
-    });
+    const entry = buildProfileEntry(posts);
+    result.set(key, entry);
+    if (needsWiderFetch(entry.reelsAnalyzed, entry.candidatesFetched, fetchDepth)) {
+      needsRetry.push(key);
+    }
   }
+
+  /*
+    One extra call, batched, covering only the accounts that came back thin
+    AND where Apify had already given everything asked for the first time --
+    the second half of that check is what stops this from re-asking accounts
+    that structurally can't answer differently. If nobody in this batch
+    qualifies, this whole block is skipped and cost is unchanged from before
+    this existed.
+  */
+  if (needsRetry.length > 0) {
+    const widerDepth = Math.min(fetchDepth * RETRY_FETCH_MULTIPLIER, RETRY_FETCH_MAX_DEPTH);
+    try {
+      const retryRaw = await fetchFromApify(PROFILE_REELS_ACTOR, {
+        instagramUsernames: needsRetry,
+        postsPerProfile: widerDepth,
+      });
+      const retryByUser = groupByOwner((retryRaw || []).map(normalizeProfileReelItemV2));
+      for (const key of needsRetry) {
+        const widerPosts = retryByUser.get(key) || [];
+        // Only replace if the wider ask actually turned up more than the
+        // first attempt -- a network hiccup on the retry must not make a
+        // report worse than not retrying at all.
+        if (widerPosts.length > (byUser.get(key) || []).length) {
+          result.set(key, buildProfileEntry(widerPosts, { widenedFetch: true }));
+        }
+      }
+    } catch (err) {
+      // The first-pass results already in `result` stand as-is. A failed
+      // retry is a missed improvement, not a reason to fail rows that
+      // already succeeded once.
+      console.warn('[Apify] Widened profile re-fetch failed, keeping first-pass results:', err.message);
+    }
+  }
+
   return result;
 }
 
@@ -951,4 +1042,6 @@ module.exports = {
 
   // Pure helpers: no network, nothing to stub.
   normalizeReelItem, normalizeProfileReelItemV2, selectProfileReels, selectProfileReelsV2, extractUsername,
+  needsWiderFetch,
+  PROFILE_MIN_RELIABLE_SAMPLE,
 };

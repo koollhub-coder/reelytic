@@ -136,3 +136,13 @@ reelytic/
 - **Docker:** `docker build -t reelytic .` then `docker run -p 3000:3000 --env-file .env reelytic`.
 - **Railway / Render:** connect the repo, root directory `./`, set the env vars above, deploy.
 - **VPS:** `npm run build`, then `pm2 start server/index.js --name reelytic` behind an Nginx reverse proxy to port 3000.
+
+### PDF report download — not fully wired up yet
+
+The branded-report "Download PDF" button exists in the product and is feature-flag gated (`pdfExport` in `server/services/features.service.js`, off for every plan by default, grantable per-client via Feature access in Admin → Clients). **Granting the flag alone does not make it work.** The server-side PDF renderer (`server/services/pdfReport.service.js`) needs a real headless browser to run, and that's deliberately NOT installed on this deploy — see the comment at the top of that file for the full reasoning (short version: keeping `@playwright/test` a devDependency means it's never pulled into `npm install --production`, so this feature costs nothing and can't break anything until someone deliberately turns it on).
+
+**To actually make it work**, whoever does this needs to:
+1. Add a real dependency for PDF rendering — either promote `@playwright/test` to `dependencies` in `package.json`, or (preferred, smaller) add the plain `playwright` package instead, since production doesn't need the test runner parts.
+2. Add a browser-install step to the build: `npx playwright install --with-deps chromium`. The `--with-deps` matters — a bare `npx playwright install chromium` often isn't enough on a minimal Linux container (Render's included), because Chromium needs system libraries (`libnss3`, `libatk`, etc.) the base image doesn't have. Without it, the browser can fail to launch with a cryptic missing-`.so` error the first time someone actually clicks the button, not at build time.
+3. Expect a real memory cost per PDF: launching headless Chromium for one render uses roughly 150–300MB of RAM for a few seconds. Fine on a normal instance; worth watching on a small/free-tier one under concurrent load.
+4. Until steps 1–2 are done, a granted account sees a working "Download PDF" button that fails cleanly with "PDF generation isn't set up on this server yet" — not a crash, just inert.

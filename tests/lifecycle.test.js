@@ -5,6 +5,29 @@ const { seed, teardown, closeConnection, usernameFor } = require('./helpers/seed
 const { startServer, stopServer } = require('./helpers/server');
 const { loginAs } = require('./helpers/client');
 const { getDb } = require('../server/db');
+const { needsWiderFetch, PROFILE_MIN_RELIABLE_SAMPLE } = require('../server/services/apify.service');
+
+/*
+  needsWiderFetch is a pure function -- exported unwrapped by the scraper
+  stub seam (see the "Pure helpers: no network, nothing to stub" note in
+  apify.service.js), so it's the real implementation here regardless of
+  REELYTIC_SCRAPER_STUB. The network retry it gates on can only really be
+  proven against the real actor (the paid canary); this is where the
+  DECISION itself gets covered for free.
+*/
+describe('needsWiderFetch (the profile widen-retry decision)', () => {
+  test('retries when the sample is thin and Apify gave everything asked for', () => {
+    assert.equal(needsWiderFetch(2, 8, 8), true);
+  });
+
+  test('does not retry when the sample already meets the reliable minimum', () => {
+    assert.equal(needsWiderFetch(PROFILE_MIN_RELIABLE_SAMPLE, 8, 8), false);
+  });
+
+  test('does not retry when the account itself had fewer than requested -- more depth cannot help', () => {
+    assert.equal(needsWiderFetch(2, 5, 8), false);
+  });
+});
 
 /*
   The job lifecycle, run end to end against the stubbed scraper.
@@ -188,6 +211,59 @@ describe('a profile run', () => {
     // handle is carried on the row, not necessarily inside it.
     assert.ok(job.rows.every((r) => r.state === 'done' && r.result), 'each creator row should resolve to a result');
     assert.ok(job.counts.creditsSpent > 0, 'a successful profile run is chargeable');
+  });
+
+  /*
+    Regression for a real bug found 2026-08-14: an account whose every
+    fetched candidate got excluded (collab, sponsored, pinned, missing
+    views) still went through metricsFn on an empty sample, which reported
+    a fabricated 0 avg views / 0% engagement as a normal success -- and
+    charged for it. 8 of one real client's rows were exactly this before
+    the fix. It must fail, visibly, and cost nothing.
+  */
+  test('a creator whose every fetched post is excluded fails instead of reporting a fake 0%', async () => {
+    const before = (await getDb().collection('users').findOne({ username: usernameFor('pro') })).credits;
+
+    const id = await createPendingJob({
+      type: 'profile',
+      urls: ['https://www.instagram.com/creator_ALLCOLLAB/'],
+    });
+    await agent.post(`/jobs/${id}/start`, {});
+    const job = await waitForStatus(id);
+    const after = (await getDb().collection('users').findOne({ username: usernameFor('pro') })).credits;
+
+    assert.equal(job.status, 'done');
+    assert.equal(job.counts.success, 0, 'must not count as a success');
+    assert.equal(job.counts.failed, 1, 'must be counted as failed, not silently dropped');
+    assert.equal(job.rows[0].state, 'failed');
+    assert.ok(job.rows[0].error, 'the row must say why, not just fail silently');
+    assert.equal(before, after, 'an excluded-to-empty profile must not be charged');
+  });
+
+  /*
+    The other half of the same finding: thin but NOT zero. This must still
+    succeed and charge normally -- a creator with genuinely few eligible
+    posts is real information -- but the row must carry lowSample so the
+    client sees this number for what it is instead of trusting it exactly
+    as much as an 8-post average.
+  */
+  test('a creator with too few eligible posts still succeeds, but is flagged as a low sample', async () => {
+    const before = (await getDb().collection('users').findOne({ username: usernameFor('pro') })).credits;
+
+    const id = await createPendingJob({
+      type: 'profile',
+      urls: ['https://www.instagram.com/creator_THIN/'],
+    });
+    await agent.post(`/jobs/${id}/start`, {});
+    const job = await waitForStatus(id);
+    const after = (await getDb().collection('users').findOne({ username: usernameFor('pro') })).credits;
+
+    assert.equal(job.status, 'done');
+    assert.equal(job.counts.success, 1, 'a thin-but-nonzero sample is still a real result');
+    assert.equal(job.rows[0].state, 'done');
+    assert.equal(job.rows[0].result.reelsAnalyzed, 2);
+    assert.equal(job.rows[0].result.lowSample, true, 'must be flagged so it does not read as a full-confidence average');
+    assert.notEqual(before, after, 'a low-sample result is still a real result and still chargeable');
   });
 });
 

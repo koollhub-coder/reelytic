@@ -46,6 +46,11 @@ const suites = [
     args: ['--test', 'tests/lifecycle.test.js'],
   },
   {
+    name: 'API: crash/restart recovery, billing idempotency',
+    cmd: process.execPath,
+    args: ['--test', 'tests/crash-recovery.test.js'],
+  },
+  {
     name: 'UI: browser smoke + console gate',
     // Invoked through its own CLI entry rather than `npx`, which on Windows
     // needs shell:true and then warns about unescaped arguments on every run.

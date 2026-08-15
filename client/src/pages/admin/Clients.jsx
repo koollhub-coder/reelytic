@@ -30,7 +30,7 @@ export function Clients() {
   const [creditMode, setCreditMode] = useState('add'); // 'add' | 'set'
   const [creditAmount, setCreditAmount] = useState('');
   const [featureModal, setFeatureModal] = useState(null); // the client being adjusted
-  const [featureDraft, setFeatureDraft] = useState({ reportBranding: 'plan', shareableLinks: 'plan' });
+  const [featureDraft, setFeatureDraft] = useState({ reportBranding: 'plan', shareableLinks: 'plan', pdfExport: 'plan' });
   const [featureSaving, setFeatureSaving] = useState(false);
 
   const fetchClients = () => {
@@ -147,6 +147,7 @@ export function Clients() {
     setFeatureDraft({
       reportBranding: overrideToSelect(overrides.reportBranding),
       shareableLinks: overrideToSelect(overrides.shareableLinks),
+      pdfExport: overrideToSelect(overrides.pdfExport),
     });
   };
 
@@ -159,6 +160,7 @@ export function Clients() {
           featureOverrides: {
             reportBranding: selectToOverride(featureDraft.reportBranding),
             shareableLinks: selectToOverride(featureDraft.shareableLinks),
+            pdfExport: selectToOverride(featureDraft.pdfExport),
           },
         }),
       });
@@ -323,6 +325,16 @@ export function Clients() {
           <Select
             value={featureDraft.shareableLinks}
             onChange={(v) => setFeatureDraft((d) => ({ ...d, shareableLinks: v }))}
+            options={OVERRIDE_OPTIONS}
+          />
+        </div>
+        {/* Not on any plan yet -- this is the only way to grant it while it's
+            being tried out ahead of being a sellable tier. */}
+        <div className="input-group">
+          <label className="input-label">PDF report download</label>
+          <Select
+            value={featureDraft.pdfExport}
+            onChange={(v) => setFeatureDraft((d) => ({ ...d, pdfExport: v }))}
             options={OVERRIDE_OPTIONS}
           />
         </div>

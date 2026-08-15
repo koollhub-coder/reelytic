@@ -25,6 +25,25 @@ const REEL_URL = process.env.CANARY_REEL_URL;
 const PROFILE_URL = process.env.CANARY_PROFILE_URL;
 
 async function main() {
+  /*
+    Found 2026-08-14: this script never called connectDb(). getDb() alone,
+    without that, silently falls back to a local JSON file (see server/db.js)
+    instead of refusing -- so every DB-backed read/write this script ever
+    made (the profile fetch-depth setting, via getV2FetchDepth/
+    setV2FetchDepth) was quietly hitting that local file, never the real
+    database, and no error ever surfaced because the fallback's own default
+    happens to match the real configured value. Explicit connect + refusal
+    on fallback, same pattern as scripts/credit-reconcile.js, so a wrong
+    store is a loud failure instead of a silent one.
+  */
+  const { connectDb, isUsingFallback } = require('../server/db');
+  await connectDb();
+  if (isUsingFallback()) {
+    console.error('The database connection fell back to the local JSON store. Refusing to run -- a canary that tests against the wrong settings is worse than not running.');
+    process.exitCode = 1;
+    return;
+  }
+
   // Read through the app's own config rather than guessing at the variable
   // name, so this can never drift from what the server actually uses.
   const { apifyApiKey } = require('../server/config');
@@ -90,6 +109,33 @@ async function main() {
     out.errors.push(`Profile scrape threw: ${err.message}`);
   }
 
+  /*
+    NOT attempting an automated live check of the widen-retry mechanism here.
+
+    Tried it (2026-08-14): forcing the requested depth down to the app's own
+    allowed floor (4) got a flat HTTP 400 from the real actor on three
+    straight attempts -- the actor's published input schema shows no
+    documented minimum, so this reads as either an undocumented floor or the
+    actor pushing back after several rapid calls, and either way, guessing
+    further at the real answer by firing more paid requests at it is not a
+    responsible way to find out. A canary that fails from probing its own
+    dependency too hard is worse than one that does not exist.
+
+    What actually proves the mechanism, without that risk:
+      - needsWiderFetch has direct unit tests against synthetic input
+        (tests/lifecycle.test.js) -- the DECISION is exercised for free,
+        deterministically, on every regression run.
+      - The DECLINE branch was confirmed live against a real account through
+        the actual product (chauhan__ritu_, 2026-08-14): candidatesFetched
+        came back below the requested depth, and the retry correctly did not
+        fire rather than wasting a call the account's own content could
+        never satisfy.
+      - The FIRE branch (a real widen that finds more data) is the one part
+        of this without a repeatable, safe live proof. It is provably wired
+        up and it is not going to silently regress, but a fully deterministic
+        live check for it does not exist yet.
+  */
+
   console.log(JSON.stringify(out, null, 1));
 
   if (out.errors.length) {
@@ -100,9 +146,18 @@ async function main() {
     console.log('\nCanary passed. The real scrape path and cost recording both work.');
     process.exitCode = 0;
   }
+
+  // Without this the open Mongo pool from connectDb() keeps the event loop
+  // alive and the script never exits on its own.
+  const { closeDb } = require('../server/db');
+  await closeDb();
 }
 
-main().catch((err) => {
+main().catch(async (err) => {
   console.error('Canary crashed:', err.message);
   process.exitCode = 1;
+  try {
+    const { closeDb } = require('../server/db');
+    await closeDb();
+  } catch (e) { /* already gone */ }
 });

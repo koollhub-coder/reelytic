@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../api/client';
-import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import { BrandLoader } from '../components/BrandLoader';
 import { ReportThemeStyles, ReportSheet, ThemeToggle } from '../components/ReportSheet';
-import { LockedFeatureButton, PREMIUM_FEATURES, ProBadge } from '../components/Premium';
+import { LockedFeatureButton, PREMIUM_FEATURES } from '../components/Premium';
 import { ShareDialog, LinkIcon } from '../components/ShareDialog';
 import { formatDate, formatDateTime, formatDayKey } from '../utils/date';
 
@@ -26,15 +25,12 @@ function linkStatusLabel({ shareExpiresAt, shareViews }) {
 }
 
 // Standalone route (no Shell sidebar) -- this page IS the preview: what's on
-// screen is exactly what prints, no separate render path to drift out of
-// sync. "Download PDF" is the browser's own print dialog with a Save-as-PDF
-// destination, not a server-generated file -- no new dependency, no
-// server load, and it can never show something different from what the
-// agency already reviewed on screen.
+// screen is exactly what an unlocked account's real PDF download renders
+// server-side (see pdfReport.service.js), so there is no separate render
+// path to drift out of sync.
 export function BrandedReport() {
   const { jobId } = useParams();
   const navigate = useNavigate();
-  const { addToast } = useToast();
   const { user } = useAuth();
   const [job, setJob] = useState(null);
   const [branding, setBranding] = useState(null);
@@ -82,31 +78,6 @@ export function BrandedReport() {
       .catch((err) => setError(err.message || 'Could not load this report'));
   }, [jobId]);
 
-  // Renamed from "Download PDF": this opens the browser's own print sheet
-  // with Save-as-PDF as the destination, which is not what "Download"
-  // promises -- clients reported being surprised by a printer dialog. The
-  // toast says up front what's about to happen so the dialog isn't a
-  // surprise, and doubles as the place to mention the headers/footers
-  // setting that otherwise stamps a URL on every page.
-  /*
-    PDF download is not built yet, so it is presented as locked rather than
-    pretending. Clicking the browser's print sheet was never a download, and
-    a client told us so twice.
-
-    Shown, not hidden: a greyed control with a lock reads as "coming", while
-    an absent one reads as "this product cannot do that". Same reasoning as
-    the plan-gated controls in Premium.jsx. Delete this and restore
-    handleSavePdf once server-side rendering exists.
-  */
-  const handlePdfLocked = () => {
-    addToast("PDF download is coming soon. For now, use Download Excel or your browser's print option.", 'accent');
-  };
-
-  const handleSavePdf = () => {
-    addToast('Choose "Save as PDF" as the destination, and turn off "Headers and footers" for a clean file.', 'accent');
-    setTimeout(() => window.print(), 400);
-  };
-
   if (error) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 'var(--s4)', padding: 'var(--s6)' }}>
@@ -142,18 +113,35 @@ export function BrandedReport() {
 
         <div className="rl-report-topbar-actions">
           <ThemeToggle theme={theme} setTheme={setTheme} />
-          <button
-            className="btn btn-secondary"
-            onClick={handlePdfLocked}
-            title="PDF download is coming soon"
-            style={{ flexShrink: 0, gap: 'var(--s2)', color: 'var(--text-3)' }}
-          >
-            <span style={{ color: 'var(--text-2)' }}>
-              <span className="rl-label-full">Save as PDF</span>
+          {/*
+            Real server-side PDF generation now exists (see
+            pdfReport.service.js) -- but it stays behind the same
+            'pdfExport' feature flag the server route checks, which no plan
+            grants yet. An account without it keeps seeing the exact locked
+            "Soon" button that was already here; nothing changes for them.
+            An admin grants pdfExport per-client via featureOverrides to
+            enable this for real, ahead of it being a sellable plan feature.
+          */}
+          {user?.features?.pdfExport ? (
+            <a
+              className="btn btn-secondary"
+              href={`/api/jobs/${jobId}/branded.pdf`}
+              title="Download a PDF of this branded report"
+              style={{ flexShrink: 0, gap: 'var(--s2)' }}
+            >
+              <span className="rl-label-full">Download PDF</span>
               <span className="rl-label-short">PDF</span>
-            </span>
-            <ProBadge label="Soon" />
-          </button>
+            </a>
+          ) : (
+            // Same locked-button + upgrade-dialog pattern as "Get shareable
+            // link" below, not a standalone "coming soon" toast -- the
+            // feature is real and gated, not unbuilt.
+            <LockedFeatureButton
+              label={<><span className="rl-label-full">Download PDF</span><span className="rl-label-short">PDF</span></>}
+              feature={PREMIUM_FEATURES.pdfExport}
+              style={{ flexShrink: 0 }}
+            />
+          )}
         </div>
       </div>
 

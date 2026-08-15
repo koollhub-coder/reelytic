@@ -8,12 +8,20 @@ async function runBootstrap() {
   const settingsColl = db.collection('settings');
   const usersColl = db.collection('users');
   const jobsColl = db.collection('jobs');
-  const cacheColl = db.collection('cache');
 
-  // Clear cache on boot to flush any stale "Creator Name" items
-  try {
-    await cacheColl.deleteMany({});
-  } catch (e) { }
+  /*
+    A full cache wipe used to run here on every boot ("flush any stale
+    'Creator Name' items") -- a one-time fix for corrupt entries applied as
+    a permanent boot step instead of a one-off migration. Removed: it isn't
+    needed for staleness (getCachedEntry in cache.service.js already
+    enforces its own TTL on every read, independent of process uptime), and
+    the "Creator Name" placeholder bug itself is permanently guarded at the
+    point of computation now (see metrics.service.js's rawName check), so
+    that bad data can no longer even enter the cache. Left in, this wiped
+    every valid entry on every deploy too -- including ones a crash-recovery
+    resume (see jobEngine.service.js processJobLoop) now depends on to
+    avoid re-paying Apify for a scrape it already paid for once.
+  */
 
   // 1. Session secret check
   let secretSetting = await settingsColl.findOne({ key: 'sessionSecret' });

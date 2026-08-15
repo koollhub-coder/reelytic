@@ -161,17 +161,14 @@ export function Settings() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 'var(--s5)' }}>
         <div className="card">
           <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 700, marginBottom: 'var(--s4)' }}>Account</h3>
-          {/* rl-stack-mobile collapses this to a single column under 768px.
-              A fixed 140px label column plus a long monospace email left the
-              value column too narrow on a phone, which is what pushed the
-              edit icon past the card's right padding. */}
-          <div className="rl-stack-mobile" style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 'var(--s3)', fontSize: 'var(--fs-base)', rowGap: 'var(--s4)' }}>
+          {/* Bordered label/value rows, not a grid that collapses to two
+              stacked left-aligned lines on a phone. This layout is the same
+              shape on every viewport -- label left, value right, a hairline
+              between rows -- which is what removes the "does this even have
+              a design" look a plain stacked list gets on mobile. */}
+          <div className="rl-info-list">
             {editingUsername ? (
-              // Spans the full card width instead of sitting in the narrow
-              // 1fr value column -- that column can be well under 200px on
-              // a 340px card, not enough room for input + Save + Cancel
-              // together without cramming or overflowing.
-              <div style={{ gridColumn: '1 / -1' }}>
+              <div style={{ padding: 'var(--s3) 0' }}>
                 <label htmlFor="username-edit" className="input-label" style={{ display: 'block', marginBottom: '6px' }}>Username</label>
                 <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
                   <input
@@ -206,91 +203,93 @@ export function Settings() {
                 </div>
               </div>
             ) : (
-              <>
-              <span style={{ color: 'var(--text-2)' }}>Username</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s3)', minWidth: 0 }}>
-                <span className="mono" style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{user?.username}</span>
-                <button
-                  type="button"
-                  onClick={startEditUsername}
-                  title="Edit username"
-                  aria-label="Edit username"
-                  style={{
-                    // A rounded square, not a circle. A 26px circle around a
-                    // 14px glyph reads as an avatar or a status dot; every
-                    // toolbar-style edit affordance in this class of product
-                    // is a soft-cornered square, and it stops the control
-                    // competing with the username beside it.
-                    width: '28px', height: '28px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                    background: 'transparent', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)',
-                    color: 'var(--text-3)', cursor: 'pointer', lineHeight: 0, flexShrink: 0, padding: 0,
-                    transition: 'background var(--t-fast), color var(--t-fast), border-color var(--t-fast)',
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2)'; e.currentTarget.style.color = 'var(--text)'; e.currentTarget.style.borderColor = 'var(--border-strong)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-3)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
-                >
-                  <PencilIcon size={14} />
-                </button>
-              </div>
-              </>
-            )}
-            <span style={{ color: 'var(--text-2)' }}>Email</span>
-            <span style={{ fontFamily: 'var(--font-data)', fontWeight: 600, minWidth: 0, overflowWrap: 'anywhere' }}>{user?.email || user?.username}</span>
-            <span style={{ color: 'var(--text-2)' }}>Plan</span>
-            <span style={{ fontWeight: 600, textTransform: 'capitalize' }}>{user?.plan || 'free'}</span>
-            <span style={{ color: 'var(--text-2)' }}>Credits</span>
-            <span className="mono" style={{ fontWeight: 700 }}>{user?.plan === 'unlimited' ? 'Unlimited' : (user?.credits ?? 0).toLocaleString()}</span>
-            {user?.role === 'admin' && (
-              <>
-                <span style={{ color: 'var(--text-2)' }}>Role</span>
-                <span style={{ textTransform: 'uppercase', fontWeight: 600 }}>{user?.role}</span>
-              </>
-            )}
-            {/* flexWrap so the button drops onto its own line on a phone
-                instead of being squeezed flat against the card edge. */}
-            {/*
-              The guided tour, given the weight of a real feature rather than
-              a footnote under the account fields. It is the fastest way for
-              someone to understand the whole product, so a 12px grey line and
-              a small secondary button was underselling it badly: accent-
-              tinted panel, icon, what it actually covers, and a primary
-              action.
-            */}
-            <div style={{
-              gridColumn: '1 / -1', marginTop: 'var(--s3)', paddingTop: 'var(--s5)',
-              borderTop: '1px solid var(--border)',
-            }}>
-              <div style={{
-                display: 'flex', alignItems: 'flex-start', gap: 'var(--s4)', flexWrap: 'wrap',
-                padding: 'var(--s5)', borderRadius: 'var(--r-md)',
-                background: 'color-mix(in srgb, var(--accent) 7%, transparent)',
-                border: '1px solid color-mix(in srgb, var(--accent) 22%, transparent)',
-              }}>
-                <div style={{
-                  width: '40px', height: '40px', borderRadius: 'var(--r-md)', flexShrink: 0,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  background: 'color-mix(in srgb, var(--accent) 14%, transparent)',
-                  color: 'var(--accent)',
-                }}>
-                  <ReplayIcon size={19} />
-                </div>
-                <div style={{ flex: '1 1 220px', minWidth: 0 }}>
-                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 'var(--fs-md)', marginBottom: 4 }}>
-                    Take the guided tour
-                  </div>
-                  <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)', lineHeight: 1.6, margin: '0 0 var(--s3)' }}>
-                    Six stops through a finished report, the Excel export, the client version, the share link and your branding.
-                    Runs on sample data, so nothing is charged and none of your own work is touched.
-                  </p>
+              <div className="rl-info-row">
+                <span className="rl-info-label">Username</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s3)', minWidth: 0 }}>
+                  <span className="mono rl-info-value" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.username}</span>
                   <button
                     type="button"
-                    onClick={() => setShowTour(true)}
-                    className="btn btn-primary"
-                    style={{ height: '36px', padding: '0 var(--s5)' }}
+                    onClick={startEditUsername}
+                    title="Edit username"
+                    aria-label="Edit username"
+                    style={{
+                      // A rounded square, not a circle. A 26px circle around a
+                      // 14px glyph reads as an avatar or a status dot; every
+                      // toolbar-style edit affordance in this class of product
+                      // is a soft-cornered square, and it stops the control
+                      // competing with the username beside it.
+                      width: '28px', height: '28px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      background: 'transparent', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)',
+                      color: 'var(--text-3)', cursor: 'pointer', lineHeight: 0, flexShrink: 0, padding: 0,
+                      transition: 'background var(--t-fast), color var(--t-fast), border-color var(--t-fast)',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2)'; e.currentTarget.style.color = 'var(--text)'; e.currentTarget.style.borderColor = 'var(--border-strong)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-3)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
                   >
-                    Start the tour
+                    <PencilIcon size={14} />
                   </button>
                 </div>
+              </div>
+            )}
+            <div className="rl-info-row">
+              <span className="rl-info-label">Email</span>
+              <span className="rl-info-value" style={{ fontFamily: 'var(--font-data)', overflowWrap: 'anywhere' }}>{user?.email || user?.username}</span>
+            </div>
+            <div className="rl-info-row">
+              <span className="rl-info-label">Plan</span>
+              <span className="rl-info-value" style={{ textTransform: 'capitalize' }}>{user?.plan || 'free'}</span>
+            </div>
+            <div className="rl-info-row">
+              <span className="rl-info-label">Credits</span>
+              <span className="rl-info-value mono">{user?.plan === 'unlimited' ? 'Unlimited' : (user?.credits ?? 0).toLocaleString()}</span>
+            </div>
+            {user?.role === 'admin' && (
+              <div className="rl-info-row">
+                <span className="rl-info-label">Role</span>
+                <span className="rl-info-value" style={{ textTransform: 'uppercase' }}>{user?.role}</span>
+              </div>
+            )}
+          </div>
+
+          {/*
+            The guided tour, given the weight of a real feature rather than
+            a footnote under the account fields. It is the fastest way for
+            someone to understand the whole product, so a 12px grey line and
+            a small secondary button was underselling it badly: accent-
+            tinted panel, icon, what it actually covers, and a primary
+            action.
+          */}
+          <div style={{ marginTop: 'var(--s3)', paddingTop: 'var(--s5)', borderTop: '1px solid var(--border)' }}>
+            <div style={{
+              display: 'flex', alignItems: 'flex-start', gap: 'var(--s4)', flexWrap: 'wrap',
+              padding: 'var(--s5)', borderRadius: 'var(--r-md)',
+              background: 'color-mix(in srgb, var(--accent) 7%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--accent) 22%, transparent)',
+            }}>
+              <div style={{
+                width: '40px', height: '40px', borderRadius: 'var(--r-md)', flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: 'color-mix(in srgb, var(--accent) 14%, transparent)',
+                color: 'var(--accent)',
+              }}>
+                <ReplayIcon size={19} />
+              </div>
+              <div style={{ flex: '1 1 220px', minWidth: 0 }}>
+                <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 'var(--fs-md)', marginBottom: 4 }}>
+                  Take the guided tour
+                </div>
+                <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)', lineHeight: 1.6, margin: '0 0 var(--s3)' }}>
+                  Six stops through a finished report, the Excel export, the client version, the share link and your branding.
+                  Runs on sample data, so nothing is charged and none of your own work is touched.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowTour(true)}
+                  className="btn btn-primary"
+                  style={{ height: '36px', padding: '0 var(--s5)' }}
+                >
+                  Start the tour
+                </button>
               </div>
             </div>
           </div>

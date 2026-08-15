@@ -1,9 +1,25 @@
 const { getDb } = require('../db');
 
+/*
+  Returns { inserted, duplicate } instead of swallowing every outcome the
+  same way. `inserted: true` means this call just recorded the FIRST
+  success for this job+url -- the caller (jobEngine.service.js) charges
+  credits only in that case. `duplicate: true` means the unique index on
+  { jobId, url, result: 'success' } (see db.js) rejected the insert because
+  a success record for this exact row already exists: this is the expected,
+  safe shape of a crash-and-resume replay, not an error, and the caller must
+  NOT charge again. Any other failure also comes back as
+  { inserted: false, duplicate: false } -- an unconfirmed insert is treated
+  the same as a duplicate for billing purposes (fail closed: no confirmed
+  new record, no charge), and is logged since that case IS a real problem.
+*/
 async function recordLedgerEntry({ username, type, jobId, url, result, resolvedUsername, metrics, pipelineMode, estimatedCostUsd, fromCache, costSource, cachedAt }) {
+  const db = getDb();
+  const cached = result === 'success' && !!fromCache;
+
+  let inserted = false;
+  let duplicate = false;
   try {
-    const db = getDb();
-    const cached = result === 'success' && !!fromCache;
     await db.collection('submittedLinks').insertOne({
       username,
       type,
@@ -51,22 +67,37 @@ async function recordLedgerEntry({ username, type, jobId, url, result, resolvedU
       result, // success | failed | invalid
       at: new Date()
     });
-
-    const todayStr = new Date().toISOString().split('T')[0];
-    await db.collection('usageStats').updateOne(
-      { username, date: todayStr },
-      {
-        $inc: {
-          [type === 'reel' ? 'reelJobs' : 'profileJobs']: 1,
-          itemsProcessed: 1,
-          [result === 'success' ? 'success' : 'failed']: 1
-        }
-      },
-      { upsert: true }
-    );
+    inserted = true;
   } catch (e) {
-    console.warn('[Ledger Service Error]', e.message);
+    if (e.code === 11000) {
+      duplicate = true;
+    } else {
+      console.warn('[Ledger Service Error]', e.message);
+    }
   }
+
+  // Only counted for a genuinely new record -- a duplicate-blocked replay
+  // must not inflate the day's stats a second time either.
+  if (inserted) {
+    try {
+      const todayStr = new Date().toISOString().split('T')[0];
+      await db.collection('usageStats').updateOne(
+        { username, date: todayStr },
+        {
+          $inc: {
+            [type === 'reel' ? 'reelJobs' : 'profileJobs']: 1,
+            itemsProcessed: 1,
+            [result === 'success' ? 'success' : 'failed']: 1
+          }
+        },
+        { upsert: true }
+      );
+    } catch (e) {
+      console.warn('[Ledger Service Error]', e.message);
+    }
+  }
+
+  return { inserted, duplicate };
 }
 
 module.exports = { recordLedgerEntry };

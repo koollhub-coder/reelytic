@@ -148,4 +148,13 @@ export const PREMIUM_FEATURES = {
       'Light and dark versions, both client-ready',
     ],
   },
+  pdfExport: {
+    title: 'PDF report download',
+    description: 'A real, downloadable PDF of your branded report, not the browser print dialog.',
+    points: [
+      'Your logo, accent color, and layout, generated server-side',
+      'One click, and its downloaded',
+      'The exact file to attach to a client email',
+    ],
+  },
 };

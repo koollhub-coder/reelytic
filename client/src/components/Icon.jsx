@@ -25,6 +25,8 @@ import {
   CheckCircle2,
   FileSpreadsheet,
   Share2,
+  Clapperboard,
+  User,
 } from 'lucide-react';
 
 /*
@@ -98,3 +100,5 @@ export const WarningIcon = make(AlertTriangle, 'WarningIcon');
 export const SuccessIcon = make(CheckCircle2, 'SuccessIcon');
 export const SpreadsheetIcon = make(FileSpreadsheet, 'SpreadsheetIcon');
 export const ShareIcon = make(Share2, 'ShareIcon');
+export const ReelIcon = make(Clapperboard, 'ReelIcon');
+export const ProfileIcon = make(User, 'ProfileIcon');

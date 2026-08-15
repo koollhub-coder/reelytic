@@ -207,6 +207,82 @@ function ReelsAnalyzedCell({ res, onViewReels }) {
   );
 }
 
+/*
+  The true count of everything that did NOT make it into the average --
+  collab, sponsored, pinned and missing-view exclusions included, not just
+  the outlier trim.
+
+  Before this, the column read reelsSkippedAsOutliers directly, which only
+  ever counted the outlier step. An account whose 8 fetched posts were all
+  collabs showed "0 skipped" next to a 0% engagement rate that was actually
+  a fabricated average of nothing -- the column's own name promised more
+  than it measured. Falls back to the outlier-only figure for reports
+  stored before the candidates array existed (task #37).
+*/
+function totalSkipped(res) {
+  if (res.candidates && res.candidates.length) {
+    return Math.max(0, res.candidates.length - (res.reelsAnalyzed ?? 0));
+  }
+  return res.reelsSkippedAsOutliers ?? 0;
+}
+
+function skippedBreakdownTitle(res) {
+  if (!res.candidates || !res.candidates.length) return 'See which posts were considered and why';
+  const counts = {};
+  for (const c of res.candidates) {
+    if (c.reason === 'included') continue;
+    counts[c.reason] = (counts[c.reason] || 0) + 1;
+  }
+  const parts = Object.entries(counts).map(([reason, n]) => `${n} ${CANDIDATE_REASON_LABELS[reason] || reason}`);
+  return parts.length ? parts.join(', ') : 'Nothing was excluded';
+}
+
+// Skipped is exactly as informative as Reels Analyzed now, not a plain
+// number next to a clickable one -- same modal, same "why" behind it.
+function ReelsSkippedCell({ res, onViewReels }) {
+  const n = totalSkipped(res);
+  const hasData = (res.candidates && res.candidates.length) || (res.perReel && res.perReel.length);
+  if (!hasData) return <>{n}</>;
+  return (
+    <button
+      type="button"
+      onClick={() => onViewReels({ username: res.username, candidates: res.candidates, perReel: res.perReel })}
+      className="rl-text-link"
+      style={{ fontFamily: 'var(--font-data)', fontWeight: 700 }}
+      title={skippedBreakdownTitle(res)}
+    >
+      {n}
+    </button>
+  );
+}
+
+/*
+  Flags a profile average computed from too few organic posts to trust the
+  same way as a full sample. Two different things can land here, and the
+  tooltip says which one actually happened rather than always claiming the
+  same story (an earlier version of this text unconditionally said "even
+  after trying a wider fetch," which was false whenever the retry never ran
+  -- exactly the kind of overclaim worth catching):
+    - res.widenedFetch true: the server DID try fetching wider, and it still
+      wasn't enough. The creator's recent content is genuinely limited.
+    - res.widenedFetch falsy: no wider attempt was made, because the first
+      fetch already came back with fewer reels than were even asked for --
+      Instagram had nothing more to give for this account, so asking again
+      could not have found more.
+*/
+function LowSampleBadge({ res }) {
+  const n = res.reelsAnalyzed;
+  const post = n === 1 ? 'post' : 'posts';
+  const title = res.widenedFetch
+    ? `Only ${n} eligible ${post} for this creator, even after trying a wider fetch. Treat this average as directional, not precise.`
+    : `Only ${n} eligible ${post} for this creator. This account has ${res.candidatesFetched ?? 'very few'} reel${res.candidatesFetched === 1 ? '' : 's'} in total -- Instagram had nothing more to fetch, so a wider search would not have found more.`;
+  return (
+    <span className="chip warn" style={{ fontSize: 'var(--fs-xs)' }} title={title}>
+      Low sample
+    </span>
+  );
+}
+
 function metricCells(row, type, onViewReels) {
   const isOk = row.state === 'done' && row.result;
   const res = row.result || {};
@@ -228,9 +304,20 @@ function metricCells(row, type, onViewReels) {
     <>
       <td className="numeric mono">{isOk ? (res.followers ?? 0).toLocaleString() : '-'}</td>
       <td className="numeric mono">{isOk ? (res.avgViews ?? 0).toLocaleString() : '-'}</td>
-      <td className="numeric mono" style={isOk ? { color: 'var(--ok)', fontWeight: 600 } : undefined}>{isOk ? `${res.avgEr ?? 0}%` : '-'}</td>
+      <td className="numeric mono">
+        {isOk ? (
+          res.lowSample ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+              <span style={{ color: 'var(--ok)', fontWeight: 600 }}>{res.avgEr ?? 0}%</span>
+              <LowSampleBadge res={res} />
+            </div>
+          ) : (
+            <span style={{ color: 'var(--ok)', fontWeight: 600 }}>{res.avgEr ?? 0}%</span>
+          )
+        ) : '-'}
+      </td>
       <td className="numeric mono">{isOk ? <ReelsAnalyzedCell res={res} onViewReels={onViewReels} /> : '-'}</td>
-      <td className="numeric mono">{isOk ? (res.reelsSkippedAsOutliers ?? 0) : '-'}</td>
+      <td className="numeric mono">{isOk ? <ReelsSkippedCell res={res} onViewReels={onViewReels} /> : '-'}</td>
     </>
   );
 }
@@ -265,7 +352,9 @@ function NoteCell({ row, onEditNote }) {
 // Mobile: stacked label:value cards -- reused everywhere via the same rows/type.
 function ResultsTable({ rows, type, scrollRef, onViewReels, onEditNote }) {
   const reelHeaders = ['#', 'URL', 'Username', 'Status', 'Followers', 'Views', 'Likes', 'Comments', 'Shares', 'Reposts', 'Saves', 'ER (%)', 'Notes'];
-  const profileHeaders = ['#', 'URL', 'Username', 'Status', 'Followers', 'Avg Views', 'Avg ER (%)', 'Reels Analyzed', 'Reels Skipped (outliers)', 'Notes'];
+  // No longer "(outliers)" -- the column counts every exclusion (collab,
+  // sponsored, pinned, missing views, outlier trim), not only the trim step.
+  const profileHeaders = ['#', 'URL', 'Username', 'Status', 'Followers', 'Avg Views', 'Avg ER (%)', 'Reels Analyzed', 'Reels Skipped', 'Notes'];
   const headers = type === 'reel' ? reelHeaders : profileHeaders;
 
   return (
@@ -321,9 +410,21 @@ function ResultsTable({ rows, type, scrollRef, onViewReels, onEditNote }) {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 12px', fontSize: 'var(--fs-sm)' }}>
                   <span style={{ color: 'var(--text-3)' }}>Followers</span><span className="mono" style={{ textAlign: 'right' }}>{isOk ? (res.followers ?? 0).toLocaleString() : '-'}</span>
                   <span style={{ color: 'var(--text-3)' }}>Avg Views</span><span className="mono" style={{ textAlign: 'right' }}>{isOk ? (res.avgViews ?? 0).toLocaleString() : '-'}</span>
-                  <span style={{ color: 'var(--text-3)' }}>Avg ER</span><span className="mono" style={{ textAlign: 'right', color: isOk ? 'var(--ok)' : undefined, fontWeight: 600 }}>{isOk ? `${res.avgEr ?? 0}%` : '-'}</span>
+                  <span style={{ color: 'var(--text-3)' }}>Avg ER</span>
+                  <span className="mono" style={{ textAlign: 'right' }}>
+                    {isOk ? (
+                      res.lowSample ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                          <span style={{ color: 'var(--ok)', fontWeight: 600 }}>{res.avgEr ?? 0}%</span>
+                          <LowSampleBadge res={res} />
+                        </div>
+                      ) : (
+                        <span style={{ color: 'var(--ok)', fontWeight: 600 }}>{res.avgEr ?? 0}%</span>
+                      )
+                    ) : '-'}
+                  </span>
                   <span style={{ color: 'var(--text-3)' }}>Reels Analyzed</span><span className="mono" style={{ textAlign: 'right' }}>{isOk ? <ReelsAnalyzedCell res={res} onViewReels={onViewReels} /> : '-'}</span>
-                  <span style={{ color: 'var(--text-3)' }}>Reels Skipped (outliers)</span><span className="mono" style={{ textAlign: 'right' }}>{isOk ? (res.reelsSkippedAsOutliers ?? 0) : '-'}</span>
+                  <span style={{ color: 'var(--text-3)' }}>Reels Skipped</span><span className="mono" style={{ textAlign: 'right' }}>{isOk ? <ReelsSkippedCell res={res} onViewReels={onViewReels} /> : '-'}</span>
                 </div>
               )}
               {isOk && (
@@ -398,6 +499,10 @@ export function ReportEngine({ type = 'reel' }) {
   // Confirm dialogs
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [viewedReels, setViewedReels] = useState(null); // { username, perReel } | null
+  // { loading, history: [{at,avgViews,avgEr}], otherCampaigns: [name] } | null.
+  // Fetched lazily per creator, only while their modal is open -- pure
+  // rollups of the agency's own past reports, no Apify call involved.
+  const [creatorInsights, setCreatorInsights] = useState(null);
   const [showMethodology, setShowMethodology] = useState(false);
   const [noteEditRow, setNoteEditRow] = useState(null); // row being edited | null
   const [noteFlagInput, setNoteFlagInput] = useState(null);
@@ -832,6 +937,19 @@ export function ReportEngine({ type = 'reel' }) {
     }, 1000);
     return () => clearInterval(ticker);
   }, [jobState]);
+
+  // Fires once per creator, only while their "posts considered" modal is
+  // open. Both halves of this are rollups of reports this account has
+  // already run and paid for -- no Apify call involved.
+  useEffect(() => {
+    if (!viewedReels || !viewedReels.username || !jobId) { setCreatorInsights(null); return; }
+    let cancelled = false;
+    setCreatorInsights({ loading: true, history: [], otherCampaigns: [] });
+    apiFetch(`/jobs/${jobId}/creator-insights?username=${encodeURIComponent(viewedReels.username)}`)
+      .then((data) => { if (!cancelled) setCreatorInsights({ loading: false, ...data }); })
+      .catch(() => { if (!cancelled) setCreatorInsights({ loading: false, history: [], otherCampaigns: [] }); });
+    return () => { cancelled = true; };
+  }, [viewedReels, jobId]);
 
   const formatDuration = (ms) => {
     if (ms == null || ms < 0) return '0:00';
@@ -1412,8 +1530,50 @@ export function ReportEngine({ type = 'reel' }) {
         {viewedReels && viewedReels.candidates && viewedReels.candidates.length > 0 ? (
           (() => {
             const perReelByCode = new Map((viewedReels.perReel || []).map(r => [r.shortcode, r]));
+
+            // Sponsored/collab share -- purely a rollup of the reasons
+            // already sitting on these candidates, no new data needed.
+            // Deliberately just a number: not "risky" or flagged, an
+            // agency reads this in context far better than a verdict would.
+            const paidCount = viewedReels.candidates.filter((c) => c.reason === 'collab' || c.reason === 'sponsored').length;
+            const paidPct = Math.round((paidCount / viewedReels.candidates.length) * 100);
+
             return (
               <>
+                {viewedReels.candidates.length > 0 && (
+                  <div style={{ padding: 'var(--s3) var(--s4)', background: 'var(--surface-2)', borderRadius: 'var(--r-md)', fontSize: 'var(--fs-sm)', marginBottom: 'var(--s3)' }}>
+                    <strong>{paidPct}%</strong> of the posts fetched here are collab or sponsored content ({paidCount} of {viewedReels.candidates.length}).
+                  </div>
+                )}
+
+                {creatorInsights && creatorInsights.otherCampaigns && creatorInsights.otherCampaigns.length > 0 && (
+                  <div style={{ padding: 'var(--s3) var(--s4)', background: 'color-mix(in srgb, var(--warn) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--warn) 25%, transparent)', borderRadius: 'var(--r-md)', fontSize: 'var(--fs-sm)', marginBottom: 'var(--s3)' }}>
+                    Also used in {creatorInsights.otherCampaigns.length === 1 ? 'another campaign' : `${creatorInsights.otherCampaigns.length} other campaigns`}: {creatorInsights.otherCampaigns.join(', ')}.
+                  </div>
+                )}
+
+                {creatorInsights && creatorInsights.history && creatorInsights.history.length > 0 && (
+                  <div style={{ marginBottom: 'var(--s4)' }}>
+                    <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', marginBottom: 'var(--s2)' }}>
+                      From your past reports on this creator (most recent first):
+                    </div>
+                    <div className="data-table-container">
+                      <table className="data-table">
+                        <thead><tr><th>Report date</th><th className="numeric">Avg views</th><th className="numeric">ER %</th></tr></thead>
+                        <tbody>
+                          {creatorInsights.history.map((h, i) => (
+                            <tr key={i}>
+                              <td className="mono" style={{ color: 'var(--text-3)' }}>{formatDate(h.at)}</td>
+                              <td className="numeric mono">{h.avgViews != null ? h.avgViews.toLocaleString() : '-'}</td>
+                              <td className="numeric mono">{h.avgEr != null ? `${h.avgEr}%` : '-'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
                 <p style={{ color: 'var(--text-3)', fontSize: 'var(--fs-xs)', marginBottom: 'var(--s3)' }}>
                   Every one of this creator's recent posts we fetched, most recent first, not just the ones averaged in.
                 </p>

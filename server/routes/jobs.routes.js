@@ -9,6 +9,7 @@ const { getActiveJobPointer, clearActiveJobPointer } = require('../services/acti
 const { hasFeature } = require('../services/features.service');
 const { buildReportContext } = require('../services/reportContext.service');
 const { getOrCreateDemoJob, deleteDemoJob } = require('../services/demo.service');
+const { getReportBranding } = require('../services/branding.service');
 
 // Escapes regex special characters in free-text search input before it's
 // used to build a MongoDB $regex -- otherwise a search term like "a.b*c"
@@ -512,6 +513,107 @@ router.post('/:id/share/revoke', requireLogin, requireChangePasswordCheck, async
       { $set: { shareToken: null, shareExpiresAt: null, updatedAt: new Date() } }
     );
     res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/*
+  Real PDF download of the branded report. Gated behind 'pdfExport', which no
+  plan grants by default -- an admin turns it on per-client via
+  featureOverrides once this is actually ready to sell (see
+  pdfReport.service.js for the rest of the "stays off" story: the browser
+  dependency itself isn't even installed unless someone deliberately adds
+  it). No isDemo exemption here unlike the share-link route above -- letting
+  a free account preview a real downloadable PDF of the sample report is a
+  materially bigger giveaway than letting them preview a link.
+*/
+router.get('/:id/branded.pdf', requireLogin, requireChangePasswordCheck, async (req, res, next) => {
+  try {
+    const job = await loadOwnedJob(req, res);
+    if (!job) return undefined;
+
+    if (!(await hasFeature(req.currentUser, 'pdfExport'))) {
+      return res.status(403).json({ error: 'PDF export isn\'t available on your current plan. Upgrade to download branded PDF reports.', code: 'FEATURE_LOCKED' });
+    }
+
+    const { generateBrandedReportPdf } = require('../services/pdfReport.service');
+    const branding = await getReportBranding(job.ownerUsername);
+    const pdf = await generateBrandedReportPdf({ job, branding: branding || {} });
+
+    const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="reelytic-${job.type}-${dateStr}.pdf"`);
+    return res.send(pdf);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/*
+  Everything the agency's own history already knows about one creator,
+  without spending a single Apify call to learn it -- both halves are pure
+  rollups of reports this same account has already paid for and stored.
+
+    history: this creator's numbers from past reports, most recent first --
+      lets the client see "ER moved from 2.1% to 1.4% since we last checked"
+      instead of every report reading as an isolated snapshot.
+    otherCampaigns: which OTHER campaigns already used this creator -- an
+      agency running the same face in two campaigns without noticing is an
+      audience-overexposure risk worth a plain heads-up, not a verdict.
+
+  Scoped to same job TYPE (reel vs profile) deliberately: avgEr and er are
+  different formulas, and mixing them into one "trend" line would compare
+  numbers that were never meant to be compared.
+*/
+router.get('/:id/creator-insights', requireLogin, requireChangePasswordCheck, async (req, res, next) => {
+  try {
+    const job = await loadOwnedJob(req, res);
+    if (!job) return undefined;
+
+    const username = String(req.query.username || '').trim().toLowerCase();
+    if (!username) return res.status(400).json({ error: 'username is required' });
+
+    const db = getDb();
+    const others = await db.collection('jobs').find(
+      {
+        ownerUsername: job.ownerUsername,
+        type: job.type,
+        status: 'done',
+        _id: { $ne: queryId(req.params.id) },
+      },
+      { projection: { rows: 1, startedAt: 1, createdAt: 1, campaignId: 1, fileName: 1 } }
+    ).sort({ startedAt: -1 }).limit(200).toArray();
+
+    const history = [];
+    const otherCampaignIds = new Set();
+
+    for (const other of others) {
+      const row = (other.rows || []).find(
+        (r) => r.state === 'done' && r.result && String(r.result.username || '').toLowerCase() === username
+      );
+      if (!row) continue;
+      history.push({
+        at: other.startedAt || other.createdAt,
+        avgViews: row.result.avgViews ?? row.result.views ?? null,
+        avgEr: row.result.avgEr ?? row.result.er ?? null,
+      });
+      if (other.campaignId && other.campaignId !== job.campaignId) {
+        otherCampaignIds.add(other.campaignId);
+      }
+      if (history.length >= 5 && otherCampaignIds.size >= 5) break;
+    }
+
+    let otherCampaigns = [];
+    if (otherCampaignIds.size > 0) {
+      const campaigns = await db.collection('campaigns').find(
+        { _id: { $in: [...otherCampaignIds].map(queryId) } },
+        { projection: { name: 1 } }
+      ).toArray();
+      otherCampaigns = campaigns.map((c) => c.name).filter(Boolean);
+    }
+
+    res.json({ history: history.slice(0, 5), otherCampaigns });
   } catch (err) {
     next(err);
   }

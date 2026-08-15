@@ -324,6 +324,21 @@ async function ensureIndexes() {
     await db.collection('jobs').createIndex({ shareToken: 1 }, { sparse: true });
     await db.collection('submittedLinks').createIndex({ ownerUsername: 1, at: -1 });
     await db.collection('submittedLinks').createIndex({ url: 1 });
+    /*
+      Idempotency gate for job-engine charging (see jobEngine.service.js
+      processJobLoop). If the process crashes between a successful Apify
+      call and the job's row/cursor update reaching Mongo, a resumed job can
+      reprocess that same row: re-scraping it is wasted spend but not a
+      correctness bug, re-billing it would be. This makes a second
+      result:'success' insert for the same job+url fail instead of silently
+      duplicating, which is what the charge gate relies on. Scoped to
+      result:'success' only (partialFilterExpression) so a legitimately
+      retried FAILED attempt for the same url is never blocked by it.
+    */
+    await db.collection('submittedLinks').createIndex(
+      { jobId: 1, url: 1 },
+      { unique: true, partialFilterExpression: { result: 'success' } }
+    );
     await db.collection('cache').createIndex({ url: 1 }, { unique: true });
     await db.collection('loginHistory').createIndex({ at: -1 });
     await db.collection('loginHistory').createIndex({ username: 1, at: -1 });
