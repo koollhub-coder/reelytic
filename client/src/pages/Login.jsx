@@ -6,14 +6,26 @@ import { GoogleSignInButton } from '../components/GoogleSignInButton';
 import { AuthLoadingOverlay } from '../components/AuthLoadingOverlay';
 import { useAuth } from '../context/AuthContext';
 import { LedgerHero } from '../components/LedgerHero';
+import { useDocumentMeta } from '../hooks/useDocumentMeta';
+import { AuthFooterLinks } from '../components/AuthFooterLinks';
 
 export function Login() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { login, googleLogin } = useAuth();
+  useDocumentMeta({
+    title: 'Log in',
+    description: 'Log in to your Reelytic workspace to view and share Instagram Reel and profile engagement reports.',
+    path: '/login',
+    noindex: true,
+  });
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  // Defaults to on so the out-of-the-box behavior matches what it always was
+  // (a 7-day session) -- unchecking is the only thing that changes anything,
+  // shortening the cookie to die with the browser tab instead.
+  const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
@@ -38,10 +50,18 @@ export function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    // Same reasoning as Signup.jsx's validateForm -- checked here, before
+    // the native validator gets a chance to run (see noValidate below), so
+    // the message shows in this app's own themed error banner instead of
+    // an unstyled OS-chrome popup.
+    if (!username || !password) {
+      setError('Enter your email or username and password.');
+      return;
+    }
     setLoading(true);
 
     try {
-      const user = await login(username, password);
+      const user = await login(username, password, rememberMe);
       if (user.mustChangePassword) {
         navigate('/change-password');
       } else {
@@ -122,6 +142,12 @@ export function Login() {
             </div>
           )}
 
+          {reason === 'password-reset' && (
+            <div className="chip ok" style={{ width: '100%', padding: 'var(--s3)', marginBottom: 'var(--s4)', borderRadius: 'var(--r-md)' }}>
+              Your password has been reset. Log in with your new password.
+            </div>
+          )}
+
           {error && (
             <div className="chip err" style={{ width: '100%', padding: 'var(--s3)', marginBottom: 'var(--s4)', borderRadius: 'var(--r-md)' }}>
               {error}
@@ -136,7 +162,7 @@ export function Login() {
             <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
           </div>
 
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} noValidate>
             <div className="input-group">
               <label className="input-label" htmlFor="username">Email or username</label>
               <input
@@ -153,7 +179,12 @@ export function Login() {
             </div>
 
             <div className="input-group">
-              <label className="input-label" htmlFor="password">Password</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <label className="input-label" htmlFor="password">Password</label>
+                <a href="/forgot-password" onClick={(e) => { e.preventDefault(); navigate('/forgot-password'); }} style={{ fontSize: 'var(--fs-xs)', fontWeight: 600 }}>
+                  Forgot password?
+                </a>
+              </div>
               <PasswordInput
                 id="password"
                 value={password}
@@ -161,6 +192,16 @@ export function Login() {
                 autoComplete="current-password"
               />
             </div>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: 'var(--fs-sm)', color: 'var(--text-2)', cursor: 'pointer', marginBottom: 'var(--s2)' }}>
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                style={{ width: '16px', height: '16px', accentColor: 'var(--accent)' }}
+              />
+              Remember me
+            </label>
 
             <button type="submit" className="btn btn-primary" style={{ width: '100%', height: '40px', marginTop: 'var(--s3)' }} disabled={loading}>
               {loading ? 'Logging in...' : 'Log in'}
@@ -171,6 +212,7 @@ export function Login() {
             New to Reelytic?{' '}
             <a href="/signup" onClick={(e) => { e.preventDefault(); navigate('/signup'); }} style={{ fontWeight: 600 }}>Create a free account</a>
           </div>
+          <AuthFooterLinks />
         </div>
       </div>
     </div>

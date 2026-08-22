@@ -9,6 +9,12 @@ const { recordError } = require('../services/errorTracking.service');
   recorded: a rejected password or a validation failure is the app working
   correctly, and logging those would bury the real faults.
 */
+// What a 500 shows a user who set no err.userMessage of their own -- the
+// real cause (err.message) still goes to recordError below and from there
+// to Slack, so nothing is actually lost, it just doesn't get read out loud
+// to whoever happened to be signing up when a third-party API hiccupped.
+const GENERIC_SERVER_MESSAGE = "Something went wrong on our end. Please try again in a moment, or contact support if this keeps happening.";
+
 function errorHandler(err, req, res, next) {
   console.error('[Reelytic Error]', err);
   const status = err.status || 500;
@@ -28,8 +34,22 @@ function errorHandler(err, req, res, next) {
     });
   }
 
+  /*
+    A 500's err.message is written for the Slack/Health-page audience (it
+    names the failing third party, includes its raw response text, etc) --
+    exactly the internal detail a signed-out visitor should never see. A
+    route that wants to say something specific and safe sets err.userMessage
+    explicitly (see the OTP-mail failure paths in auth.routes.js); anything
+    else falls back to one generic line. 4xx errors are unaffected: those
+    messages are written by the route itself for the user to read (bad
+    password, invalid input), not leaked internals.
+  */
+  const clientMessage = status >= 500
+    ? (err.userMessage || GENERIC_SERVER_MESSAGE)
+    : (err.message || 'Internal Server Error');
+
   res.status(status).json({
-    error: err.message || 'Internal Server Error',
+    error: clientMessage,
     code: err.code || 'SERVER_ERROR'
   });
 }

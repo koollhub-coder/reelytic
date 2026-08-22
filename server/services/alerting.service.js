@@ -42,7 +42,9 @@ function config() {
     to: process.env.ALERT_EMAIL_TO,
     from: process.env.ALERT_EMAIL_FROM || 'onboarding@resend.dev',
     slackWebhook: process.env.SLACK_WEBHOOK_URL,
-    appUrl: process.env.APP_URL || 'http://localhost:5173',
+    // Trailing slash stripped -- APP_URL is hand-set in .env and a stray
+    // slash otherwise doubles up right before /admin/health below.
+    appUrl: (process.env.APP_URL || 'http://localhost:5173').replace(/\/+$/, ''),
   };
 }
 

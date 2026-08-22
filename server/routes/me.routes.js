@@ -3,21 +3,64 @@ const router = express.Router();
 const { requireLogin } = require('../middleware/auth');
 const { getDb } = require('../db');
 
+/*
+  Period-scoped counts, not all-time totals -- the Dashboard header carries a
+  "Last 14 days" badge next to these numbers, so an all-time total sitting
+  under that label was already a quiet mismatch before the comparison
+  feature below existed. Both windows use the same `at` timestamp field
+  admin.routes.js's own /overview route already scopes activity by.
+*/
+async function windowCounts(db, username, start, end) {
+    const match = { username, at: { $gte: start, $lt: end } };
+    const [reelCount, profileCount, successCount, totalCount] = await Promise.all([
+        db.collection('submittedLinks').countDocuments({ ...match, type: 'reel' }),
+        db.collection('submittedLinks').countDocuments({ ...match, type: 'profile' }),
+        db.collection('submittedLinks').countDocuments({ ...match, result: 'success' }),
+        db.collection('submittedLinks').countDocuments(match),
+    ]);
+    const successRate = totalCount > 0 ? Math.round((successCount / totalCount) * 100) : 100;
+    return { reelCount, profileCount, successCount, totalCount, successRate };
+}
+
+// Percent change vs the previous period, or null when there's nothing in
+// the previous period to compare against -- a "0 -> 5" jump has no
+// meaningful percentage (division by zero), and showing one anyway is
+// exactly the kind of fabricated-looking number this app has deliberately
+// avoided elsewhere (see Dashboard.jsx's own KpiCard comment on this).
+function pctChange(current, previous) {
+    if (previous === 0) return null;
+    return Math.round(((current - previous) / previous) * 1000) / 10;
+}
+
 router.get('/stats', requireLogin, async (req, res, next) => {
     try {
         const db = getDb();
         const username = req.currentUser.username;
 
-        const [reelCount, profileCount, successCount, totalCount] = await Promise.all([
-            db.collection('submittedLinks').countDocuments({ username, type: 'reel' }),
-            db.collection('submittedLinks').countDocuments({ username, type: 'profile' }),
-            db.collection('submittedLinks').countDocuments({ username, result: 'success' }),
-            db.collection('submittedLinks').countDocuments({ username }),
+        const now = new Date();
+        const periodStart = new Date(now);
+        periodStart.setDate(periodStart.getDate() - 14);
+        const previousPeriodStart = new Date(now);
+        previousPeriodStart.setDate(previousPeriodStart.getDate() - 28);
+
+        const [current, previous] = await Promise.all([
+            windowCounts(db, username, periodStart, now),
+            windowCounts(db, username, previousPeriodStart, periodStart),
         ]);
 
-        const successRate = totalCount > 0 ? Math.round((successCount / totalCount) * 100) : 100;
+        const trends = {
+            reelCount: pctChange(current.reelCount, previous.reelCount),
+            profileCount: pctChange(current.profileCount, previous.profileCount),
+            totalCount: pctChange(current.totalCount, previous.totalCount),
+            // windowCounts defaults successRate to 100 when totalCount is 0
+            // (nothing submitted isn't "0% success," it's "no rate at all") --
+            // so a window with zero links must not feed that placeholder 100
+            // into a real-looking percentage comparison here.
+            successRate: (current.totalCount > 0 && previous.totalCount > 0)
+                ? pctChange(current.successRate, previous.successRate)
+                : null,
+        };
 
-        const now = new Date();
         const days14 = [];
         for (let i = 13; i >= 0; i--) {
             const d = new Date(now);
@@ -40,11 +83,8 @@ router.get('/stats', requireLogin, async (req, res, next) => {
             .toArray();
 
         res.json({
-            reelCount,
-            profileCount,
-            successCount,
-            totalCount,
-            successRate,
+            ...current,
+            trends,
             activity14Days: days14,
             recentJobs: recentJobs.map(j => ({
                 id: j._id,

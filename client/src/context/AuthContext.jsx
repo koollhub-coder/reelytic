@@ -20,22 +20,66 @@ export function AuthProvider({ children }) {
       });
   }, []);
 
-  const login = async (username, password) => {
+  const login = async (username, password, rememberMe) => {
     const data = await apiFetch('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ username, password })
+      body: JSON.stringify({ username, password, rememberMe })
     });
     setUser(data.user);
     return data.user;
   };
 
-  const signup = async ({ email, password, username }) => {
+  // Returns { pendingVerification: true, username, email } now instead of a
+  // user -- signup no longer starts a session by itself. verifyOtp below is
+  // what actually logs the new account in, once they've proven the email is
+  // theirs.
+  const signup = async ({ email, password, username, acceptedTerms }) => {
     const data = await apiFetch('/auth/signup', {
       method: 'POST',
-      body: JSON.stringify({ email, password, username })
+      body: JSON.stringify({ email, password, username, acceptedTerms })
+    });
+    return data;
+  };
+
+  const verifyOtp = async (username, code) => {
+    const data = await apiFetch('/auth/verify-otp', {
+      method: 'POST',
+      body: JSON.stringify({ username, code })
     });
     setUser(data.user);
     return data.user;
+  };
+
+  const resendOtp = async (username) => {
+    return apiFetch('/auth/resend-otp', {
+      method: 'POST',
+      body: JSON.stringify({ username })
+    });
+  };
+
+  // Always resolves { sent: true } regardless of whether the email has an
+  // account -- see auth.routes.js POST /forgot-password for why. No user
+  // state changes here; the reset itself only happens once someone clicks
+  // the emailed link and lands on resetPassword below.
+  const forgotPassword = async (email) => {
+    return apiFetch('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email })
+    });
+  };
+
+  // Read-only check used by ResetPassword.jsx to show "link invalid/expired"
+  // immediately on page load, before the person has typed anything -- does
+  // NOT consume the token (see peekResetToken's own note server-side).
+  const checkResetToken = async (token) => {
+    return apiFetch(`/auth/reset-password/${encodeURIComponent(token)}`);
+  };
+
+  const resetPassword = async (token, newPassword) => {
+    return apiFetch('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, newPassword })
+    });
   };
 
   // credential = real Google ID token; { email, name } = dummy-mode fallback.
@@ -71,7 +115,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, signup, googleLogin, logout, refreshUser, loading }}>
+    <AuthContext.Provider value={{ user, login, signup, verifyOtp, resendOtp, forgotPassword, checkResetToken, resetPassword, googleLogin, logout, refreshUser, loading }}>
       {children}
     </AuthContext.Provider>
   );

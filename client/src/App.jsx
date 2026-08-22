@@ -1,40 +1,70 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { ToastProvider } from './context/ToastContext';
 
-import { Landing } from './pages/Landing';
-import { Login } from './pages/Login';
-import { Signup } from './pages/Signup';
-import { ForceChangePassword } from './pages/ForceChangePassword';
-import { Settings } from './pages/Settings';
-import { HowItsCalculated } from './pages/HowItsCalculated';
-import { ReelReport } from './pages/ReelReport';
-import { ProfileReport } from './pages/ProfileReport';
-import { History } from './pages/History';
+/*
+  Every routed page below is lazy -- before this, a single JS bundle held
+  every page in the app (every admin screen, every report type, settings,
+  billing, the whole thing) and every visitor downloaded and parsed all of
+  it before the FIRST page could render, landing page included. Vite's build
+  was warning about this on every build ("chunks larger than 500 kB") and
+  nobody was acting on it.
 
-import { DevUnlock } from './pages/admin/DevUnlock';
-import { AdminDashboard } from './pages/admin/AdminDashboard';
-import { Clients } from './pages/admin/Clients';
-import { Ledger } from './pages/admin/Ledger';
-import { SessionsLog } from './pages/admin/SessionsLog';
+  Split per-route, a first-time visitor hitting the landing page now only
+  ever downloads Landing's own code (plus the shared React/router runtime
+  chunk); the admin dashboard, the report engines, settings, billing --
+  everything else -- only loads the moment someone actually navigates there.
+  That's the single highest-leverage change available for "loads fast the
+  moment someone hits the site": it's not a build tweak, it's not downloading
+  less of the same thing, it's not downloading the other 90% of the app at
+  all until it's needed.
 
+  Named exports (not default), so each entry adapts .then(m => ({ default:
+  m.X })) -- React.lazy only accepts a module with a default export.
+*/
+const Landing = lazy(() => import('./pages/Landing').then(m => ({ default: m.Landing })));
+const Login = lazy(() => import('./pages/Login').then(m => ({ default: m.Login })));
+const Signup = lazy(() => import('./pages/Signup').then(m => ({ default: m.Signup })));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword').then(m => ({ default: m.ForgotPassword })));
+const ResetPassword = lazy(() => import('./pages/ResetPassword').then(m => ({ default: m.ResetPassword })));
+const ForceChangePassword = lazy(() => import('./pages/ForceChangePassword').then(m => ({ default: m.ForceChangePassword })));
+const Settings = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
+const HowItsCalculated = lazy(() => import('./pages/HowItsCalculated').then(m => ({ default: m.HowItsCalculated })));
+const ReelReport = lazy(() => import('./pages/ReelReport').then(m => ({ default: m.ReelReport })));
+const ProfileReport = lazy(() => import('./pages/ProfileReport').then(m => ({ default: m.ProfileReport })));
+const History = lazy(() => import('./pages/History').then(m => ({ default: m.History })));
+
+const DevUnlock = lazy(() => import('./pages/admin/DevUnlock').then(m => ({ default: m.DevUnlock })));
+const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
+const Clients = lazy(() => import('./pages/admin/Clients').then(m => ({ default: m.Clients })));
+const Ledger = lazy(() => import('./pages/admin/Ledger').then(m => ({ default: m.Ledger })));
+const SessionsLog = lazy(() => import('./pages/admin/SessionsLog').then(m => ({ default: m.SessionsLog })));
+const UsageSpend = lazy(() => import('./pages/admin/UsageSpend').then(m => ({ default: m.UsageSpend })));
+const Health = lazy(() => import('./pages/admin/Health').then(m => ({ default: m.Health })));
+const AdminPricingEditor = lazy(() => import('./pages/admin/AdminPricingEditor').then(m => ({ default: m.AdminPricingEditor })));
+const CostMonitor = lazy(() => import('./pages/admin/CostMonitor').then(m => ({ default: m.CostMonitor })));
+const ScanSettings = lazy(() => import('./pages/admin/ScanSettings').then(m => ({ default: m.ScanSettings })));
+const ProfileMethodology = lazy(() => import('./pages/admin/ProfileMethodology').then(m => ({ default: m.ProfileMethodology })));
+const LegalEditor = lazy(() => import('./pages/admin/LegalEditor').then(m => ({ default: m.LegalEditor })));
+
+const Legal = lazy(() => import('./pages/Legal').then(m => ({ default: m.Legal })));
+const Pricing = lazy(() => import('./pages/Pricing').then(m => ({ default: m.Pricing })));
+const BillingPlans = lazy(() => import('./pages/BillingPlans').then(m => ({ default: m.BillingPlans })));
+const Checkout = lazy(() => import('./pages/Checkout').then(m => ({ default: m.Checkout })));
+const Dashboard = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
+const BrandedReport = lazy(() => import('./pages/BrandedReport').then(m => ({ default: m.BrandedReport })));
+const PublicReport = lazy(() => import('./pages/PublicReport').then(m => ({ default: m.PublicReport })));
+
+// Not lazy: Shell is the layout every protected route mounts into (lazy-
+// loading it would just move the waterfall one level up, not remove it),
+// NotFound is trivially small, and BrandLoader IS the Suspense fallback --
+// it has to already be in the initial bundle to show anything while other
+// chunks are still loading.
 import { Shell } from './components/Shell';
 import { NotFound } from './components/NotFound';
 import { BrandLoader } from './components/BrandLoader';
-import { UsageSpend } from './pages/admin/UsageSpend';
-import { Health } from './pages/admin/Health';
-import { Pricing } from './pages/Pricing';
-import { BillingPlans } from './pages/BillingPlans';
-import { Checkout } from './pages/Checkout';
-import { AdminPricingEditor } from './pages/admin/AdminPricingEditor';
-import { CostMonitor } from './pages/admin/CostMonitor';
-import { ScanSettings } from './pages/admin/ScanSettings';
-import { ProfileMethodology } from './pages/admin/ProfileMethodology';
-import { Dashboard } from './pages/Dashboard';
-import { BrandedReport } from './pages/BrandedReport';
-import { PublicReport } from './pages/PublicReport';
 import './styles/base.css';
 import './styles/components.css';
 import './styles/mobile.css';
@@ -49,7 +79,7 @@ import { DemoGuide } from './components/DemoGuide';
 // landing, pricing, and the "you're signed in as X, switch account?" screen
 // that /login shows. Being logged in is not enough on its own -- that is how
 // a half-finished tour ended up floating over the login form.
-const NO_TOUR_ROUTES = ['/', '/login', '/signup', '/pricing', '/change-password'];
+const NO_TOUR_ROUTES = ['/', '/login', '/signup', '/pricing', '/change-password', '/terms', '/privacy', '/forgot-password', '/reset-password'];
 
 function TourHost() {
   const { user, loading } = useAuth();
@@ -133,44 +163,51 @@ export function App() {
       <ToastProvider>
         <AuthProvider>
           <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<PublicRoute><Landing /></PublicRoute>} />
-              <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
-              <Route path="/signup" element={<PublicRoute><Signup /></PublicRoute>} />
-              <Route path="/dev-unlock" element={<DevUnlock />} />
-              <Route path="/pricing" element={<Pricing />} />
-              <Route path="/change-password" element={<ProtectedRoute><ForceChangePassword /></ProtectedRoute>} />
-              {/* Standalone, no Shell sidebar -- this is meant to be viewed
-                  and printed as a clean document, not as an app screen. */}
-              <Route path="/reports/:jobId/branded" element={<ProtectedRoute><BrandedReport /></ProtectedRoute>} />
-              {/* Public, unauthenticated -- this is the "anyone with the
-                  link" view a client with no Reelytic account opens. Must
-                  stay outside ProtectedRoute. */}
-              <Route path="/share/:token" element={<PublicReport />} />
+            <Suspense fallback={<BrandLoader variant="full" message="Loading..." />}>
+              <Routes>
+                <Route path="/" element={<PublicRoute><Landing /></PublicRoute>} />
+                <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+                <Route path="/signup" element={<PublicRoute><Signup /></PublicRoute>} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
+                <Route path="/dev-unlock" element={<DevUnlock />} />
+                <Route path="/pricing" element={<Pricing />} />
+                <Route path="/terms" element={<Legal type="terms" />} />
+                <Route path="/privacy" element={<Legal type="privacy" />} />
+                <Route path="/change-password" element={<ProtectedRoute><ForceChangePassword /></ProtectedRoute>} />
+                {/* Standalone, no Shell sidebar -- this is meant to be viewed
+                    and printed as a clean document, not as an app screen. */}
+                <Route path="/reports/:jobId/branded" element={<ProtectedRoute><BrandedReport /></ProtectedRoute>} />
+                {/* Public, unauthenticated -- this is the "anyone with the
+                    link" view a client with no Reelytic account opens. Must
+                    stay outside ProtectedRoute. */}
+                <Route path="/share/:token" element={<PublicReport />} />
 
-              <Route element={<ProtectedRoute><Shell /></ProtectedRoute>}>
-                <Route path="/reels" element={<ReelReport />} />
-                <Route path="/profiles" element={<ProfileReport />} />
-                <Route path="/history" element={<History />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="/how-it-works" element={<HowItsCalculated />} />
-                <Route path="/admin/dashboard" element={<AdminDashboard />} />
-                <Route path="/admin/clients" element={<Clients />} />
-                <Route path="/admin/cost-monitor" element={<CostMonitor />} />
-                <Route path="/admin/scan-settings" element={<ScanSettings />} />
-                <Route path="/admin/profile-methodology" element={<ProfileMethodology />} />
-                <Route path="/admin/ledger" element={<Ledger />} />
-                <Route path="/admin/sessions" element={<SessionsLog />} />
-                <Route path="/admin/usage" element={<UsageSpend />} />
-                <Route path="/admin/health" element={<Health />} />
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/billing" element={<BillingPlans />} />
-                <Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
-                <Route path="/admin/pricing" element={<ProtectedRoute><AdminPricingEditor /></ProtectedRoute>} />
-              </Route>
+                <Route element={<ProtectedRoute><Shell /></ProtectedRoute>}>
+                  <Route path="/reels" element={<ReelReport />} />
+                  <Route path="/profiles" element={<ProfileReport />} />
+                  <Route path="/history" element={<History />} />
+                  <Route path="/settings" element={<Settings />} />
+                  <Route path="/how-it-works" element={<HowItsCalculated />} />
+                  <Route path="/admin/dashboard" element={<AdminDashboard />} />
+                  <Route path="/admin/clients" element={<Clients />} />
+                  <Route path="/admin/cost-monitor" element={<CostMonitor />} />
+                  <Route path="/admin/scan-settings" element={<ScanSettings />} />
+                  <Route path="/admin/profile-methodology" element={<ProfileMethodology />} />
+                  <Route path="/admin/legal" element={<LegalEditor />} />
+                  <Route path="/admin/ledger" element={<Ledger />} />
+                  <Route path="/admin/sessions" element={<SessionsLog />} />
+                  <Route path="/admin/usage" element={<UsageSpend />} />
+                  <Route path="/admin/health" element={<Health />} />
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/billing" element={<BillingPlans />} />
+                  <Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
+                  <Route path="/admin/pricing" element={<ProtectedRoute><AdminPricingEditor /></ProtectedRoute>} />
+                </Route>
 
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </Suspense>
             {/* Inside the router because the tour spans the results page
                 (in Shell) and the branded report (standalone), so it cannot
                 live in either. Gated on being signed in because it used to

@@ -100,6 +100,10 @@
   line-height: 1.6;
 }
 
+.hero-title-accent {
+  color: var(--accent);
+}
+
 .hero-cta-group {
   display: flex;
   gap: var(--s3);
@@ -138,6 +142,14 @@
   margin: 0 auto;
   padding: var(--s7) var(--s5);
   width: 100%;
+  /* The nav is sticky/fixed at the top, so a bare #anchor jump lands the
+     target flush against it, half-covered. This offsets the scroll stop by
+     roughly the nav's height for every in-page anchor (#how-it-works and the
+     Resources menu's other two targets included). */
+  scroll-margin-top: 88px;
+}
+.sheet-preview {
+  scroll-margin-top: 88px;
 }
 
 .section-title {
@@ -146,6 +158,79 @@
   font-weight: 700;
   text-align: center;
   margin-bottom: var(--s6);
+}
+
+/* ---- Workflow (Three simple steps) --------------------------------------
+   Icon square + numbered badge + dashed connector, same visual language as
+   the product's own Guided Tour card (Settings.jsx) -- the marketing page
+   and the app should read as one thing, not two. */
+.workflow-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: var(--s3);
+  max-width: 900px;
+  margin: 0 auto;
+}
+.workflow-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  flex: 1 1 200px;
+  min-width: 0;
+  max-width: 240px;
+}
+.workflow-icon-badge {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--r-lg);
+  background: var(--accent-soft);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--s4);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.workflow-number {
+  position: absolute;
+  bottom: -6px;
+  left: -6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-family: var(--font-data);
+  font-weight: 700;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--bg);
+}
+.workflow-connector {
+  flex: 0 1 80px;
+  min-width: 24px;
+  height: 2px;
+  margin-top: 27px;
+  background-image: linear-gradient(90deg, color-mix(in srgb, var(--accent) 55%, transparent) 50%, transparent 50%);
+  background-size: 8px 2px;
+}
+/* Step 1's icon square: green, matching the spreadsheet/Excel file color
+   used everywhere else a file icon appears (ReportHero's own sheet card) --
+   distinguishes "your input" from "our processing" (steps 2-3, still
+   accent pink) instead of three identical badges. */
+.workflow-icon-badge-green {
+  background: color-mix(in srgb, #1F9D6B 16%, transparent);
+  color: #1F9D6B;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #1F9D6B 28%, transparent);
+}
+@media (max-width: 720px) {
+  .workflow-row { flex-direction: column; align-items: center; gap: var(--s6); }
+  .workflow-connector { width: 2px; height: 32px; margin: 0; background-image: linear-gradient(180deg, color-mix(in srgb, var(--accent) 55%, transparent) 50%, transparent 50%); background-size: 2px 8px; }
 }
 
 .steps-grid {
@@ -287,20 +372,379 @@
   font-weight: 600;
 }
 
+/* ---- Bordered CTA card ---------------------------------------------------
+   Icon square + headline/subcopy + button in one bordered card, the mobile
+   flow's single nudge right after the feature cards; also usable as-is on
+   desktop, which is why it lives in this base file rather than mobile.css. */
+.landing-cta-card {
+  max-width: 900px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--s5);
+  padding: var(--s6);
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+}
+.landing-cta-card-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--r-md);
+  background: var(--accent-soft);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.landing-cta-card-body {
+  flex: 1;
+  min-width: 0;
+}
+.landing-cta-card-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--fs-md);
+  margin-bottom: 4px;
+}
+.landing-cta-card-desc {
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+.landing-cta-card-btn {
+  flex-shrink: 0;
+  height: 44px;
+  padding: 0 var(--s6);
+  white-space: nowrap;
+}
+
+/* ---- Hero trust row ----------------------------------------------------
+   Three short, verifiable facts under the CTA -- not a generic "trusted by"
+   claim. Each one maps to something checkable in the product itself
+   (Signup.jsx's own copy: "no card required", "10 credits on the house").
+   Three even columns with a divider between them, icon beside the text --
+   reads cleanly from a 375px phone up through desktop, so this is the one
+   layout at every width rather than a different shape per breakpoint. */
+.trust-row {
+  display: flex;
+  border-top: 1px solid var(--border);
+  padding-top: var(--s5);
+  margin-top: var(--s5);
+}
+.trust-item {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+  max-width: none;
+  line-height: 1.3;
+  padding: 0 var(--s3);
+}
+.trust-item:first-child {
+  padding-left: 0;
+}
+.trust-item:last-child {
+  padding-right: 0;
+}
+.trust-item:not(:last-child) {
+  border-right: 1px solid var(--border);
+}
+.trust-item-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ---- Proof strip ---------------------------------------------------------
+   Reference used client logos; this product has none to show yet, so the
+   honest equivalent is the real capabilities themselves, presented the same
+   way a logo row would be -- a quiet, muted, single-line strip. */
+.proof-strip {
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background-color: var(--surface-2);
+  padding: var(--s5) var(--s5);
+}
+.proof-strip-eyebrow {
+  text-align: center;
+  font-size: var(--fs-xs);
+  letter-spacing: 0.1em;
+  color: var(--text-3);
+  font-weight: 600;
+  margin-bottom: var(--s4);
+}
+.proof-strip-row {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--s3) var(--s6);
+}
+.proof-strip-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.proof-strip-item svg { color: var(--accent); flex-shrink: 0; }
+
+/* ---- Step/feature card icons -------------------------------------------
+   Same rounded-square icon badge language the product app itself uses
+   (StatFilterCard, KpiCard, etc.), so the marketing page reads as the same
+   product rather than a different one wearing its colors. */
+.card-icon-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-md);
+  background: var(--accent-soft);
+  color: var(--accent);
+  margin-bottom: var(--s3);
+}
+
 .landing-footer {
   border-top: 1px solid var(--border);
-  padding: var(--s6) var(--s7);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: var(--fs-sm);
-  color: var(--text-3);
+  padding: var(--s7) var(--s7) var(--s5);
   margin-top: auto;
+}
+.landing-footer-top {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s6);
+  justify-content: space-between;
+  padding-bottom: var(--s6);
+}
+.landing-footer-brand {
+  flex: 1 1 240px;
+  max-width: 320px;
+}
+.landing-footer-desc {
+  color: var(--text-3);
+  font-size: var(--fs-sm);
+  margin-top: var(--s3);
+  line-height: 1.6;
+}
+.landing-footer-cols {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s6);
+}
+.landing-footer-col {
+  min-width: 120px;
+}
+.landing-footer-col-title {
+  /* Now a <summary> element (see the accordion note below), which defaults
+     to display:list-item in every browser -- block matches how this looked
+     as a plain <div> before and kills the native list-item marker box that
+     list-style:none alone doesn't remove. */
+  display: block;
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-3);
+  font-weight: 600;
+  margin-bottom: var(--s3);
+}
+.landing-footer-col-title-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.landing-footer-legal-links {
+  display: none;
+}
+.landing-footer-col a,
+.landing-footer-col button {
+  display: block;
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  margin-bottom: var(--s2);
+  cursor: pointer;
+  font-family: inherit;
+}
+.landing-footer-col a:hover,
+.landing-footer-col button:hover {
+  color: var(--accent);
+}
+
+/* Mobile-only accordion via native <details>/<summary> (see mobile.css for
+   the collapsed-state chevron/spacing/borders). Above the mobile breakpoint
+   the columns must read exactly as they always have -- four always-expanded
+   lists, never collapsible -- so this forces the body visible regardless of
+   the <details> open/closed state and hides the native disclosure marker
+   everywhere (the chevron rendered in JSX replaces it, mobile-only). */
+.landing-footer-col summary {
+  list-style: none;
+}
+.landing-footer-col summary::-webkit-details-marker {
+  display: none;
+}
+@media (min-width: 769px) {
+  .landing-footer-col > :not(summary) {
+    display: block !important;
+  }
+  .landing-footer-col-chevron {
+    display: none;
+  }
+}
+/* ---- Newsletter signup (footer) -----------------------------------------
+   Real capture (POST /api/newsletter/subscribe), not decorative -- see
+   NewsletterSignup.jsx. */
+.landing-newsletter {
+  /* Matches the footer-top/footer-bottom rows' own 1200px column, rather
+     than a narrower island centered inside that much wider row -- a 680px
+     card here left 260px of dead space on each side, which read as
+     "not actually centered" next to the full-width nav row above it even
+     though it was: an isolated narrow block inside a much wider row reads
+     as off-center to the eye regardless of the true math. Content is
+     centered inside this wide card instead (was the earlier reason for the
+     narrower card -- left-aligned icon+title+form bunched on the left edge
+     of a full-width box looked unbalanced; centering solves that without
+     needing the card itself to be narrow). */
+  max-width: 1200px;
+  margin: 0 auto var(--s6) auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: var(--s6) var(--s5);
+  background-color: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+}
+.landing-newsletter-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-bottom: var(--s3);
+}
+.landing-newsletter-title {
+  font-weight: 700;
+  font-size: var(--fs-md);
+  margin-bottom: 2px;
+}
+.landing-newsletter-desc {
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  margin-bottom: var(--s4);
+}
+.landing-newsletter-form {
+  display: flex;
+  gap: var(--s2);
+  width: 100%;
+  max-width: 380px;
+  margin: 0 auto;
+}
+.landing-newsletter-input {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  padding: 0 var(--s3);
+  background-color: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  color: var(--text);
+}
+.landing-newsletter-submit {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-sm);
+  background-color: var(--accent);
+  color: #fff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.landing-newsletter-submit:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.landing-newsletter-success {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ok);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+.landing-newsletter-error {
+  color: var(--err);
+  font-size: var(--fs-xs);
+  margin-top: var(--s2);
+}
+
+.landing-footer-social {
+  display: flex;
+  justify-content: center;
+  gap: var(--s3);
+  margin-top: var(--s2);
+}
+.landing-footer-social-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.landing-footer-bottom {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding-top: var(--s5);
+  border-top: 1px solid var(--border);
+  display: flex;
+  /* Centered rather than the old left/right space-between -- a single slim,
+     centered copyright bar is the more common modern pattern (Stripe,
+     Linear, Vercel all do this) and reads as more deliberate than two
+     pieces of text pinned to opposite edges of a wide row. */
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  gap: var(--s2);
+  font-size: var(--fs-xs);
+  color: var(--text-3);
 }
 
 /* ---- Hero product shot -----------------------------------------------
-   A sheet of links on the left, the finished client report on the right.
-   The product's whole promise is that transformation, so the hero shows it
+   Input sheet -> processing -> finished client report, left to right. The
+   product's whole promise is that transformation, so the hero shows it
    rather than describing it. Rendered in markup, not a screenshot, so it
    stays sharp and can never drift from the real report design. */
 .report-hero {
@@ -309,58 +753,119 @@
   gap: var(--s3);
   width: 100%;
 }
-.report-hero-input {
-  flex: 0.85;
+.report-hero-flow {
+  flex: 0.8;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.report-hero-card {
+  width: 100%;
   background-color: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
-  padding: var(--s4);
+  padding: var(--s3) var(--s4);
+}
+.report-hero-card-label {
+  font-size: 10px;
+  color: var(--text-3);
+  margin-bottom: 6px;
 }
 .report-hero-filename {
-  font-size: var(--fs-xs);
-  color: var(--text-3);
-  margin-bottom: var(--s3);
-}
-.report-hero-link {
   font-family: var(--font-data);
-  font-size: 11px;
-  color: var(--text-2);
-  padding: 3px 0;
+  font-size: 12px;
+  color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .report-hero-more {
   font-family: var(--font-data);
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-3);
-  padding-top: 4px;
+}
+.report-hero-down-arrow {
+  color: var(--text-3);
+  font-size: 14px;
+  line-height: 1;
+}
+.report-hero-spinner {
+  display: inline-flex;
+  color: var(--accent);
+  animation: rl-spin 1.6s linear infinite;
+}
+@keyframes rl-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 .report-hero-arrow {
   color: var(--accent);
   font-size: 22px;
   flex-shrink: 0;
 }
+.report-hero-sheet-wrap {
+  position: relative;
+  flex: 1.3;
+  min-width: 0;
+}
 /* The sheet keeps the real report's light theme in both app themes: this is
    a picture of a printed client document, not a piece of app chrome. */
 .report-hero-sheet {
-  flex: 1.15;
-  min-width: 0;
   background-color: #FFFFFF;
   border-radius: var(--r-md);
   padding: var(--s4);
-  box-shadow: 0 10px 30px rgba(0,0,0,0.28);
+  box-shadow: 0 10px 40px color-mix(in srgb, var(--accent) 22%, rgba(0,0,0,0.28));
 }
-
+/* The share-link callout, floating half off the report's edge -- same idea
+   as the reference: the report is real, and it's also something you can
+   just send a client without them logging in anywhere. */
+.report-hero-badge {
+  position: absolute;
+  top: -14px;
+  right: -18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background-color: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  padding: 8px 12px;
+  box-shadow: var(--shadow-lg);
+  animation: rl-float 4s ease-in-out infinite;
+}
+.report-hero-badge-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.report-hero-badge-check {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--ok-soft);
+  color: var(--ok);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
 @media (max-width: 700px) {
-  .report-hero { flex-direction: column; align-items: stretch; gap: var(--s2); }
+  .report-hero { flex-direction: column; align-items: stretch; gap: var(--s4); }
   .report-hero-arrow { transform: rotate(90deg); align-self: center; }
-  /* Stacked, the two panels no longer share a row height, so `flex` on each
-     was still reserving row space and leaving a band of empty dark panel
-     under the last link. Sizing to content removes it. */
-  .report-hero-input,
-  .report-hero-sheet { flex: 0 0 auto; }
+  .report-hero-flow { flex: 0 0 auto; width: 100%; }
+  .report-hero-sheet-wrap { flex: 0 0 auto; width: 100%; margin-top: var(--s5); }
+  .report-hero-badge { position: static; margin: var(--s3) auto 0; width: fit-content; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .report-hero-spinner, .report-hero-badge { animation: none; }
 }
 
 /* ---- Sheet preview ---------------------------------------------------

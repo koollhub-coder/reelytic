@@ -9,6 +9,14 @@ import { TableSkeleton } from '../components/TableSkeleton';
 import { CopyButton } from '../components/CopyButton';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { Modal } from '../components/Modal';
+import { CampaignCombobox } from '../components/CampaignCombobox';
+import { Select } from '../components/Select';
+import {
+  ReelIcon, ProfileIcon, PlayIcon, SettingsIcon, FileIcon, LayersIcon, GripIcon,
+  PlusIcon, InfoIcon, SuccessIcon, WarningIcon, PencilIcon, XIcon,
+  ClockIcon, TrendingUpIcon, TrendingDownIcon, EyeIcon, ExternalLinkIcon,
+  ShieldIcon, CloudUploadIcon, ChartIcon, DownloadIcon,
+} from '../components/Icon';
 import { ProfileMethodologyModal } from '../components/ProfileMethodologyModal';
 import { ReelMethodologyModal } from '../components/ReelMethodologyModal';
 import { useToast } from '../context/ToastContext';
@@ -60,6 +68,23 @@ function formatCompactNumber(n) {
 */
 const MAX_PLAUSIBLE_ER = 100;
 
+// Page numbers for the preview table's pagination footer: always the first
+// and last page, the current page and its immediate neighbors, and a single
+// '...' marker for whatever's skipped in between -- rather than every page
+// number from 1 to N, which for a 2,000-link report is a genuinely
+// unusable wall of buttons.
+function paginationRange(current, total) {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages = new Set([1, total, current, current - 1, current + 1]);
+  const sorted = [...pages].filter((p) => p >= 1 && p <= total).sort((a, b) => a - b);
+  const out = [];
+  for (let i = 0; i < sorted.length; i++) {
+    if (i > 0 && sorted[i] - sorted[i - 1] > 1) out.push('...');
+    out.push(sorted[i]);
+  }
+  return out;
+}
+
 function median(values) {
   if (values.length === 0) return 0;
   const sorted = [...values].sort((a, b) => a - b);
@@ -106,7 +131,46 @@ function computeReportInsights(rows, type) {
     }
   }
 
-  return { count: successful.length, avgViews, avgEr, medianEr, top, bottom, hasSpread };
+  // viewsList/erList already existed above for the average/median math --
+  // exposed here too so the "Average views"/"Avg engagement rate" Highlights
+  // cards can draw a real per-row sparkline instead of a decorative chart
+  // with no data behind it. Top/lowest performer are single data points, not
+  // a series, so they don't get a chart of their own.
+  return { count: successful.length, avgViews, avgEr, medianEr, top, bottom, hasSpread, viewsList, erList };
+}
+
+// Stat-tile trend sparkline (dataviz skill's "figures" contract): a single
+// hue, bars grow from one baseline, 4px-equivalent rounded data-ends, square
+// at the baseline, a slim surface-color gap between bars. Every bar is one
+// successful row's real value -- not a trend over time (this batch has no
+// time axis), but the same real per-row spread the average/typical number
+// above it was computed from. A native <title> per bar is the hover layer;
+// a decorative stat-tile sparkline doesn't need a full crosshair+tooltip.
+function BarSparkline({ values, color, formatValue, height = 32 }) {
+  if (!values || values.length < 2) return null;
+  const max = Math.max(...values, 1);
+  const gap = 1.2; // in the same 0-100 viewBox units as the bars
+  const slot = 100 / values.length;
+  const barW = Math.max(1, slot - gap);
+  const rMax = Math.min(3, barW / 2);
+  return (
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: '100%', height, display: 'block', marginTop: '8px' }} role="img" aria-label="Per-item distribution">
+      {values.map((v, i) => {
+        const barH = Math.max(3, (v / max) * 100);
+        // rx/ry rounds all four corners in SVG, so the bottom is pulled back
+        // flush with an inset rect the same color underneath -- keeps the
+        // baseline square as the spec wants without a second shape per bar.
+        const r = Math.min(rMax, barH / 2);
+        return (
+          <g key={i}>
+            <rect x={i * slot + gap / 2} y={100 - barH} width={barW} height={barH} rx={r} fill={color} />
+            {r > 0 && <rect x={i * slot + gap / 2} y={100 - barH + r} width={barW} height={Math.max(0, barH - r)} fill={color} />}
+            <title>{formatValue ? formatValue(v) : v}</title>
+          </g>
+        );
+      })}
+    </svg>
+  );
 }
 
 // Plain text, not markdown -- meant to be pasted straight into an email or
@@ -134,7 +198,7 @@ function statusChip(row) {
     case 'done': return <span className="chip ok">Success</span>;
     case 'failed': return <span className="chip err" title={row.error}>Invalid link</span>;
     case 'invalid': return <span className="chip err" title={row.error}>Invalid link</span>;
-    case 'duplicate': return <span className="chip warn">Duplicate, won't be processed</span>;
+    case 'duplicate': return <span className="chip warn" title="Duplicate link — won't be processed">Duplicate</span>;
     case 'processing': return <span className="chip accent">Processing...</span>;
     case 'skipped': return <span className="chip">Skipped</span>;
     default: return <span className="chip">Pending</span>;
@@ -145,15 +209,21 @@ function statusChip(row) {
 // the traceable record of exactly what was submitted.
 function UrlCell({ row }) {
   return (
-    <span className="mono" style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', maxWidth: '240px' }}>
+    <span className="mono" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', maxWidth: '240px' }}>
       <a
         href={row.input.url}
         target="_blank"
         rel="noreferrer"
-        style={{ color: 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block', maxWidth: '200px', verticalAlign: 'bottom' }}
+        style={{ color: 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block', maxWidth: '190px', verticalAlign: 'bottom' }}
         title={row.input.url}
       >
         {row.input.url}
+      </a>
+      {/* Same destination the text itself already links to -- an explicit
+          icon next to a mono URL string reads as clickable more reliably
+          than styled link-color text alone does. */}
+      <a href={row.input.url} target="_blank" rel="noreferrer" title="Open link" style={{ color: 'var(--text-3)', display: 'flex', flexShrink: 0 }}>
+        <ExternalLinkIcon size={13} />
       </a>
       <CopyButton text={row.input.url} />
     </span>
@@ -440,9 +510,139 @@ function ResultsTable({ rows, type, scrollRef, onViewReels, onEditNote }) {
   );
 }
 
+// One of the four link-count segments in the status row at the top of the
+// preview screen. Still doubles as a filter toggle exactly like the chips
+// it replaced -- same onClick, same active-state idea -- just sized as a
+// quick-scan status readout instead of a dashboard KPI tile: this is a
+// data-review screen, not an analytics page, and the table below is the
+// actual point. `emphasize` is only ever true for the one number that
+// answers "how many will actually run" -- everything else, including
+// duplicates, stays visually quiet on purpose so it can't outweigh that.
+function StatFilterCard({ icon, tone, value, label, sublabel, active, emphasize, onClick }) {
+  const toneColor = tone === 'ok' ? 'var(--ok)' : tone === 'warn' ? 'var(--warn)' : tone === 'err' ? 'var(--err)' : tone === 'info' ? 'var(--info)' : tone === 'accent' ? 'var(--accent)' : 'var(--text-2)';
+  const toneSoft = tone === 'ok' ? 'var(--ok-soft)' : tone === 'warn' ? 'var(--warn-soft)' : tone === 'err' ? 'var(--err-soft)' : tone === 'info' ? 'var(--info-soft)' : tone === 'accent' ? 'var(--accent-soft)' : 'var(--surface-2)';
+  // Read-only when there's nothing to click (the completion-summary
+  // stat blocks reuse this same tile without turning into fake buttons).
+  const Tag = onClick ? 'button' : 'div';
+  return (
+    <Tag
+      type={onClick ? 'button' : undefined}
+      onClick={onClick}
+      className="card"
+      style={{
+        display: 'flex', alignItems: 'center', gap: '10px', padding: '7px 12px',
+        textAlign: 'left', cursor: onClick ? 'pointer' : 'default', font: 'inherit', flex: '1 1 140px',
+        border: active ? `1px solid ${toneColor}` : '1px solid var(--border)',
+        boxShadow: active ? `0 0 0 1px ${toneColor}` : 'none',
+        transition: 'border-color var(--t-fast), box-shadow var(--t-fast)',
+      }}
+    >
+      <div style={{
+        width: '28px', height: '28px', borderRadius: '50%', flexShrink: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: toneSoft, color: toneColor,
+        boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${toneColor} 25%, transparent)`,
+      }}>
+        {icon}
+      </div>
+      <div style={{ minWidth: 0, display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+        <span style={{
+          fontFamily: 'var(--font-data)', fontWeight: 700, lineHeight: 1,
+          fontSize: emphasize ? 'var(--fs-lg)' : 'var(--fs-md)',
+          color: emphasize ? toneColor : 'var(--text)',
+        }}>
+          {value}
+        </span>
+        <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-2)', whiteSpace: 'nowrap' }}>{label}</span>
+        {sublabel && (
+          <span style={{ fontFamily: 'var(--font-data)', fontSize: 'var(--fs-xs)', color: toneColor, whiteSpace: 'nowrap' }}>{sublabel}</span>
+        )}
+      </div>
+    </Tag>
+  );
+}
+
+// One row per original spreadsheet column: rename, reorder (up/down --
+// buttons, not drag, since this is the accessible/mobile-friendly path
+// alongside the table header's own drag handles), or remove. Everything
+// here calls the exact same handlers the inline table-header controls do,
+// this is just a second way to reach them for anyone who'd rather not
+// drag-and-drop a table header.
+function ColumnsModal({ isOpen, onClose, columns, onRename, onDelete, onReorder }) {
+  const [editingName, setEditingName] = useState(null);
+  const [draft, setDraft] = useState('');
+
+  const move = (name, dir) => {
+    const names = columns.map((c) => c.name);
+    const i = names.indexOf(name);
+    const j = i + dir;
+    if (j < 0 || j >= names.length) return;
+    const next = [...names];
+    [next[i], next[j]] = [next[j], next[i]];
+    onReorder(next);
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Customize columns" width="440px">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--s2)' }}>
+        {columns.map((c, i) => {
+          const displayName = c.renamedTo || c.name;
+          const isEditing = editingName === c.name;
+          return (
+            <div
+              key={c.name}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 'var(--s2)',
+                padding: 'var(--s2) var(--s3)', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)',
+              }}
+            >
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flexShrink: 0 }}>
+                <button type="button" onClick={() => move(c.name, -1)} disabled={i === 0} title="Move up"
+                  style={{ background: 'none', border: 'none', cursor: i === 0 ? 'default' : 'pointer', color: i === 0 ? 'var(--text-3)' : 'var(--text-2)', padding: 0, lineHeight: 0.7, fontSize: '10px' }}>▲</button>
+                <button type="button" onClick={() => move(c.name, 1)} disabled={i === columns.length - 1} title="Move down"
+                  style={{ background: 'none', border: 'none', cursor: i === columns.length - 1 ? 'default' : 'pointer', color: i === columns.length - 1 ? 'var(--text-3)' : 'var(--text-2)', padding: 0, lineHeight: 0.7, fontSize: '10px' }}>▼</button>
+              </div>
+              {isEditing ? (
+                <input
+                  type="text"
+                  className="input-field"
+                  style={{ flex: 1, height: '32px', fontSize: 'var(--fs-sm)' }}
+                  value={draft}
+                  autoFocus
+                  onChange={(e) => setDraft(e.target.value)}
+                  onBlur={() => { onRename(c.name, draft); setEditingName(null); }}
+                  onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+                />
+              ) : (
+                <span style={{ flex: 1, fontSize: 'var(--fs-sm)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</span>
+              )}
+              <button type="button" onClick={() => { setEditingName(c.name); setDraft(displayName); }} title="Rename"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', display: 'flex', flexShrink: 0 }}>
+                <PencilIcon size={14} />
+              </button>
+              <button type="button" onClick={() => onDelete(c.name)} title="Remove this column"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', display: 'flex', flexShrink: 0 }}>
+                <XIcon size={14} />
+              </button>
+            </div>
+          );
+        })}
+        {columns.length === 0 && (
+          <div style={{ color: 'var(--text-3)', fontSize: 'var(--fs-sm)', textAlign: 'center', padding: 'var(--s4) 0' }}>
+            Every column has been removed.
+          </div>
+        )}
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'var(--s4)' }}>
+        <button className="btn btn-primary" onClick={onClose}>Done</button>
+      </div>
+    </Modal>
+  );
+}
+
 export function ReportEngine({ type = 'reel' }) {
   const { addToast } = useToast();
-  const { refreshUser } = useAuth();
+  const { user, refreshUser } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const viewJobId = searchParams.get('job'); // set when opened from History -- view a specific past report
@@ -452,14 +652,37 @@ export function ReportEngine({ type = 'reel' }) {
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('');
 
+  // Whether this account has ever finished a report before -- gates the
+  // welcome screen's subtitle (see the upload-state render below). Defaults
+  // to false (the generic copy) rather than true, so a returning user on a
+  // slow connection never gets a flash of "your first report" before this
+  // resolves -- a wrong generic message for a few hundred ms is harmless,
+  // a wrong "first report" message for a longtime user is the thing that
+  // was reported as a bug.
+  const [isFirstReport, setIsFirstReport] = useState(false);
+  useEffect(() => {
+    apiFetch('/jobs?limit=1')
+      .then((res) => setIsFirstReport((res.total || 0) === 0))
+      .catch(() => {});
+  }, []);
+
   // Preview state
   const [previewData, setPreviewData] = useState(null);
   const [activeFilter, setActiveFilter] = useState('all'); // all, valid, invalid, duplicates
+
+  // Optional campaign tag, offered at the preview step so grouping happens
+  // at the natural moment (before you've committed to anything) rather than
+  // as a separate chore in History afterward. Entirely optional -- Start
+  // works exactly as before if none of this is touched.
+  const [campaigns, setCampaigns] = useState([]);
+  const [selectedCampaignId, setSelectedCampaignId] = useState('');
+  const [columnsModalOpen, setColumnsModalOpen] = useState(false);
   // Client-side only: the done/running results table already holds every
   // row in memory (see the "done" transition below), so filtering by search
   // term is just a local array filter, no server round-trip needed.
   const [resultsSearch, setResultsSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
   const [rows, setRows] = useState([]);
   /*
     True while a page of rows is in flight. Without this the preview table
@@ -520,6 +743,28 @@ export function ReportEngine({ type = 'reel' }) {
     setDisplayEtaMs(0);
     setStartedAt(null);
     setFinishedAt(null);
+    // A campaign picked for the report just discarded must not silently
+    // carry over and get applied to whatever gets uploaded next.
+    setSelectedCampaignId('');
+  };
+
+  // Fetched once, independent of upload/preview state, so the picker has
+  // something to show the moment a preview appears rather than a spinner.
+  useEffect(() => {
+    apiFetch('/campaigns')
+      .then((res) => setCampaigns(res.campaigns || []))
+      .catch(() => {});
+  }, []);
+
+  const handleCreateCampaign = async (name) => {
+    try {
+      const res = await apiFetch('/campaigns', { method: 'POST', body: JSON.stringify({ name }) });
+      setCampaigns((prev) => [res.campaign, ...prev]);
+      return res.campaign;
+    } catch (err) {
+      addToast(err.message || "Couldn't create that campaign, try again", 'err');
+      return null;
+    }
   };
 
   const rehydrateFromJob = (job) => {
@@ -637,11 +882,11 @@ export function ReportEngine({ type = 'reel' }) {
     }
   };
 
-  const fetchRowsPage = async (page = 1, filter = activeFilter, targetJobId = jobId) => {
+  const fetchRowsPage = async (page = 1, filter = activeFilter, targetJobId = jobId, limit = pageSize) => {
     if (!targetJobId) return;
     setRowsLoading(true);
     try {
-      const data = await apiFetch(`/jobs/${targetJobId}/rows?page=${page}&state=${filter}`);
+      const data = await apiFetch(`/jobs/${targetJobId}/rows?page=${page}&state=${filter}&limit=${limit}`);
       setRows(data.rows || []);
       setTotalRows(data.total || 0);
       setCurrentPage(data.page || page);
@@ -652,19 +897,26 @@ export function ReportEngine({ type = 'reel' }) {
     }
   };
 
+  const handlePageSizeChange = (size) => {
+    const next = Number(size);
+    setPageSize(next);
+    setCurrentPage(1);
+    fetchRowsPage(1, activeFilter, jobId, next);
+  };
+
   const handleFilterChange = (filter) => {
     setActiveFilter(filter);
     setCurrentPage(1);
     fetchRowsPage(1, filter);
   };
 
-  const handleRenameColumn = async (oldName) => {
-    if (!tempColName.trim()) {
+  const handleRenameColumn = async (oldName, newName) => {
+    if (!newName.trim()) {
       setEditingColName(null);
       return;
     }
     try {
-      const renames = { [oldName]: tempColName.trim() };
+      const renames = { [oldName]: newName.trim() };
       const res = await apiFetch(`/jobs/${jobId}/columns`, {
         method: 'PATCH',
         body: JSON.stringify({ renames })
@@ -735,6 +987,14 @@ export function ReportEngine({ type = 'reel' }) {
         method: 'POST',
         body: JSON.stringify({ limitTo2000Confirmed: confirmLimit })
       });
+      // Not awaited on purpose: tagging a campaign is a convenience, not
+      // part of what makes a report run. If this fails, the report is still
+      // running correctly and can be tagged from History afterward -- it
+      // must never be the reason a report fails to start.
+      if (selectedCampaignId) {
+        apiFetch(`/jobs/${jobId}/campaign`, { method: 'PATCH', body: JSON.stringify({ campaignId: selectedCampaignId }) })
+          .catch(() => addToast("Report started, but couldn't tag it to that campaign -- you can still do that from History.", 'accent'));
+      }
       // `rows` up to this point only holds whatever page of the preview was
       // last loaded (100 at a time) -- the live-progress polling below only
       // ever UPDATES existing rows by index, it never appends new ones. Without
@@ -972,7 +1232,7 @@ export function ReportEngine({ type = 'reel' }) {
     return formatDurationWords(end - start);
   };
 
-  const totalPages = Math.ceil(totalRows / 50) || 1;
+  const totalPages = Math.ceil(totalRows / pageSize) || 1;
 
   const insights = useMemo(() => computeReportInsights(rows, type), [rows, type]);
 
@@ -994,88 +1254,207 @@ export function ReportEngine({ type = 'reel' }) {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--s3)', marginBottom: 'var(--s6)' }}>
-        <div>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-2xl)', fontWeight: 700, textTransform: 'capitalize' }}>
-            {type} Report
-          </h1>
-          <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-base)' }}>
-            {jobState === 'upload' && 'Upload a spreadsheet or paste links to generate engagement metrics.'}
-            {jobState === 'preview' && 'Review parsed links, rename columns, and start your run.'}
-            {jobState === 'running' && 'Fetching live metrics from Instagram with audited ledger rules.'}
-            {jobState === 'paused' && 'This report is paused. Resume anytime.'}
-            {jobState === 'done' && (counts.success === 0
-              ? 'Report finished, but none of these links could be read.'
-              : 'Report complete. Inspect results below or download styled Excel/CSV.')}
-          </p>
-        </div>
+      {/*
+        Full width, matching the stat cards/campaign bar/table below (all of
+        which run the page's full 1600px content column, set in Shell.jsx) --
+        capping just this row to a reading width left "Start new report"
+        stopping short of where every other row on the page ends, which reads
+        as broken alignment rather than intentional restraint.
+      */}
+      {/* This header is deliberately absent during the upload state -- a
+          welcoming "Welcome, {name}" screen replaces it below instead of a
+          plain "Reel Report" page title, which is what a returning user
+          starting another run sees just as much as a true first-timer. */}
+      {jobState !== 'upload' && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--s4)', marginBottom: 'var(--s4)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s3)' }}>
+            <div style={{
+              width: '36px', height: '36px', borderRadius: 'var(--r-md)', flexShrink: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'color-mix(in srgb, var(--accent) 16%, transparent)',
+              color: 'var(--accent)',
+            }}>
+              {type === 'reel' ? <ReelIcon size={17} /> : <ProfileIcon size={17} />}
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s2)' }}>
+                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-xl)', fontWeight: 700, textTransform: 'capitalize' }}>
+                  {type} Report
+                </h1>
+                {jobState === 'done' && (
+                  <span className={`chip ${counts.success === 0 ? 'err' : 'ok'}`} style={{ fontSize: 'var(--fs-xs)' }}>
+                    {counts.success === 0 ? 'Failed' : 'Completed'}
+                  </span>
+                )}
+              </div>
+              <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)' }}>
+                {jobState === 'preview' && previewData && `${counts.total} links imported from ${previewData.fileName}`}
+                {jobState === 'running' && 'Fetching live metrics from Instagram with audited ledger rules.'}
+                {jobState === 'paused' && 'This report is paused. Resume anytime.'}
+                {jobState === 'done' && (counts.success === 0
+                  ? 'Report finished, but none of these links could be read.'
+                  : 'Report complete. Inspect results below or download your report.')}
+              </p>
+            </div>
+          </div>
 
-        {isHistoryView ? (
-          <button className="btn btn-secondary" onClick={exitHistoryView}>
-            ← Back to current report
-          </button>
-        ) : jobState !== 'upload' && (
-          <button className="btn btn-secondary" onClick={() => setConfirmDiscard(true)}>
-            Start new report
-          </button>
-        )}
-      </div>
-
-      {isHistoryView && (
-        <div className="chip accent" style={{ display: 'inline-flex', padding: '6px 12px', marginBottom: 'var(--s5)' }}>
-           Viewing a past report from your history. This isn't your current run.
+          {/* "Run another report" in the completion summary below already
+              covers the done-state's "start over" action -- a second one up
+              here would be the same escape hatch twice on one screen. */}
+          {isHistoryView ? (
+            <button className="btn btn-secondary" onClick={exitHistoryView}>
+              ← Back to current report
+            </button>
+          ) : jobState !== 'done' && (
+            <button className="btn btn-secondary" onClick={() => setConfirmDiscard(true)} style={{ gap: 'var(--s2)' }}>
+              <PlusIcon size={16} />Start new report
+            </button>
+          )}
         </div>
       )}
 
-      {/* State A: Upload */}
-      {jobState === 'upload' && (
-        <div>
-          {loading ? (
-            <BrandLoader message={loadingMessage || 'Parsing sheet structure and validating links...'} />
-          ) : (
-            <FileDrop onFileSelected={handleFileSelected} type={type} />
-          )}
+      {isHistoryView && (
+        <div className="chip accent" style={{ display: 'inline-flex', padding: '6px 12px', marginBottom: 'var(--s5)' }}>
+          Viewing a past report from your history. This isn't your current run.
         </div>
+      )}
+
+      {/* State A: Upload -- a welcome screen, not a page titled "Reel Report",
+          since this is the first thing between a user and their first (or
+          next) report rather than a data view that needs a heading. */}
+      {jobState === 'upload' && (
+        loading ? (
+          <BrandLoader message={loadingMessage || 'Parsing sheet structure and validating links...'} />
+        ) : (
+          <div className="rl-onboarding">
+            <div className="rl-onboarding-icon">
+              {type === 'reel' ? <ReelIcon size={26} /> : <ProfileIcon size={26} />}
+            </div>
+            <h1 className="rl-onboarding-title">
+              Welcome, <span className="rl-onboarding-name">{user?.username}</span>
+            </h1>
+            <p className="rl-onboarding-sub">
+              {isFirstReport
+                ? 'Your first client-ready report is just a few links away.'
+                : 'Upload a campaign sheet or paste links to get started.'}
+            </p>
+
+            <FileDrop onFileSelected={handleFileSelected} type={type} />
+
+            <p className="rl-onboarding-privacy">
+              <ShieldIcon size={14} />Your data is secure and never shared with anyone.
+            </p>
+
+            <div className="rl-howitworks">
+              <h2 className="rl-howitworks-title">How it works</h2>
+              <div className="rl-howitworks-steps">
+                <div className="rl-howitworks-step">
+                  <div className="rl-howitworks-icon-wrap">
+                    <CloudUploadIcon size={22} />
+                    <span className="rl-howitworks-num">01</span>
+                  </div>
+                  <div className="rl-howitworks-step-title">Upload</div>
+                  <div className="rl-howitworks-step-desc">Upload your Excel, CSV or TXT file with links.</div>
+                </div>
+                <div className="rl-howitworks-connector" />
+                <div className="rl-howitworks-step">
+                  <div className="rl-howitworks-icon-wrap">
+                    <ChartIcon size={22} />
+                    <span className="rl-howitworks-num">02</span>
+                  </div>
+                  <div className="rl-howitworks-step-title">Process</div>
+                  <div className="rl-howitworks-step-desc">We extract views, likes, comments, shares and engagement metrics.</div>
+                </div>
+                <div className="rl-howitworks-connector" />
+                <div className="rl-howitworks-step">
+                  <div className="rl-howitworks-icon-wrap">
+                    <DownloadIcon size={22} />
+                    <span className="rl-howitworks-num">03</span>
+                  </div>
+                  <div className="rl-howitworks-step-title">Download</div>
+                  <div className="rl-howitworks-step-desc">Get your enriched report ready to share with your clients.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
       )}
 
       {/* State B: Preview */}
       {jobState === 'preview' && previewData && (
         <div>
-          <div style={{ display: 'flex', gap: 'var(--s3)', marginBottom: 'var(--s5)', flexWrap: 'wrap', alignItems: 'center' }}>
-            <span className="chip" style={{ padding: '6px 12px', fontWeight: 600 }}> {previewData.fileName}</span>
-            <button onClick={() => handleFilterChange('all')} className={`chip ${activeFilter === 'all' ? 'accent' : ''}`} style={{ cursor: 'pointer', padding: '6px 12px' }}>All ({counts.total})</button>
-            <button onClick={() => handleFilterChange('valid')} className={`chip ${activeFilter === 'valid' ? 'ok' : ''}`} style={{ cursor: 'pointer', padding: '6px 12px' }}>Valid ({counts.valid})</button>
-            <button onClick={() => handleFilterChange('invalid')} className={`chip ${activeFilter === 'invalid' ? 'err' : ''}`} style={{ cursor: 'pointer', padding: '6px 12px' }}>Invalid ({counts.invalid})</button>
-            <button onClick={() => handleFilterChange('duplicates')} className={`chip ${activeFilter === 'duplicates' ? 'warn' : ''}`} style={{ cursor: 'pointer', padding: '6px 12px' }}>Duplicates ({counts.duplicates})</button>
+          {/*
+            Sticky, not just top-of-page: a real campaign sheet can run to
+            hundreds of rows (mostly duplicates flagged for the agency to
+            see, not to scroll past), and neither the campaign field nor the
+            Start button did anyone any good sitting above a table long
+            enough to scroll them out of view. This is the same shape every
+            data-heavy SaaS table uses -- filters and the primary action
+            pinned in the control area above the rows, not floating over
+            them -- rather than a second, easy-to-miss copy of the same
+            controls at the bottom.
+          */}
+          {/*
+            A compact status row, not four dashboard KPI cards. This is a
+            data-review screen -- the table is the point, these four numbers
+            exist to be scanned in half a second on the way to it, and still
+            work exactly as before as filter toggles. "Ready to process"
+            gets the strongest visual weight (green, the number a size up)
+            since it answers the one question that actually matters here;
+            duplicates stays neutral on purpose so 132 excluded links don't
+            visually outweigh the 1 that's actually going to run.
+          */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--s2)', marginBottom: 'var(--s3)' }}>
+            <StatFilterCard icon={<FileIcon size={14} />} tone="neutral" value={counts.total} label="Total" active={activeFilter === 'all'} onClick={() => handleFilterChange('all')} />
+            <StatFilterCard icon={<SuccessIcon size={14} />} tone="ok" value={counts.valid} label="Ready" emphasize active={activeFilter === 'valid'} onClick={() => handleFilterChange('valid')} />
+            <StatFilterCard icon={<WarningIcon size={14} />} tone="warn" value={counts.invalid} label="Invalid" active={activeFilter === 'invalid'} onClick={() => handleFilterChange('invalid')} />
+            <StatFilterCard icon={<LayersIcon size={14} />} tone="info" value={counts.duplicates} label="Duplicates" active={activeFilter === 'duplicates'} onClick={() => handleFilterChange('duplicates')} />
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--s1)', flexWrap: 'wrap', gap: 'var(--s2)' }}>
-            <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>Click a column name to rename it, drag to reorder, or use × to remove it, all before you run.</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s3)' }}>
-              {previewData.creditsPerItem != null && (
-                <span className="chip accent" style={{ padding: '6px 12px' }}>
-                  Uses {counts.valid * previewData.creditsPerItem} credits
-                </span>
-              )}
-              <button
-                className="btn btn-primary"
-                onClick={() => handleStartJob(false)}
-                disabled={counts.valid === 0}
-                title={counts.valid === 0 ? 'There are no valid links in this sheet to run' : undefined}
+          {/* One control bar, one row: label, campaign field, cost, run --
+              not a tall card with its own internal heading and stacked rows. */}
+          <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 'var(--s3)', flexWrap: 'wrap', padding: 'var(--s3) var(--s4)', marginBottom: 'var(--s3)' }}>
+            <span style={{ fontSize: 'var(--fs-sm)', fontWeight: 600, flexShrink: 0 }}>
+              Campaign <span style={{ fontWeight: 400, color: 'var(--text-3)' }}>(optional)</span>
+            </span>
+            <CampaignCombobox
+              campaigns={campaigns}
+              value={selectedCampaignId}
+              onSelect={setSelectedCampaignId}
+              onCreate={handleCreateCampaign}
+              placeholder="Optional campaign name"
+              style={{ flex: '1 1 220px', minWidth: 0 }}
+            />
+            {previewData.creditsPerItem != null && (
+              <span
+                className="chip"
+                title={`${previewData.creditsPerItem} credit${previewData.creditsPerItem === 1 ? '' : 's'} per link, charged only for links that actually succeed`}
+                style={{ padding: '5px 10px', gap: '6px', flexShrink: 0 }}
               >
-                {counts.valid === 0 ? 'No valid links to run' : `Start report, ${counts.valid} links`}
-              </button>
-            </div>
+                Uses {counts.valid * previewData.creditsPerItem} credit{counts.valid * previewData.creditsPerItem === 1 ? '' : 's'}
+                <InfoIcon size={12} style={{ color: 'var(--text-3)' }} />
+              </span>
+            )}
+            <button
+              className="btn btn-primary"
+              onClick={() => handleStartJob(false)}
+              disabled={counts.valid === 0}
+              title={counts.valid === 0 ? 'There are no valid links in this sheet to run' : undefined}
+              style={{ gap: 'var(--s2)', flexShrink: 0 }}
+            >
+              <PlayIcon size={14} />
+              {counts.valid === 0 ? 'No valid links to run' : 'Run report'}
+            </button>
           </div>
 
           {/* Says what to do about it, rather than leaving a dead button with
               no explanation. Shown once, above the table, because at this
               point the table is entirely red rows and needs a headline. */}
-          {counts.valid === 0 && counts.total > 0 && (
+          {counts.valid === 0 && counts.total > 0 ? (
             <div style={{
-              marginBottom: 'var(--s4)', padding: 'var(--s4)',
+              marginBottom: 'var(--s3)', padding: 'var(--s3)',
               background: 'var(--err-soft)', border: '1px solid var(--err)',
-              borderRadius: 'var(--r-md)', fontSize: 'var(--fs-sm)', lineHeight: 1.6,
+              borderRadius: 'var(--r-md)', fontSize: 'var(--fs-xs)', lineHeight: 1.6,
             }}>
               <strong style={{ color: 'var(--err)' }}>
                 None of these {counts.total} links can be used.
@@ -1088,10 +1467,28 @@ export function ReportEngine({ type = 'reel' }) {
                 {' '}Discard this and upload again with the correct column.
               </span>
             </div>
-          )}
+          ) : null}
 
-          <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-2)', marginBottom: 'var(--s2)' }}>
-             These columns are filled in once the report runs, so you know exactly what's coming: <strong>{LOCKED_COLUMNS[type].join(', ')}</strong>
+          {/* "Preview" already needs a ready-count subtitle, so the
+              duplicates/invalid breakdown lives there too instead of
+              repeating "N ready" on its own line right above it -- that
+              was the same fact stated twice in two consecutive lines. */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--s3)', marginBottom: '4px' }}>
+            <div>
+              <span style={{ fontWeight: 700, fontSize: 'var(--fs-sm)' }}>Preview</span>
+              <span style={{ color: 'var(--text-3)', fontSize: 'var(--fs-xs)' }}>
+                {' · '}<strong style={{ color: counts.valid > 0 ? 'var(--ok)' : 'var(--text-3)' }}>{counts.valid} link{counts.valid === 1 ? '' : 's'} ready</strong>
+                {counts.valid > 0 && counts.duplicates > 0 && <> · {counts.duplicates} duplicate{counts.duplicates === 1 ? '' : 's'} excluded</>}
+                {counts.valid > 0 && counts.invalid > 0 && <> · {counts.invalid} invalid excluded</>}
+              </span>
+            </div>
+            <button className="btn btn-secondary" onClick={() => setColumnsModalOpen(true)} style={{ gap: 'var(--s2)', height: '28px', fontSize: 'var(--fs-xs)', padding: '0 10px' }}>
+              <SettingsIcon size={13} />Customize columns
+            </button>
+          </div>
+
+          <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', marginBottom: 'var(--s2)' }}>
+            Click a column header to rename it · Drag to reorder
           </div>
 
           <div className="data-table-container" style={{ marginBottom: 'var(--s4)' }}>
@@ -1106,6 +1503,7 @@ export function ReportEngine({ type = 'reel' }) {
                     return (
                       <th
                         key={c.name}
+                        className="rl-editable-col"
                         draggable
                         onDragStart={() => setDraggedColName(c.name)}
                         onDragOver={(e) => { e.preventDefault(); if (dragOverColName !== c.name) setDragOverColName(c.name); }}
@@ -1119,33 +1517,35 @@ export function ReportEngine({ type = 'reel' }) {
                         }}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ color: 'var(--text-3)', cursor: 'grab' }} title="Drag to reorder">⠿</span>
+                          <span style={{ color: 'var(--text-3)', cursor: 'grab', display: 'flex' }} title="Drag to reorder"><GripIcon size={13} /></span>
                           {editingColName === c.name ? (
                             <input
                               type="text"
                               value={tempColName}
                               onChange={e => setTempColName(e.target.value)}
-                              onBlur={() => handleRenameColumn(c.name)}
-                              onKeyDown={e => e.key === 'Enter' && handleRenameColumn(c.name)}
+                              onBlur={() => handleRenameColumn(c.name, tempColName)}
+                              onKeyDown={e => e.key === 'Enter' && handleRenameColumn(c.name, tempColName)}
                               autoFocus
                               style={{ background: 'var(--surface)', border: '1px solid var(--accent)', padding: '2px 4px', width: '100px', fontSize: 'var(--fs-xs)' }}
                             />
                           ) : (
                             <span
                               onClick={() => { setEditingColName(c.name); setTempColName(colName); }}
-                              style={{ cursor: 'pointer' }}
+                              style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
                               title="Click to rename"
                             >
-                              {colName} 
+                              {colName}
+                              <PencilIcon size={11} style={{ color: 'var(--text-3)' }} />
                             </span>
                           )}
                           <button
                             type="button"
+                            className="rl-col-remove"
                             onClick={() => handleDeleteColumn(c.name)}
                             title={`Remove "${colName}" from this report`}
-                            style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--text-3)', cursor: 'pointer', fontSize: '14px', padding: '0 2px', lineHeight: 1 }}
+                            style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--text-3)', cursor: 'pointer', display: 'flex', padding: '0 2px', lineHeight: 1 }}
                           >
-                            ×
+                            <XIcon size={13} />
                           </button>
                         </div>
                       </th>
@@ -1169,12 +1569,27 @@ export function ReportEngine({ type = 'reel' }) {
                 {rows.map(r => (
                   <tr key={r.i} style={{ backgroundColor: r.state === 'invalid' ? 'var(--err-soft)' : r.state === 'duplicate' ? 'var(--warn-soft)' : 'transparent' }}>
                     <td className="mono" style={{ color: 'var(--text-3)' }}>{r.i}</td>
-                    <td className="mono" style={{ maxWidth: '280px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      <a href={r.input.url} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>{r.input.url}</a> <CopyButton text={r.input.url} />
+                    <td className="mono">
+                      {/* The URL gets its own truncation box so the copy
+                          button sits outside it -- putting ellipsis on the
+                          whole cell clipped the button off-screen behind a
+                          long URL instead of just shortening the text. */}
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', maxWidth: '280px' }}>
+                        <a
+                          href={r.input.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{ color: 'var(--accent)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block', maxWidth: '230px', verticalAlign: 'bottom' }}
+                          title={r.input.url}
+                        >
+                          {r.input.url}
+                        </a>
+                        <CopyButton text={r.input.url} />
+                      </span>
                     </td>
                     <td>
                       {r.state === 'invalid' && <span className="chip err" title={r.error}>Invalid link</span>}
-                      {r.state === 'duplicate' && <span className="chip warn">Duplicate, won't be processed</span>}
+                      {r.state === 'duplicate' && <span className="chip warn" title="Duplicate link — won't be processed">Duplicate</span>}
                       {r.state === 'pending' && <span className="chip ok">Valid</span>}
                     </td>
                     {previewData.columns.map(c => (
@@ -1195,48 +1610,78 @@ export function ReportEngine({ type = 'reel' }) {
           </div>
 
           {/* Pagination Footer */}
-          <div style={{ display: 'flex', justifyContent: 'between', alignItems: 'center', marginBottom: 'var(--s6)' }}>
-            <div style={{ fontFamily: 'var(--font-data)', fontSize: 'var(--fs-sm)', color: 'var(--text-2)' }}>
-              Showing {rows.length} of {totalRows} rows (50 per page)
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--s3)', marginBottom: 'var(--s6)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s3)' }}>
+              <span style={{ fontFamily: 'var(--font-data)', fontSize: 'var(--fs-sm)', color: 'var(--text-2)' }}>
+                Showing {rows.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}-{(currentPage - 1) * pageSize + rows.length} of {totalRows} links
+              </span>
+              <Select
+                value={pageSize}
+                onChange={handlePageSizeChange}
+                options={[10, 25, 50, 100].map((n) => ({ value: n, label: `${n} per page` }))}
+                style={{ width: '130px' }}
+              />
             </div>
-            <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
+            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
               <button
                 className="btn btn-secondary"
                 disabled={currentPage <= 1}
                 onClick={() => { const p = currentPage - 1; setCurrentPage(p); fetchRowsPage(p, activeFilter); }}
+                aria-label="Previous page"
+                style={{ padding: '0 10px' }}
               >
-                Previous
+                ‹
               </button>
-              <span style={{ display: 'flex', alignItems: 'center', padding: '0 8px', fontSize: 'var(--fs-sm)', fontFamily: 'var(--font-data)' }}>
-                Page {currentPage} of {totalPages}
-              </span>
+              {paginationRange(currentPage, totalPages).map((p, i) => (
+                p === '...' ? (
+                  <span key={`ellipsis-${i}`} style={{ padding: '0 4px', color: 'var(--text-3)', fontSize: 'var(--fs-sm)' }}>...</span>
+                ) : (
+                  <button
+                    key={p}
+                    className="btn btn-secondary"
+                    onClick={() => { setCurrentPage(p); fetchRowsPage(p, activeFilter); }}
+                    style={{
+                      width: '36px', padding: 0, fontFamily: 'var(--font-data)',
+                      ...(p === currentPage ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : {}),
+                    }}
+                  >
+                    {p}
+                  </button>
+                )
+              ))}
               <button
                 className="btn btn-secondary"
                 disabled={currentPage >= totalPages}
                 onClick={() => { const p = currentPage + 1; setCurrentPage(p); fetchRowsPage(p, activeFilter); }}
+                aria-label="Next page"
+                style={{ padding: '0 10px' }}
               >
-                Next
+                ›
               </button>
             </div>
           </div>
 
-          <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--surface)', flexWrap: 'wrap', gap: 'var(--s3)' }}>
-            <div>
-              <span style={{ fontFamily: 'var(--font-data)', fontWeight: 600 }}>{counts.valid} valid links ready</span>
-              <span style={{ color: 'var(--text-2)', marginLeft: '8px', fontSize: 'var(--fs-sm)' }}>
-                (Estimated duration: ~{Math.ceil(counts.valid / 3 * 4 / 60)} min{previewData.creditsPerItem != null ? `, uses ${counts.valid * previewData.creditsPerItem} credits` : ''})
-              </span>
-            </div>
-            <div style={{ display: 'flex', gap: 'var(--s3)' }}>
-              <button className="btn btn-secondary" onClick={() => setConfirmDiscard(true)}>Discard</button>
-              <button
-                className="btn btn-primary"
-                onClick={() => handleStartJob(false)}
-                disabled={counts.valid === 0}
-                title={counts.valid === 0 ? 'There are no valid links in this sheet to run' : undefined}
-              >
-                {counts.valid === 0 ? 'No valid links to run' : `Start report, ${counts.valid} links`}
-              </button>
+          <div className="card" style={{ backgroundColor: 'var(--surface)' }}>
+            {/* The campaign field lives in the sticky bar above the table, not
+                duplicated here -- one place to set it, always visible. */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--s3)' }}>
+              <div>
+                <span style={{ fontFamily: 'var(--font-data)', fontWeight: 600 }}>{counts.valid} valid links ready</span>
+                <span style={{ color: 'var(--text-2)', marginLeft: '8px', fontSize: 'var(--fs-sm)' }}>
+                  (Estimated duration: ~{Math.ceil(counts.valid / 3 * 4 / 60)} min{previewData.creditsPerItem != null ? `, uses ${counts.valid * previewData.creditsPerItem} credits` : ''})
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: 'var(--s3)' }}>
+                <button className="btn btn-secondary" onClick={() => setConfirmDiscard(true)}>Discard</button>
+                <button
+                  className="btn btn-primary"
+                  onClick={() => handleStartJob(false)}
+                  disabled={counts.valid === 0}
+                  title={counts.valid === 0 ? 'There are no valid links in this sheet to run' : undefined}
+                >
+                  {counts.valid === 0 ? 'No valid links to run' : `Start report, ${counts.valid} links`}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1327,22 +1772,54 @@ export function ReportEngine({ type = 'reel' }) {
       {/* State D: Done (With In-App Results Preview Table) */}
       {jobState === 'done' && (
         <div>
-          <div className="card" style={{ marginBottom: 'var(--s6)', textAlign: 'center', padding: 'var(--s6)' }}>
-            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-xl)', fontWeight: 700, marginBottom: 'var(--s2)' }}>
-               {counts.success === 0
-                 ? `No results: 0 of ${counts.total} links could be read`
-                 : `Report Ready: ${counts.success} of ${counts.total} Succeeded`}
-            </h2>
-            <p style={{ color: 'var(--text-2)', maxWidth: '440px', margin: '0 auto var(--s2) auto', fontSize: 'var(--fs-base)' }}>
-              {counts.success === 0
-                ? 'None of these links could be read, so there is nothing to export or send. Check the links and try again.'
-                : 'Verify results in the live preview below or download your professional Excel/CSV export.'}
-            </p>
-            {processingTimeLabel() && (
-              <p style={{ color: 'var(--text-3)', fontSize: 'var(--fs-sm)', marginBottom: 'var(--s5)' }}>
-                Processed {counts.total} items in {processingTimeLabel()}.
-              </p>
+          {/*
+            One compact enterprise strip, not a centered hero card: icon +
+            headline + one-line stats on top, the metric tiles and the
+            actions that follow from them directly underneath. Everything
+            here reads left-to-right instead of being centered on the page,
+            which is what let it stay compact instead of needing a tall
+            card to look intentional.
+          */}
+          <div className="card" style={{ marginBottom: 'var(--s5)', padding: 'var(--s4) var(--s5)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s4)', flexWrap: 'wrap', marginBottom: counts.success > 0 ? 'var(--s4)' : 0 }}>
+              <div style={{
+                width: '44px', height: '44px', borderRadius: '50%', flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: counts.success === 0 ? 'var(--err-soft)' : 'var(--ok-soft)',
+                color: counts.success === 0 ? 'var(--err)' : 'var(--ok)',
+              }}>
+                {counts.success === 0 ? <XIcon size={20} /> : <SuccessIcon size={20} />}
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 600 }}>
+                  {counts.success === 0 ? 'No results' : 'Report ready'}
+                </div>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 700 }}>
+                  {counts.success === 0 ? `0 of ${counts.total} links could be read` : `${counts.success} of ${counts.total} succeeded`}
+                </div>
+                {/* Only rendered for the failure case -- on success the stat
+                    tiles right below already show processed/succeeded/failed/
+                    time with icons, so repeating them here in prose was the
+                    same four numbers said twice in a row. */}
+                {counts.success === 0 && (
+                  <div style={{ color: 'var(--text-2)', fontSize: 'var(--fs-xs)', marginTop: '2px' }}>
+                    None of these links could be read, so there is nothing to export or send. Check the links and try again.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {counts.success > 0 && (
+              <div style={{ display: 'flex', gap: 'var(--s2)', flexWrap: 'wrap', marginBottom: 'var(--s4)' }}>
+                <StatFilterCard icon={<FileIcon size={14} />} tone="neutral" value={counts.total} label="Total processed" />
+                <StatFilterCard icon={<SuccessIcon size={14} />} tone="ok" value={counts.success} label="Succeeded" sublabel={`${Math.round((counts.success / counts.total) * 100)}%`} emphasize />
+                <StatFilterCard icon={<XIcon size={14} />} tone={counts.failed > 0 ? 'err' : 'neutral'} value={counts.failed} label="Failed" sublabel={counts.failed > 0 ? `${Math.round((counts.failed / counts.total) * 100)}%` : undefined} />
+                {processingTimeLabel() && (
+                  <StatFilterCard icon={<ClockIcon size={14} />} tone="neutral" value={processingTimeLabel()} label="Total time" />
+                )}
+              </div>
             )}
+
             {/*
               Every action that produces a document needs at least one row to
               put in it. With all links invalid these still rendered, so the
@@ -1352,7 +1829,7 @@ export function ReportEngine({ type = 'reel' }) {
               Retry and "run another report" stay, because those are the two
               things that actually help from here.
             */}
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 'var(--s3)', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 'var(--s3)', flexWrap: 'wrap' }}>
               {counts.success > 0 && (
                 <>
                   <a href={`/api/export/${jobId}.xlsx`} className="btn btn-primary" data-tour="download-excel" download>
@@ -1377,10 +1854,14 @@ export function ReportEngine({ type = 'reel' }) {
             </div>
           </div>
 
-          {/* Highlights: plain-English summary + best/worst performer callouts */}
+          {/* Highlights: four compact read-only tiles, same data the plain-English
+              summary used to narrate in prose -- restating it as cards instead of
+              cards-plus-sentence, since the numbers alone already answer "what
+              stood out." Top/bottom only render when there's an actual spread
+              to report; average views/ER need only two successful rows. */}
           {insights && (
-            <div className="card" data-tour="highlights" style={{ marginBottom: 'var(--s6)', padding: 'var(--s5)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--s2)' }}>
+            <div className="card" data-tour="highlights" style={{ marginBottom: 'var(--s5)', padding: 'var(--s4) var(--s5)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--s3)' }}>
                 <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-md)', fontWeight: 700 }}>
                   Highlights
                 </h3>
@@ -1397,63 +1878,78 @@ export function ReportEngine({ type = 'reel' }) {
                   {summaryCopied ? 'Copied ✓' : 'Copy summary'}
                 </button>
               </div>
-              <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-base)', marginBottom: insights.hasSpread ? 'var(--s5)' : 0 }}>
-                {type === 'reel'
-                  ? `This report covers ${insights.count} Reels, averaging ${formatCompactNumber(insights.avgViews)} views and a ${insights.medianEr.toFixed(1)}% typical engagement rate.`
-                  : `This report covers ${insights.count} profiles, averaging ${formatCompactNumber(insights.avgViews)} views per Reel and a ${insights.medianEr.toFixed(1)}% typical engagement rate.`}
-              </p>
-              {insights.hasSpread && (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 'var(--s4)' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--s3)' }}>
+                {insights.hasSpread && (
                   <a
                     href={insights.top.link}
                     target="_blank"
                     rel="noreferrer"
-                    style={{ display: 'block', padding: 'var(--s4)', borderRadius: 'var(--r-md)', backgroundColor: 'var(--surface-2)', border: '1px solid var(--border)', textDecoration: 'none' }}
+                    className="card"
+                    style={{ display: 'block', padding: 'var(--s3) var(--s4)', textDecoration: 'none' }}
                   >
-                    <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: 'var(--s1)' }}>
-                       Top performer
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: 'var(--fs-xs)', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '4px' }}>
+                      <TrendingUpIcon size={12} style={{ color: 'var(--ok)' }} />Top performer
                     </div>
-                    <div className="mono" style={{ color: 'var(--accent)', fontWeight: 700, fontSize: 'var(--fs-base)' }}>@{insights.top.name}</div>
-                    <div style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)', marginTop: 'var(--s1)' }}>
+                    <div className="mono" style={{ color: 'var(--text)', fontWeight: 700, fontSize: 'var(--fs-base)' }}>@{insights.top.name}</div>
+                    <div style={{ color: 'var(--ok)', fontSize: 'var(--fs-sm)', marginTop: '2px' }}>
                       {formatCompactNumber(insights.top.views)} views · {insights.top.er.toFixed(1)}% ER
                     </div>
                   </a>
+                )}
+                {insights.hasSpread && (
                   <a
                     href={insights.bottom.link}
                     target="_blank"
                     rel="noreferrer"
-                    style={{ display: 'block', padding: 'var(--s4)', borderRadius: 'var(--r-md)', backgroundColor: 'var(--surface-2)', border: '1px solid var(--border)', textDecoration: 'none' }}
+                    className="card"
+                    style={{ display: 'block', padding: 'var(--s3) var(--s4)', textDecoration: 'none' }}
                   >
-                    <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: 'var(--s1)' }}>
-                      Lowest performer
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: 'var(--fs-xs)', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '4px' }}>
+                      <TrendingDownIcon size={12} style={{ color: 'var(--err)' }} />Lowest performer
                     </div>
-                    <div className="mono" style={{ color: 'var(--accent)', fontWeight: 700, fontSize: 'var(--fs-base)' }}>@{insights.bottom.name}</div>
-                    <div style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)', marginTop: 'var(--s1)' }}>
+                    <div className="mono" style={{ color: 'var(--text)', fontWeight: 700, fontSize: 'var(--fs-base)' }}>@{insights.bottom.name}</div>
+                    <div style={{ color: 'var(--err)', fontSize: 'var(--fs-sm)', marginTop: '2px' }}>
                       {formatCompactNumber(insights.bottom.views)} views · {insights.bottom.er.toFixed(1)}% ER
                     </div>
                   </a>
+                )}
+                <div className="card" style={{ padding: 'var(--s3) var(--s4)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: 'var(--fs-xs)', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '4px' }}>
+                    <EyeIcon size={12} style={{ color: 'var(--info)' }} />Average views
+                  </div>
+                  <div className="mono" style={{ color: 'var(--text)', fontWeight: 700, fontSize: 'var(--fs-base)' }}>{formatCompactNumber(insights.avgViews)}</div>
+                  <div style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)', marginTop: '2px' }}>Per {type === 'reel' ? 'reel' : 'profile'}</div>
+                  <BarSparkline values={insights.viewsList} color="var(--info)" formatValue={(v) => `${formatCompactNumber(v)} views`} />
                 </div>
-              )}
+                <div className="card" style={{ padding: 'var(--s3) var(--s4)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: 'var(--fs-xs)', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '4px' }}>
+                    <TrendingUpIcon size={12} style={{ color: 'var(--warn)' }} />Avg engagement rate
+                  </div>
+                  <div className="mono" style={{ color: 'var(--warn)', fontWeight: 700, fontSize: 'var(--fs-base)' }}>{insights.medianEr.toFixed(1)}%</div>
+                  <div style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)', marginTop: '2px' }}>Typical ER</div>
+                  <BarSparkline values={insights.erList} color="var(--warn)" formatValue={(v) => `${v.toFixed(1)}% ER`} />
+                </div>
+              </div>
             </div>
           )}
 
           {/* In-App Results Preview Table */}
           <div className="card" style={{ padding: '0', overflow: 'hidden' }}>
             <div style={{ padding: 'var(--s4)', borderBottom: '1px solid var(--border)', backgroundColor: 'var(--surface-2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--s3)' }}>
-              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-md)', fontWeight: 700 }}>Results</h3>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s3)' }}>
-                <input
-                  type="text"
-                  className="input-field"
-                  placeholder="Search by username or link"
-                  value={resultsSearch}
-                  onChange={(e) => setResultsSearch(e.target.value)}
-                  style={{ height: '32px', fontSize: 'var(--fs-sm)', width: '220px' }}
-                />
-                <span className="chip ok">
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--s2)' }}>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-md)', fontWeight: 700 }}>Results</h3>
+                <span className="chip ok" style={{ fontSize: 'var(--fs-xs)' }}>
                   {resultsSearch ? `${searchedRows.length} matching` : `${counts.success} succeeded`}
                 </span>
               </div>
+              <input
+                type="text"
+                className="input-field"
+                placeholder="Search by username or link"
+                value={resultsSearch}
+                onChange={(e) => setResultsSearch(e.target.value)}
+                style={{ height: '32px', fontSize: 'var(--fs-sm)', width: '220px' }}
+              />
             </div>
             <ResultsTable rows={searchedRows} type={type} onViewReels={setViewedReels} onEditNote={openNoteEditor} />
           </div>
@@ -1685,6 +2181,17 @@ export function ReportEngine({ type = 'reel' }) {
           isOpen={showMethodology}
           onClose={() => setShowMethodology(false)}
           calcVariant={rows.find((r) => r.result && r.result.calcVariant)?.result?.calcVariant}
+        />
+      )}
+
+      {previewData && (
+        <ColumnsModal
+          isOpen={columnsModalOpen}
+          onClose={() => setColumnsModalOpen(false)}
+          columns={previewData.columns}
+          onRename={handleRenameColumn}
+          onDelete={handleDeleteColumn}
+          onReorder={handleReorderColumns}
         />
       )}
     </div>

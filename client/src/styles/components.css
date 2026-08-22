@@ -17,6 +17,17 @@
   font-size: var(--fs-base);
   transition: transform var(--t-fast), background var(--t-fast), border-color var(--t-fast), box-shadow var(--t-fast);
   white-space: nowrap;
+  /* .btn is applied to real <a> tags in several places (Landing's "See how
+     it works", PublicReport's footer CTA) as well as <button>s. Without
+     this, the global `a:hover { text-decoration: underline }` rule (see
+     base.css) underlines the button label on hover -- a plain-text-link
+     affordance leaking onto something shaped and colored as a button. No
+     production SaaS underlines a button label; this makes .btn immune to
+     that rule regardless of which element it's applied to. */
+  text-decoration: none;
+}
+.btn:hover, .btn:focus {
+  text-decoration: none;
 }
 .btn:active {
   transform: translateY(1px);
@@ -198,6 +209,27 @@
   text-align: right;
   font-family: var(--font-data);
 }
+/* Was only defined inside mobile.css's <=768px query -- on desktop a table
+   wider than its card had nowhere to go and simply bled out over whatever
+   sat next to it (Dashboard's Recent Reports card, sharing a grid row with
+   Quick Insights, was the case that surfaced this: Actions ran ~65px past
+   the card edge with no scrollbar and no visual cue anything was cut off).
+   A real base rule, not just the mobile one, so this is contained at every
+   width; the Dashboard table is also tightened separately so it fits
+   without needing to scroll on a normal desktop width to begin with. */
+.rl-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  /* Thin, theme-matched scrollbar instead of the raw OS default -- only
+     matters when a table genuinely needs to scroll, but a thick grey system
+     bar sitting under a card that was otherwise fully themed read as
+     unfinished the one time it showed up. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+.rl-table-scroll::-webkit-scrollbar { height: 6px; }
+.rl-table-scroll::-webkit-scrollbar-track { background: transparent; }
+.rl-table-scroll::-webkit-scrollbar-thumb { background-color: var(--border-strong); border-radius: var(--r-full); }
 
 /* ReportEngine live run stream / results: scrolls within its own bounded
    height with the header pinned, so column labels stay visible while rows
@@ -217,6 +249,19 @@
   position: sticky;
   top: 0;
   z-index: 1;
+}
+/* Distinct grid, not just a bottom rule per row -- --border-strong instead of
+   the faint --border, plus a vertical rule between columns so a wide numeric
+   table (Followers/Views/Likes/...) reads as a real grid you can scan down a
+   column of, not just a stack of rows. Still scoped to this class only. */
+.rl-live-table-container th,
+.rl-live-table-container td {
+  border-bottom: 1px solid var(--border-strong);
+  border-right: 1px solid var(--border-strong);
+}
+.rl-live-table-container th:last-child,
+.rl-live-table-container td:last-child {
+  border-right: none;
 }
 
 /* Toasts */
@@ -299,6 +344,48 @@
 .chip.ok { background-color: var(--ok-soft); color: var(--ok); }
 .chip.warn { background-color: var(--warn-soft); color: var(--warn); }
 .chip.err { background-color: var(--err-soft); color: var(--err); }
+.chip.info { background-color: var(--info-soft); color: var(--info); }
+/* A status/type badge should never wrap -- "Not started" breaking onto two
+   lines inside a narrow table column is what made the History rows look
+   misaligned; the label is short precisely so it never needs to. */
+.chip { white-space: nowrap; }
+/* Full-width message banners (signup/login/reset errors, etc) reuse .chip
+   for its color variants but are full sentences, not short labels -- nowrap
+   on those forces the text past the box edge instead of wrapping, which is
+   what silently clipped a long error message off the right side of the
+   screen. Every such usage in the codebase is a <div>; every short status
+   pill is a <span>, so this targets exactly the banner case. */
+div.chip {
+  white-space: normal;
+  word-break: break-word;
+}
+
+/* History report table: tighter than the base .data-table so File Name
+   through Actions (8-9 columns, one of them a checkbox) fit without forcing
+   a horizontal scroll at a normal desktop width. Scoped to this class only. */
+.rl-history-table th,
+.rl-history-table td {
+  padding: var(--s2) var(--s3);
+}
+.rl-history-table th:last-child,
+.rl-history-table td:last-child {
+  padding-right: var(--s4);
+}
+/* Dashboard's Recent Reports card: 6 columns (Type/File/Rows/Status/Date/
+   Actions) at the default var(--s3) var(--s4) cell padding ran past the
+   card's width whenever this card shared a grid row with Quick Insights
+   (roughly half the page on a normal desktop) -- Date and Actions were
+   pushed into the horizontal-scroll overflow with no visible scrollbar hint,
+   reading as those columns being simply missing. Same tightened padding as
+   History's own table fixes it the same way it did there. */
+.rl-dashboard-table th,
+.rl-dashboard-table td {
+  padding: var(--s2) var(--s3);
+}
+.rl-dashboard-table th:last-child,
+.rl-dashboard-table td:last-child {
+  padding-right: var(--s4);
+}
 .chip.locked { background-color: var(--locked); color: var(--text-3); }
 /* Themed chart tooltip -- replaces native browser title= tooltips (which
    render as an ugly unstyled black box) with a real, theme-matched tooltip
@@ -306,51 +393,92 @@
 .chart-bar-wrap {
   position: relative;
 }
-.chart-tooltip {
-  position: absolute;
-  bottom: 100%;
-  left: 50%;
-  transform: translateX(-50%) translateY(-6px);
-  background-color: var(--surface);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-md);
-  padding: 10px 12px;
-  font-size: var(--fs-xs);
-  color: var(--text);
-  white-space: nowrap;
-  box-shadow: var(--shadow-lg);
+
+/* ---------------------------------------------------------------------
+   Reelytic Tooltip system (Tooltip.jsx) -- the ONE tooltip design for the
+   whole app. Replaces both the old native title="..." attributes (unstyled
+   OS chrome) and the bespoke .chart-tooltip rules that used to live here
+   (same idea, but a one-off; every tooltip in the app -- action buttons,
+   nav items, chart bars, the credits bar -- now shares this single
+   implementation instead of each screen rolling its own).
+   --------------------------------------------------------------------- */
+.rl-tooltip-bubble {
+  /* position:fixed (not absolute) and portaled to <body> in Tooltip.jsx --
+     a fixed-position box is excluded from a scrollable ancestor's overflow
+     by spec, which is what stops an invisible, off-canvas bubble from
+     silently growing the sidebar/table's scroll area. Coordinates are
+     computed in JS (place() in Tooltip.jsx); this file only owns paint. */
+  position: fixed;
+  background-color: var(--tooltip-bg);
+  border: 1px solid var(--tooltip-border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--tooltip-text);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
   opacity: 0;
-  visibility: hidden;
-  transition: opacity 150ms ease, transform 150ms ease;
+  transition: opacity 160ms ease, transform 160ms ease;
   pointer-events: none;
-  z-index: 30;
+  z-index: 200;
+  width: max-content;
 }
-.chart-bar-wrap:hover .chart-tooltip,
-.chart-bar-wrap:focus-within .chart-tooltip {
+/* Resting (hidden) offset, direction-aware -- the fade-in slides 4px back
+   toward the trigger. The 250ms show delay already happened in JS (the
+   bubble isn't mounted-visible until then), so there's no CSS delay here;
+   hide is instant, so the tooltip never feels sticky. */
+.rl-tooltip-bubble[data-placement="top"] { transform: translateY(4px); }
+.rl-tooltip-bubble[data-placement="bottom"] { transform: translateY(-4px); }
+.rl-tooltip-bubble[data-placement="left"] { transform: translateX(4px); }
+.rl-tooltip-bubble[data-placement="right"] { transform: translateX(-4px); }
+.rl-tooltip-bubble[data-visible="true"] {
   opacity: 1;
-  visibility: visible;
-  transform: translateX(-50%) translateY(-10px);
+  transform: translate(0, 0);
 }
-.chart-tooltip::after {
+
+.rl-tooltip-bubble::after {
   content: '';
   position: absolute;
-  top: 100%;
+  width: 8px;
+  height: 8px;
+  background-color: var(--tooltip-bg);
+  border: 1px solid var(--tooltip-border);
   left: 50%;
-  transform: translateX(-50%);
-  border: 5px solid transparent;
-  border-top-color: var(--border-strong);
 }
-.chart-tooltip-date {
+.rl-tooltip-bubble[data-placement="top"]::after { top: 100%; margin-top: -5px; transform: translateX(-50%) rotate(45deg); border-top: none; border-left: none; }
+.rl-tooltip-bubble[data-placement="bottom"]::after { bottom: 100%; margin-bottom: -5px; transform: translateX(-50%) rotate(45deg); border-bottom: none; border-right: none; }
+.rl-tooltip-bubble[data-placement="left"]::after { left: 100%; top: 50%; margin-left: -5px; transform: translateY(-50%) rotate(45deg); border-left: none; border-bottom: none; }
+.rl-tooltip-bubble[data-placement="right"]::after { right: 100%; left: auto; top: 50%; margin-right: -5px; transform: translateY(-50%) rotate(45deg); border-right: none; border-top: none; }
+
+.rl-tooltip-heading {
   font-weight: 700;
   margin-bottom: 4px;
+  color: var(--tooltip-text);
   font-family: var(--font-data);
+  white-space: nowrap;
 }
-.chart-tooltip-row {
+.rl-tooltip-row {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: var(--text-2);
+  color: var(--tooltip-text-2);
+  white-space: nowrap;
 }
+.rl-tooltip-row + .rl-tooltip-row { margin-top: 2px; }
+.rl-tooltip-value {
+  margin-left: auto;
+  padding-left: 10px;
+  font-family: var(--font-data);
+  font-weight: 600;
+  color: var(--tooltip-text);
+}
+.rl-tooltip-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
 .chart-tooltip-dot {
   width: 8px;
   height: 8px;
@@ -492,3 +620,284 @@
 .rl-info-row:last-child { border-bottom: none; }
 .rl-info-label { color: var(--text-2); flex-shrink: 0; }
 .rl-info-value { font-weight: 600; text-align: right; min-width: 0; }
+
+/* Editable table-column headers (ReportEngine preview): the remove control
+   stays out of the way until the header is actually being looked at,
+   rather than sitting permanently next to every column name. Rename and
+   drag stay visible always -- those are the affordance, this is cleanup. */
+.rl-col-remove { opacity: 0; transition: opacity var(--t-fast); }
+.rl-editable-col:hover .rl-col-remove,
+.rl-editable-col:focus-within .rl-col-remove {
+  opacity: 1;
+}
+
+/* ---------------------------------------------------------------------
+   Report Engine welcome/upload screen (ReportEngine.jsx's empty state +
+   FileDrop.jsx). All colors read from the existing theme tokens rather
+   than the reference spec's own near-identical hex values, so this stays
+   in step with the rest of the app in both themes instead of introducing
+   a one-off palette that only matches by coincidence.
+   --------------------------------------------------------------------- */
+.rl-onboarding {
+  max-width: 900px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.rl-onboarding-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--r-full);
+  background: var(--accent-soft);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--s3);
+}
+.rl-onboarding-title {
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 700;
+  margin-bottom: var(--s2);
+}
+.rl-onboarding-name { color: var(--accent); }
+.rl-onboarding-sub {
+  color: var(--text-2);
+  font-size: var(--fs-base);
+  margin-bottom: var(--s4);
+  max-width: 480px;
+}
+.rl-onboarding-privacy {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  margin-top: var(--s3);
+}
+
+/* Upload card (FileDrop.jsx). Sized to hug its own content rather than a
+   fixed tall box -- an early version fixed this at 430px per an initial
+   design spec, but combined with the heading and How-it-works sections
+   below it, that pushed the whole screen past a normal laptop viewport
+   height and forced a scroll before any of it was visible at once. */
+.rl-upload-card {
+  width: 100%;
+  max-width: 820px;
+  margin: 0 auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: var(--s4);
+  display: flex;
+  box-sizing: border-box;
+}
+.rl-upload-dropzone {
+  flex: 1;
+  width: 100%;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--s5);
+  cursor: pointer;
+  transition: border-color var(--t-base), background-color var(--t-base);
+  box-sizing: border-box;
+}
+.rl-upload-dropzone:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border-strong));
+  background-color: color-mix(in srgb, var(--accent) 4%, transparent);
+}
+.rl-upload-dropzone.drag-over {
+  border-color: var(--accent);
+  background-color: var(--accent-soft);
+}
+.rl-upload-icon-circle {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--r-full);
+  border: 1px solid var(--border-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-2);
+  margin-bottom: var(--s3);
+  flex-shrink: 0;
+}
+.rl-upload-title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: var(--s2);
+}
+.rl-upload-sub {
+  color: var(--text-3);
+  font-size: var(--fs-sm);
+  margin-bottom: var(--s4);
+}
+.rl-upload-choose-btn {
+  height: 40px;
+  padding: 0 var(--s5);
+  border-radius: 10px;
+  font-size: var(--fs-base);
+}
+.rl-upload-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  width: 100%;
+  max-width: 260px;
+  margin: var(--s4) 0;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+}
+.rl-upload-divider::before,
+.rl-upload-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+.rl-upload-paste-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: var(--fs-sm);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+}
+.rl-upload-paste-link:hover { color: var(--accent-hover); }
+
+/* Paste-links panel: the same dropzone shape swapped in place (see
+   FileDrop.jsx) rather than a modal on top of it -- a dialog here meant
+   leaving the upload screen for what's really just an alternate way of
+   feeding the same dropzone. */
+.rl-upload-paste-panel {
+  cursor: default;
+  justify-content: flex-start;
+  align-items: stretch;
+}
+.rl-upload-paste-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--s3);
+  font-weight: 600;
+  font-size: var(--fs-base);
+}
+.rl-upload-paste-back {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px;
+}
+.rl-upload-paste-back:hover { color: var(--accent-hover); }
+.rl-upload-paste-textarea {
+  width: 100%;
+  flex: 1;
+  min-height: 140px;
+  padding: var(--s3);
+  resize: none;
+  box-sizing: border-box;
+}
+.rl-upload-paste-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: var(--s3);
+  font-family: var(--font-data);
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+
+/* How it works (3-step explainer below the upload card) */
+.rl-howitworks {
+  width: 100%;
+  max-width: 900px;
+  margin: var(--s5) auto 0 auto;
+  padding-top: var(--s4);
+  border-top: 1px solid var(--border);
+}
+.rl-howitworks-title {
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: var(--s4);
+}
+.rl-howitworks-steps {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+.rl-howitworks-step {
+  flex: 1 1 0;
+  max-width: 220px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.rl-howitworks-icon-wrap {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-2);
+  margin-bottom: var(--s3);
+  flex-shrink: 0;
+}
+.rl-howitworks-num {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--r-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-data);
+}
+.rl-howitworks-step-title {
+  font-weight: 600;
+  font-size: var(--fs-md);
+  margin-bottom: 4px;
+}
+.rl-howitworks-step-desc {
+  color: var(--text-3);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+.rl-howitworks-connector {
+  flex: 0 1 60px;
+  min-width: 24px;
+  height: 1px;
+  margin-top: 22px;
+  background-image: linear-gradient(90deg, var(--border-strong) 50%, transparent 50%);
+  background-size: 8px 1px;
+  background-repeat: repeat-x;
+}

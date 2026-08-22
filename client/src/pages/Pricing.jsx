@@ -5,6 +5,7 @@ import { BrandLoader } from '../components/BrandLoader';
 import { Logo } from '../components/Logo';
 import { AccountMenu } from '../components/AccountMenu';
 import { useAuth } from '../context/AuthContext';
+import { useDocumentMeta } from '../hooks/useDocumentMeta';
 
 const ANNUAL_DISCOUNT = 0.9; // -10% for annual billing
 
@@ -105,6 +106,11 @@ function PlanCard({ plan, annual, index, onChoose }) {
 export function Pricing() {
     const navigate = useNavigate();
     const { user, logout } = useAuth();
+    useDocumentMeta({
+        title: 'Pricing',
+        description: 'Simple, credit-based pricing for Reelytic. Start free with 10 credits, upgrade as your reporting volume grows.',
+        path: '/pricing',
+    });
     const [annual, setAnnual] = useState(false);
     const [plans, setPlans] = useState(null);
 

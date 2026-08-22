@@ -7,9 +7,10 @@
      existing token, so it auto-themes in light AND dark exactly like the rest
      of the app.
    - Everything is gated behind @media (max-width: 768px) EXCEPT one rule that
-     hides brand-new, mobile-only elements (.rl-mobile-only). Those elements do
-     not exist in the desktop layout at all, so hiding them is a no-op for
-     desktop. => Above 768px this file contributes ZERO layout/paint changes.
+     hides brand-new, mobile-only elements (.rl-mobile-only), and one tablet
+     breakpoint (max-width: 1024px) that collapses the Dashboard's hardcoded
+     desktop column counts. Above 1024px this file contributes ZERO layout/
+     paint changes.
    - Where a rule must beat an inline style (inline styles always win the
      cascade), !important is used, but ONLY on uniquely-prefixed .rl-* classes
      inside the media query, on a single named element, never a broad selector.
@@ -23,7 +24,39 @@
    and it only hides elements the desktop design never had. */
 .rl-mobile-only { display: none; }
 
+/* Dashboard's 12-col-equivalent grids (4 fixed metric cards, 7fr/5fr
+   analytics row, 7fr/5fr lower row) are hardcoded desktop column counts/
+   widths, unlike the auto-fit grids elsewhere in the app -- they need their
+   own explicit collapse instead of just wrapping for free. Tablet keeps two
+   columns (still "feels like a grid"); phone drops to one and lets card
+   height go back to auto, since a fixed 136/292/400px box sized for a wide
+   desktop card is either empty or overflowing once its content reflows
+   narrower. */
+@media (max-width: 1024px) {
+  .rl-dashboard-metrics { grid-template-columns: repeat(2, 1fr) !important; }
+  .rl-dashboard-analytics,
+  .rl-dashboard-lower {
+    grid-template-columns: 1fr !important;
+  }
+}
+
 @media (max-width: 768px) {
+  .rl-dashboard-metrics { grid-template-columns: 1fr !important; }
+  .rl-dashboard-metrics > .card,
+  .rl-dashboard-analytics > .card,
+  .rl-dashboard-lower > .card {
+    height: auto !important;
+  }
+  /* Date chip + two report buttons: three content-width items whose combined
+     natural width (~520px) is wider than any phone. Stacked full-width
+     instead of the desktop inline row. */
+  .rl-dashboard-header-actions {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    width: 100% !important;
+  }
+  .rl-dashboard-header-actions > * { width: 100% !important; justify-content: center; }
+
   /* ---- Safety net: the page itself must never scroll sideways. Any single
      missed inline width is absorbed here instead of shifting the whole app. */
   body { overflow-x: hidden; }
@@ -52,16 +85,16 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 44px;
-    height: 44px;
-    border-radius: var(--r-sm);
+    width: 40px;
+    height: 40px;
+    border-radius: var(--r-md);
     color: var(--text);
-    background: none;
-    border: none;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
     cursor: pointer;
   }
-  .rl-icon-btn:active { background: var(--surface-2); }
-  .rl-hamburger { margin-left: -10px; font-size: 20px; }
+  .rl-icon-btn:active { background: var(--border); }
+  .rl-hamburger { margin-left: -6px; }
 
   /* The existing <aside> is reused verbatim (so dark mode stays correct; it
      was a rebuilt drawer that broke theming last time). We only slide it. */
@@ -186,12 +219,199 @@
     padding: var(--s4) !important;
   }
 
-  /* Landing top nav: trim to logo + primary CTA on phones. */
+  /* Landing top nav: logo + hamburger only on phones -- the action group
+     (Pricing/Resources/theme/Login/Get started) is what was overflowing the
+     viewport (see .rl-landing-nav-actions and .landing-mobile-menu-btn in
+     Landing.jsx), so it's hidden behind the hamburger instead of trying to
+     cram five items into one row. */
   .landing-nav { padding: var(--s3) var(--s4) !important; }
   .rl-landing-navlink { display: none !important; }
+  .rl-landing-nav-actions { display: none !important; }
+  .landing-mobile-menu {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s1);
+    padding: var(--s4);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  .landing-mobile-menu a {
+    padding: var(--s3) var(--s2);
+    color: var(--text);
+    font-size: var(--fs-base);
+    font-weight: 500;
+    border-bottom: 1px solid var(--border);
+  }
+  .landing-mobile-menu-theme {
+    display: flex;
+    align-items: center;
+    gap: var(--s2);
+    padding: var(--s3) var(--s2);
+    background: none;
+    border: none;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    font-size: var(--fs-base);
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    text-align: left;
+  }
+  .landing-mobile-menu .btn { width: 100%; margin-top: var(--s2); }
+
+  /* Landing hero CTAs: desktop's flex-wrap just lets two content-width
+     buttons wrap onto their own lines on a narrow phone, which reads as two
+     oddly-sized floating pills rather than the full-width stacked pair every
+     mobile marketing page uses. No inline width on these buttons to fight,
+     so no !important needed. */
+  .hero-cta-group { flex-direction: column; align-items: stretch; }
+  .hero-cta-group .btn { width: 100%; }
+
+  /* Second hero subcopy line ("No logins for your clients...") dropped on
+     mobile only -- the reference keeps the fold shorter; the headline and
+     first line already carry the same promise. */
+  .hero-sub-extra { display: none; }
+
+  /* Trust row now stays the same 3-column-with-dividers layout at every
+     width (see landing.css) -- narrower padding/gap only, so three columns
+     still fit a 375px phone without wrapping. */
+  .trust-item { gap: 6px; padding: 0 var(--s2); font-size: 10px; }
+  .trust-item-icon { width: 24px; height: 24px; }
+
+  /* Footer: accordion on mobile (see the <details>/<summary> markup in
+     Landing.jsx) instead of four always-open columns stacked one under the
+     other, which was pushing the footer to several screens of scrolling on
+     a phone. Desktop keeps the plain always-expanded columns; this only
+     restyles the <summary> that stands in for the column title below the
+     breakpoint. */
+  .landing-footer-col-title { cursor: pointer; display: flex; align-items: center; justify-content: space-between; }
+  .landing-footer-col-title::-webkit-details-marker { display: none; }
+  .landing-footer-col-title-label { display: flex; align-items: center; gap: 10px; color: var(--accent); }
+  .landing-footer-col-chevron { transition: transform var(--t-fast); }
+  details[open] > .landing-footer-col-title .landing-footer-col-chevron { transform: rotate(180deg); }
+  .landing-footer-col { border-bottom: 1px solid var(--border); padding-bottom: var(--s3); }
+  .landing-footer-col-body { padding-top: var(--s3); }
+  .landing-footer-legal-links { display: flex; align-items: center; justify-content: center; gap: var(--s2); margin-top: var(--s2); }
+
+  /* Workflow row (How Reelytic works): stays a horizontal 3-across row even
+     at 375px instead of landing.css's own 720px breakpoint stacking it
+     vertically -- the reference keeps these compact on one line all the way
+     down to phone width, so this deliberately overrides that rule at a
+     narrower one. Icon badges shrink to fit three across a narrow screen. */
+  .workflow-row { flex-direction: row !important; align-items: flex-start; gap: 6px; }
+  .workflow-step { flex: 1 1 0; max-width: none; }
+  .workflow-icon-badge { width: 44px; height: 44px; margin-bottom: var(--s2); }
+  /* landing.css's OWN 720px breakpoint (a narrower query than this file's
+     768px one, so both are active at once on a phone) switches this element
+     to a vertical dashed line: height:32px, width:2px, a vertical gradient.
+     .workflow-row above forces the ROW back to horizontal, but left this
+     element still built for a vertical line -- a 2px-wide vertical dash
+     pattern stretched into a 20px-wide horizontal slot, which repeats
+     sideways into the stacked-tick-marks mess in the screenshot. Every value
+     needs re-declaring here, not just flex-basis, and !important because
+     the 720px rule's selector is equally specific and may load after this
+     one depending on import order -- this must win regardless of that. */
+  .workflow-connector {
+    flex: 0 1 20px !important;
+    min-width: 12px !important;
+    width: auto !important;
+    height: 2px !important;
+    margin: 21px 0 0 0 !important;
+    background-image: linear-gradient(90deg, color-mix(in srgb, var(--accent) 55%, transparent) 50%, transparent 50%) !important;
+    background-size: 8px 2px !important;
+  }
+  .workflow-step .step-heading { font-size: var(--fs-sm); }
+  .workflow-step .step-desc { font-size: 11px; }
+
+  /* Hero ambient glow: sized (65% width x 150% height of the hero) for a
+     two-column desktop layout where it sits as a soft accent behind empty
+     space. On mobile's single-column stack there is no empty space -- it
+     covers the actual content underneath, and reads as a garish pink wash
+     directly through the report-hero cards (worse in light mode: pink over
+     white has far less contrast headroom than pink over near-black). Shrunk
+     and pulled into the top corner instead of removed outright, so the
+     hero still gets a touch of the same ambient-glow treatment desktop has,
+     just small enough to never sit behind readable content. */
+  .landing-hero::before {
+    top: -10%;
+    right: -20%;
+    width: 55%;
+    height: 32%;
+  }
+
+  /* Footer accordion grid: 2 columns (matches the reference) instead of
+     desktop's flex-wrap, which at 375px with 4 items min-width:120px and a
+     32px gap needs ~576px to fit two per row -- it never had room, so every
+     item silently stacked into one column instead. */
+  .landing-footer-cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--s4) var(--s3);
+  }
+
+  /* Section rhythm: landing.css's clamp() floors out at 3rem (48px) top AND
+     bottom per section on a narrow phone -- adjacent sections stack that
+     into a ~96px dead gap, which reads as "too much space" between
+     genuinely related content on a screen this short. 32px a side (64px
+     between sections) matches the tighter mobile rhythm most SaaS marketing
+     sites settle on once padding stops being calculated for a desktop-width
+     canvas -- noticeably less air than desktop without feeling cramped. */
+  .landing-section {
+    padding-top: var(--s6);
+    padding-bottom: var(--s6);
+  }
+
+  /* "How Reelytic works": the eyebrow+subtitle that normally sit between
+     the title and the steps are hidden on mobile (see rl-hide-mobile in the
+     JSX), which left the title's own 8px margin as the ONLY gap before the
+     row -- title and icons read as touching. Restored as real breathing
+     room, scoped to just this title so it doesn't affect any other
+     section's heading spacing. */
+  .rl-workflow-section-title {
+    margin-bottom: var(--s6) !important;
+  }
+
+  /* Feature cards ("Why agencies love Reelytic"): 2-column grid instead of
+     desktop's flex-wrap single column, matching the reference. The 5th card
+     (Campaign over campaign) is hidden entirely here (see .rl-hide-mobile in
+     the JSX), which is what keeps this an even 2x2 instead of a stranded
+     lone card in a third row. */
+  .whats-new .features-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--s3);
+  }
+  .whats-new .features-grid > * { max-width: none; flex: none; }
+  .whats-new .feature-card { padding: var(--s4); }
+  .whats-new .feature-title { font-size: var(--fs-sm); }
+  .whats-new .feature-desc { font-size: 11px; }
+
+  /* CTA card: icon+text+button stack vertically and the button goes full
+     width, instead of the desktop three-across row. */
+  .landing-cta-card { flex-direction: column; align-items: stretch; text-align: left; }
+  .landing-cta-card-btn { width: 100%; }
+
+  .landing-tagline { text-align: center; color: var(--text-3); font-size: var(--fs-sm); padding: var(--s6) var(--s5); }
 
   /* ReportEngine results/live-stream: the desktop aligned table can't fit a
      375px screen, so it's hidden in favour of the stacked label:value cards
      (.rl-mobile-only) rendered alongside it for the same rows. */
   .rl-hide-mobile { display: none !important; }
+
+  /* Report Engine welcome/upload screen: the 40px "Welcome, name" heading
+     and 28px upload-card heading are desktop sizes that wrap awkwardly or
+     crowd the icon above them on a 375px phone. Card drops its own side
+     padding so the dashed dropzone can use the full width instead of
+     floating in a narrower box within a narrower box. */
+  .rl-onboarding-title { font-size: 28px !important; }
+  .rl-upload-title { font-size: 22px !important; }
+  .rl-upload-card { padding: var(--s3) !important; min-height: 0 !important; }
+  .rl-upload-dropzone { padding: var(--s5) var(--s4) !important; }
+
+  /* Three-across steps -> stacked, connectors rotated into short vertical
+     rules between them instead of the horizontal dashes that have nothing
+     to connect once the steps are no longer side by side. */
+  .rl-howitworks-steps { flex-direction: column; align-items: center; gap: var(--s5); }
+  .rl-howitworks-step { max-width: 320px; }
+  .rl-howitworks-connector { width: 1px; height: 24px; margin: 0; background-image: linear-gradient(180deg, var(--border-strong) 50%, transparent 50%); background-size: 1px 8px; }
 }

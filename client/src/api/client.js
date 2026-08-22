@@ -5,7 +5,7 @@ import { reportApiFailure } from '../utils/errorReporter';
 // expiring mid-use, so it must never force-navigate away from them (that
 // bug sent every logged-out visitor straight to /login, skipping Landing,
 // Pricing, and Signup entirely).
-const PUBLIC_PATHS = ['/', '/login', '/signup', '/pricing', '/dev-unlock'];
+const PUBLIC_PATHS = ['/', '/login', '/signup', '/pricing', '/dev-unlock', '/terms', '/privacy', '/forgot-password', '/reset-password'];
 
 // /share/<token> takes a dynamic token per link, so it can't live in the
 // exact-match list above -- without this, AuthContext's routine /auth/me

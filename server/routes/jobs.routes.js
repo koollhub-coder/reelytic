@@ -209,7 +209,11 @@ router.get('/:id/rows', requireLogin, requireChangePasswordCheck, async (req, re
     if (!job) return undefined;
 
     const page = parseInt(req.query.page || '1', 10);
-    const limit = 50;
+    // Client-selectable page size (the preview screen's "N per page"), capped
+    // well below the 2,000-row report limit so a bad/forged value can't be
+    // used to pull an entire huge report in one request.
+    const rawLimit = parseInt(req.query.limit || '50', 10);
+    const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 200) : 50;
     const state = req.query.state; // all, valid, invalid, duplicate
 
     let filtered = job.rows;

@@ -80,11 +80,17 @@ const VIEW_KEYS = ['videoPlayCount', 'playCount', 'playsCount', 'videoViewCount'
 const SHARE_KEYS = ['sharesCount', 'shareCount', 'reshareCount', 'resharesCount', 'shares', 'share_count', 'reshare_count'];
 const REPOST_KEYS = ['repostCount', 'repostsCount', 'reposts', 'repost_count'];
 const SAVE_KEYS = ['saveCount', 'savesCount', 'saves', 'save_count'];
+// Added after an Apify vendor notice (comment_count/view_count migrated to a
+// new upstream endpoint on the profile-reels actor). The field name hasn't
+// actually changed as of that notice, but this is the same "don't trust one
+// name" hedge already applied to views/shares/reposts/saves above, so a
+// future rename degrades gracefully here too instead of quietly reading 0.
+const COMMENT_KEYS = ['commentsCount', 'comments', 'comment_count', 'commentCount'];
 
 function computeReelMetrics(rawItem, followerInfo) {
   const views = firstNum(rawItem, VIEW_KEYS);
   const rawLikes = rawItem.likesCount !== undefined ? rawItem.likesCount : rawItem.likes;
-  const comments = Number(rawItem.commentsCount || rawItem.comments || 0);
+  const comments = firstNum(rawItem, COMMENT_KEYS);
   const shares = firstNum(rawItem, SHARE_KEYS);
   const reposts = firstNum(rawItem, REPOST_KEYS);
   const saves = firstNum(rawItem, SAVE_KEYS);
@@ -92,6 +98,9 @@ function computeReelMetrics(rawItem, followerInfo) {
   // Surface data-quality problems instead of silently reporting a real 0.
   if (!views) {
     console.warn(`[Metrics] No view field found for ${rawItem.shortCode || rawItem.url || 'unknown'}, keys present:`, Object.keys(rawItem).join(','));
+  }
+  if (!comments) {
+    console.warn(`[Metrics] No comment field found for ${rawItem.shortCode || rawItem.url || 'unknown'}, keys present:`, Object.keys(rawItem).join(','));
   }
 
   const likes = resolveLikes(views, rawLikes);
@@ -145,7 +154,7 @@ function computeProfileMetrics(posts, followerInfo, meta = {}) {
   for (const p of sample) {
     const views = Number(p.videoPlayCount ?? p.playCount ?? 0);
     const rawLikes = p.likesCount;
-    const comments = Number(p.commentsCount || 0);
+    const comments = firstNum(p, COMMENT_KEYS);
     const likes = resolveLikes(views, rawLikes);
     const er = views > 0 ? round2(((likes + comments) / views) * 100) : 0;
 
@@ -225,7 +234,7 @@ function computeProfileMetricsV2(posts, followerInfo, meta = {}) {
   for (const p of sample) {
     const views = Number(p.videoPlayCount ?? p.playCount ?? 0);
     const rawLikes = p.likesCount;
-    const comments = Number(p.commentsCount || 0);
+    const comments = firstNum(p, COMMENT_KEYS);
     const likes = resolveLikes(views, rawLikes);
     const er = views > 0 ? round2(((likes + comments) / views) * 100) : 0;
 

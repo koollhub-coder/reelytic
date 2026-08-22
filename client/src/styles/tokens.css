@@ -5,6 +5,7 @@
   --accent:#E23E57; --accent-hover:#C93049; --accent-soft:#FBE9EC;
   --ok:#1F9D6B; --ok-soft:#E4F4ED; --warn:#C77E1F; --warn-soft:#FAF0DF;
   --err:#D33131; --err-soft:#FBE7E7; --locked:#EEF2F7;
+  --info:#6449C7; --info-soft:#EEE9FB;
   --shadow:0 1px 2px rgba(20,22,26,.06),0 4px 16px rgba(20,22,26,.05);
   --shadow-lg:0 8px 32px rgba(20,22,26,.12);
   --font-display:'Space Grotesk',system-ui,sans-serif;
@@ -16,6 +17,13 @@
   --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px; --s7:48px; --s8:64px;
   --r-sm:6px; --r-md:10px; --r-lg:14px; --r-full:999px; --sidebar-w:232px;
   --t-fast:120ms cubic-bezier(.4,0,.2,1); --t-base:200ms cubic-bezier(.4,0,.2,1);
+  /* Tooltip system (Tooltip.jsx) -- deliberately NOT theme-gated. A tooltip
+     reads as a floating overlay distinct from the page beneath it either
+     way (this is the same choice GitHub/Linear make: their tooltips stay
+     dark in light mode too), and the spec these came from gave one fixed
+     palette rather than a light/dark pair. */
+  --tooltip-bg:#252D38; --tooltip-border:rgba(255,255,255,.08);
+  --tooltip-text:#E8ECF2; --tooltip-text-2:#9299A6;
 }
 [data-theme="dark"] {
   --bg:#101216; --surface:#171A20; --surface-2:#1E222A;
@@ -24,6 +32,7 @@
   --accent:#F0526B; --accent-hover:#F76F84; --accent-soft:#2C1A1F;
   --ok:#34B981; --ok-soft:#14261F; --warn:#E0A046; --warn-soft:#2A2214;
   --err:#EF5A5A; --err-soft:#2A1717; --locked:#1B2027;
+  --info:#9B87F5; --info-soft:#231D3A;
   --shadow:0 1px 2px rgba(0,0,0,.4),0 4px 16px rgba(0,0,0,.35);
   --shadow-lg:0 12px 40px rgba(0,0,0,.5);
 }

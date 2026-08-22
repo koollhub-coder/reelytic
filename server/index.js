@@ -75,6 +75,11 @@ async function startServer() {
   app.use('/api/errors', require('./routes/errors.routes'));
   app.use('/api/benchmarks', require('./routes/benchmarks.routes'));
   app.use('/api/public', publicRoutes);
+  // Public, unauthenticated -- Terms/Privacy content, read by the Legal page
+  // and by Signup's agreement checkbox before a session exists.
+  app.use('/api/legal', require('./routes/legal.routes'));
+  // Public, unauthenticated -- the Landing page footer's newsletter signup.
+  app.use('/api/newsletter', require('./routes/newsletter.routes'));
 
   /*
     The pre-deploy checks, runnable from the Health page. This router starts
@@ -88,6 +93,11 @@ async function startServer() {
     app.use('/api/devtools', devtools);
     console.log('[Reelytic] Developer checks enabled at /api/devtools (local only, never in production).');
   }
+
+  // robots.txt / sitemap.xml, built from config.appUrl at request time --
+  // see seo.routes.js. Mounted before the static client build below so a
+  // request for either path is never shadowed.
+  app.use(require('./routes/seo.routes'));
 
   // Static client build in production
   const clientDist = path.join(__dirname, '../client/dist');

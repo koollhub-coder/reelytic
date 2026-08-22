@@ -6,12 +6,29 @@
   padding: 0;
 }
 
-/* Also set on html, not just body: on iOS Safari/Chrome, overflow-x:hidden
-   on body alone doesn't reliably stop horizontal rubber-band scrolling when
-   a descendant briefly overflows -- the scroll container is the html
-   element, and body's overflow only propagates to it when html itself
-   leaves overflow at its initial value AND no intermediate box establishes
-   its own scrolling context. Belt-and-suspenders with the body rule below. */
+/*
+  Only declared here, on html, not duplicated on body.
+
+  Originally this was set on both, since on iOS Safari/Chrome overflow-x:
+  hidden on body alone doesn't reliably stop horizontal rubber-band
+  scrolling -- the real scroll container is html, and body's overflow only
+  propagates to it when html itself is left at its initial value. Declaring
+  it directly on html (as below) solves that without needing body's own
+  copy as a backup.
+
+  That backup copy turned out to have a real cost: setting overflow-x on
+  an element while leaving overflow-y unset doesn't leave overflow-y at its
+  initial 'visible' -- the CSS spec computes it to 'auto' instead whenever
+  the two axes would otherwise disagree. With the rule on both html AND
+  body, that gave the page two independent elements both computing as
+  "scrollable," even though only html ever actually scrolls (body's own
+  content never overflows body's own box). position:sticky resolves against
+  the NEAREST such ancestor in the DOM, which for anything inside body
+  resolved to body -- a box that never moves -- so nothing on the page
+  using position:sticky could ever actually stick, silently. Keeping the
+  rule on html only leaves exactly one real scrolling element, which is
+  also the one sticky positioning needs to track.
+*/
 html {
   overflow-x: hidden;
 }
@@ -24,11 +41,6 @@ body {
   font-size: var(--fs-base);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  /* Safety net: the page itself must never scroll sideways. Any single wide
-     element (a data table, etc) should scroll within its own container --
-     those already opt into overflow-x:auto themselves -- not push the whole
-     page wider. */
-  overflow-x: hidden;
 }
 
 ::selection {

@@ -343,6 +343,19 @@ async function ensureIndexes() {
     await db.collection('loginHistory').createIndex({ at: -1 });
     await db.collection('loginHistory').createIndex({ username: 1, at: -1 });
     await db.collection('usageStats').createIndex({ username: 1, date: 1 }, { unique: true });
+    // TTL index: Mongo deletes an OTP document itself once expiresAt passes,
+    // so an abandoned/expired code never lingers and there is no separate
+    // cleanup job to forget to run. expireAfterSeconds:0 means "expire
+    // exactly at the stored expiresAt timestamp," not 0 seconds after insert.
+    await db.collection('otps').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+    await db.collection('otps').createIndex({ username: 1 }, { unique: true });
+
+    // Same self-cleaning shape for forgot-password tokens (passwordReset.service.js).
+    await db.collection('passwordResets').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+    await db.collection('passwordResets').createIndex({ username: 1 }, { unique: true });
+    await db.collection('passwordResets').createIndex({ tokenHash: 1 }, { unique: true });
+
+    await db.collection('newsletterSubscribers').createIndex({ email: 1 }, { unique: true });
   } catch (e) {
     console.warn('[DB Indexes]', e.message);
   }

@@ -3,7 +3,11 @@ import { PasswordInput } from '../components/PasswordInput';
 import { Select } from '../components/Select';
 import { ProBadge, PREMIUM_FEATURES } from '../components/Premium';
 import { WelcomeTour } from '../components/WelcomeTour';
-import { PencilIcon, ReplayIcon } from '../components/Icon';
+import {
+  PencilIcon, ReplayIcon, ShieldIcon, TourIcon, PaletteIcon, ProfileIcon,
+  FileIcon, DownloadIcon, ShareIcon, SuccessIcon, WarningIcon, ClockIcon,
+  TrendingUpIcon, TrendingDownIcon, EyeIcon,
+} from '../components/Icon';
 import { apiFetch } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -124,43 +128,51 @@ export function Settings() {
   const initial = (displayName || '?').charAt(0).toUpperCase();
 
   return (
-    <div>
-      <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-2xl)', fontWeight: 700, marginBottom: 'var(--s6)' }}>Workspace Settings</h1>
-
-      {/* Profile header. flexWrap lets the chip group drop to its own line
-          when the avatar + name/email block don't leave room for it, instead
-          of forcing the row wider than the viewport. The name div previously
-          had no overflow/truncation of its own -- minWidth:0 on its
-          container let it shrink narrower than its text, but with nothing
-          clipping the text itself it just painted straight through whatever
-          sat to its right (the plan/credits chips) on a long username. */}
-      <div className="card" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--s5)', rowGap: 'var(--s3)', marginBottom: 'var(--s5)', padding: 'var(--s6)' }}>
-        <div style={{
-          width: '64px', height: '64px', borderRadius: '50%',
-          background: 'linear-gradient(135deg, var(--accent), var(--accent-hover))',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: '#fff', fontSize: '26px', fontWeight: 700, fontFamily: 'var(--font-display)',
-          flexShrink: 0,
-        }}>
-          {initial}
+    <div style={{ maxWidth: '1400px' }}>
+      {/* Compact header: title/subtitle left, workspace identity right --
+          not a profile hero. Same flexWrap-drops-to-its-own-line reasoning
+          as before: the identity cluster moves under the title on a narrow
+          viewport instead of forcing the row wider than the page. */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--s4)', marginBottom: 'var(--s5)' }}>
+        <div>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-xl)', fontWeight: 700 }}>Workspace Settings</h1>
+          <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)' }}>Manage your account, security and branded report preferences.</p>
         </div>
-        <div style={{ flex: '1 1 160px', minWidth: 0 }}>
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-xl)', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</div>
-          <div style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {user?.email || user?.username}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s3)', flexShrink: 0 }}>
+          <div style={{
+            width: '40px', height: '40px', borderRadius: '50%', flexShrink: 0,
+            background: 'linear-gradient(135deg, var(--accent), var(--accent-hover))',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#fff', fontSize: 'var(--fs-md)', fontWeight: 700, fontFamily: 'var(--font-display)',
+          }}>
+            {initial}
           </div>
-        </div>
-        <div style={{ display: 'flex', gap: 'var(--s3)', flexShrink: 0 }}>
-          <span className="chip accent" style={{ textTransform: 'capitalize', padding: '6px 14px', fontWeight: 600 }}>{user?.plan || 'free'} plan</span>
-          <span className="chip ok" style={{ padding: '6px 14px', fontWeight: 600 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontWeight: 700, fontSize: 'var(--fs-sm)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '160px' }}>{displayName}</span>
+              {user?.role === 'admin' && <span className="chip" style={{ fontSize: '10px', fontWeight: 700 }}>ADMIN</span>}
+            </div>
+            <div style={{ color: 'var(--text-3)', fontSize: 'var(--fs-xs)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '200px' }}>
+              {user?.email || user?.username}
+            </div>
+          </div>
+          <span className="chip accent" style={{ textTransform: 'capitalize', padding: '5px 12px', fontWeight: 600, flexShrink: 0 }}>{user?.plan || 'free'} Plan</span>
+          <span className="chip ok" style={{ padding: '5px 12px', fontWeight: 600, flexShrink: 0 }}>
             {user?.plan === 'unlimited' ? '∞' : (user?.credits ?? 0).toLocaleString()} credits
           </span>
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 'var(--s5)' }}>
-        <div className="card">
-          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 700, marginBottom: 'var(--s4)' }}>Account</h3>
+      {/* Account / Security / Guided Tour: one row, consistent height. Real
+          3-up grid rather than auto-fit's 2-then-1 wrap, so all three stay
+          scannable together down to tablet width before stacking. */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 'var(--s4)', marginBottom: 'var(--s4)' }}>
+        <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s2)', marginBottom: '2px' }}>
+            <ProfileIcon size={16} style={{ color: 'var(--accent)' }} />
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-md)', fontWeight: 700 }}>Account</h3>
+          </div>
+          <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-xs)', marginBottom: 'var(--s3)' }}>View and manage your account details.</p>
           {/* Bordered label/value rows, not a grid that collapses to two
               stacked left-aligned lines on a phone. This layout is the same
               shape on every viewport -- label left, value right, a hairline
@@ -250,56 +262,18 @@ export function Settings() {
               </div>
             )}
           </div>
-
-          {/*
-            The guided tour, given the weight of a real feature rather than
-            a footnote under the account fields. It is the fastest way for
-            someone to understand the whole product, so a 12px grey line and
-            a small secondary button was underselling it badly: accent-
-            tinted panel, icon, what it actually covers, and a primary
-            action.
-          */}
-          <div style={{ marginTop: 'var(--s3)', paddingTop: 'var(--s5)', borderTop: '1px solid var(--border)' }}>
-            <div style={{
-              display: 'flex', alignItems: 'flex-start', gap: 'var(--s4)', flexWrap: 'wrap',
-              padding: 'var(--s5)', borderRadius: 'var(--r-md)',
-              background: 'color-mix(in srgb, var(--accent) 7%, transparent)',
-              border: '1px solid color-mix(in srgb, var(--accent) 22%, transparent)',
-            }}>
-              <div style={{
-                width: '40px', height: '40px', borderRadius: 'var(--r-md)', flexShrink: 0,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: 'color-mix(in srgb, var(--accent) 14%, transparent)',
-                color: 'var(--accent)',
-              }}>
-                <ReplayIcon size={19} />
-              </div>
-              <div style={{ flex: '1 1 220px', minWidth: 0 }}>
-                <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 'var(--fs-md)', marginBottom: 4 }}>
-                  Take the guided tour
-                </div>
-                <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)', lineHeight: 1.6, margin: '0 0 var(--s3)' }}>
-                  Six stops through a finished report, the Excel export, the client version, the share link and your branding.
-                  Runs on sample data, so nothing is charged and none of your own work is touched.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setShowTour(true)}
-                  className="btn btn-primary"
-                  style={{ height: '36px', padding: '0 var(--s5)' }}
-                >
-                  Start the tour
-                </button>
-              </div>
-            </div>
-          </div>
         </div>
 
-        {showTour && <WelcomeTour onDone={() => setShowTour(false)} username={user?.username} />}
-
-        <div className="card">
-          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 700, marginBottom: 'var(--s1)' }}>Change Password</h3>
-          <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)', marginBottom: 'var(--s4)' }}>Use a strong password you don't use anywhere else.</p>
+        {/* Security: same form, same handler, same PasswordInput component
+            (visibility toggle/strength meter/validation all live there,
+            untouched) -- just given a section icon/description to match
+            Account and Guided Tour's header shape. */}
+        <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s2)', marginBottom: '2px' }}>
+            <ShieldIcon size={16} style={{ color: 'var(--accent)' }} />
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-md)', fontWeight: 700 }}>Security</h3>
+          </div>
+          <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-xs)', marginBottom: 'var(--s3)' }}>Update your password and keep your account secure.</p>
           <form onSubmit={handlePasswordChange}>
             <div className="input-group">
               <label className="input-label">Current password</label>
@@ -309,21 +283,78 @@ export function Settings() {
               <label className="input-label">New password</label>
               <PasswordInput value={newPassword} onChange={e => setNewPassword(e.target.value)} showStrength={true} autoComplete="new-password" />
             </div>
-            <button type="submit" className="btn btn-primary" disabled={loading}>
+            <button type="submit" className="btn btn-primary" disabled={loading} style={{ width: '100%' }}>
               {loading ? 'Updating...' : 'Update Password'}
             </button>
           </form>
         </div>
 
-        {/* Spans the full grid width instead of falling into a lone second
-            row next to an empty cell (auto-fit wraps 3 cards into a 2-column
-            grid on most viewports, leaving Account + Change Password on row
-            1 and this card alone on row 2). Full width also gives the form
-            room for a real two-column layout below instead of every field
-            stacked single-file in a ~340px column. */}
-        <div className="card" data-tour="branding-card" style={{ gridColumn: '1 / -1' }}>
-          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 700, marginBottom: 'var(--s1)' }}>Report branding</h3>
-          <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)', marginBottom: 'var(--s4)' }}>
+        {/* Guided Tour: same setShowTour(true) -> WelcomeTour trigger as
+            before, just given its own card instead of living as a footnote
+            under Account. The numbered flow is decorative (three existing
+            icons + dashed connector lines); "Start the tour" is still the
+            only thing that actually does anything here. */}
+        <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s2)', marginBottom: '2px' }}>
+            <TourIcon size={16} style={{ color: 'var(--accent)' }} />
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-md)', fontWeight: 700 }}>Guided Tour</h3>
+          </div>
+          <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-xs)', marginBottom: 'var(--s3)' }}>Learn how reports, exports, client sharing and branding work.</p>
+
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 'var(--s2) var(--s1)', marginBottom: 'var(--s3)' }}>
+            {[
+              { Icon: FileIcon, label: 'Create' },
+              { Icon: DownloadIcon, label: 'Export' },
+              { Icon: ShareIcon, label: 'Share' },
+            ].map((step, i, arr) => (
+              <React.Fragment key={step.label}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                  <div style={{
+                    width: '34px', height: '34px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: 'var(--accent-soft)', color: 'var(--accent)', fontWeight: 700, fontSize: 'var(--fs-xs)',
+                    boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent)', position: 'relative',
+                  }}>
+                    <step.Icon size={15} />
+                  </div>
+                  <span style={{ fontSize: '10px', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{step.label}</span>
+                </div>
+                {i < arr.length - 1 && (
+                  <div aria-hidden="true" style={{ flex: 1, height: 0, borderTop: '2px dotted color-mix(in srgb, var(--accent) 45%, transparent)', margin: '0 6px', marginBottom: '16px' }} />
+                )}
+              </React.Fragment>
+            ))}
+          </div>
+
+          <ul style={{ listStyle: 'none', margin: '0 0 var(--s3) 0', padding: 0, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            {['Six quick steps', 'Sample data & safe to explore', 'No credits charged', 'Your existing reports stay unchanged'].map((line) => (
+              <li key={line} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: 'var(--fs-xs)', color: 'var(--text-2)' }}>
+                <SuccessIcon size={13} style={{ color: 'var(--ok)', flexShrink: 0 }} />{line}
+              </li>
+            ))}
+          </ul>
+
+          <button
+            type="button"
+            onClick={() => setShowTour(true)}
+            className="btn btn-primary"
+            style={{ width: '100%', marginTop: 'auto', gap: 'var(--s2)' }}
+          >
+            <ReplayIcon size={15} />Start the tour
+          </button>
+        </div>
+      </div>
+
+      {showTour && <WelcomeTour onDone={() => setShowTour(false)} username={user?.username} />}
+
+      {/* Report Branding: full-width, primary section (per its outsized
+          effect on client-facing reports) -- no longer competing for grid
+          space with the three cards above it. */}
+      <div className="card" data-tour="branding-card">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s2)', marginBottom: '2px' }}>
+          <PaletteIcon size={17} style={{ color: 'var(--accent)' }} />
+          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 700 }}>Report Branding</h3>
+        </div>
+        <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)', marginBottom: 'var(--s4)' }}>
             Your logo and color appear on branded client reports. Set this once, every report uses it after.
           </p>
 
@@ -388,52 +419,61 @@ export function Settings() {
              card. Spanning the preview also happens to be more honest: what
              it previews is a report header, and that runs the full width of
              the real report. */
-          <div className="rl-branding-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--s5) var(--s6)', alignItems: 'start' }}>
-          {/* Live preview -- reflects unsaved changes as you make them, same
-              draft-before-commit pattern as any theme/branding editor: you
-              see the effect immediately, saving is a separate, deliberate
-              step so nothing changes on a stray click. */}
-          <div style={{ gridColumn: '1 / -1', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', backgroundColor: 'var(--surface-2)', padding: 'var(--s4)' }}>
-            <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 'var(--s3)' }}>Preview</div>
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 'var(--s3)', paddingBottom: 'var(--s3)', borderBottom: `3px solid ${branding.accentColor}`,
-              flexDirection: branding.logoPosition === 'right' ? 'row-reverse' : 'row',
-              justifyContent: branding.logoPosition === 'center' ? 'center' : (branding.logoPosition === 'right' ? 'flex-end' : 'flex-start'),
-            }}>
-              {branding.logoDataUri ? (
-                <div style={{ backgroundColor: '#FFFFFF', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 'var(--r-sm)', padding: '3px 8px', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-                  <img src={branding.logoDataUri} alt="" style={{ height: '24px', maxWidth: '110px', objectFit: 'contain', display: 'block' }} />
-                </div>
-              ) : (
-                <div style={{ width: '28px', height: '28px', borderRadius: '6px', backgroundColor: branding.accentColor, flexShrink: 0 }} />
-              )}
-              {branding.showAgencyName && (
-                <div style={{ fontWeight: 700, fontSize: 'var(--fs-base)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {branding.agencyName || 'Your agency name'}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Column 1 */}
+          <div className="rl-branding-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 'var(--s5) var(--s6)', alignItems: 'start' }}>
+          {/* LEFT: configuration. DOM order (config before preview) is what
+              makes mobile stack config-first without any extra CSS. */}
           <div>
-          <div className="input-group">
-            <label className="input-label" htmlFor="branding-agency-name">Agency name</label>
-            <input
-              id="branding-agency-name"
-              type="text"
-              className="input-field"
-              style={{ width: '100%' }}
-              value={branding.agencyName}
-              onChange={(e) => setBranding((b) => ({ ...b, agencyName: e.target.value }))}
-              placeholder="e.g. Northstar Media"
-              maxLength={60}
-            />
-          </div>
+            <div className="input-group">
+              <label className="input-label" htmlFor="branding-agency-name">Agency name</label>
+              <input
+                id="branding-agency-name"
+                type="text"
+                className="input-field"
+                style={{ width: '100%' }}
+                value={branding.agencyName}
+                onChange={(e) => setBranding((b) => ({ ...b, agencyName: e.target.value }))}
+                placeholder="e.g. Northstar Media"
+                maxLength={60}
+              />
+            </div>
 
-          <div className="input-group">
-            <label className="input-label">Logo</label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s3)', flexWrap: 'wrap' }}>
+            <div className="input-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--s2)', fontSize: 'var(--fs-sm)', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={branding.showAgencyName}
+                  onChange={(e) => setBranding((b) => ({ ...b, showAgencyName: e.target.checked }))}
+                />
+                Show agency name on reports
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--s2)', fontSize: 'var(--fs-sm)', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={branding.showHighlights}
+                  onChange={(e) => setBranding((b) => ({ ...b, showHighlights: e.target.checked }))}
+                />
+                Show top/lowest performer highlights
+              </label>
+            </div>
+
+            <div className="input-group">
+              <label className="input-label" htmlFor="branding-accent">Accent color</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s3)' }}>
+                <input
+                  id="branding-accent"
+                  type="color"
+                  value={branding.accentColor}
+                  onChange={(e) => setBranding((b) => ({ ...b, accentColor: e.target.value }))}
+                  style={{ width: '40px', height: '36px', padding: '2px', border: '1px solid var(--border-strong)', borderRadius: 'var(--r-sm)', cursor: 'pointer', background: 'none' }}
+                />
+                <span className="mono" style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-2)' }}>{branding.accentColor}</span>
+              </div>
+            </div>
+
+            <div className="input-group">
+              <label className="input-label">Logo</label>
+              {/* Real drop-zone-shaped upload area (was just a button) --
+                  clearer target, same file input/handler underneath. */}
               <input
                 ref={logoInputRef}
                 type="file"
@@ -441,78 +481,155 @@ export function Settings() {
                 style={{ display: 'none' }}
                 onChange={(e) => handleLogoFile(e.target.files[0])}
               />
-              <button type="button" className="btn btn-secondary" onClick={() => logoInputRef.current?.click()}>
-                {branding.logoDataUri ? 'Change logo' : 'Upload logo'}
-              </button>
-              {branding.logoDataUri && (
+              {branding.logoDataUri ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s3)', padding: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', backgroundColor: 'var(--surface-2)' }}>
+                  <div style={{ backgroundColor: '#fff', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 'var(--r-sm)', padding: '4px 8px', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                    <img src={branding.logoDataUri} alt="" style={{ height: '28px', maxWidth: '100px', objectFit: 'contain', display: 'block' }} />
+                  </div>
+                  <div style={{ display: 'flex', gap: 'var(--s3)', fontSize: 'var(--fs-sm)' }}>
+                    <button type="button" className="rl-text-link" onClick={() => logoInputRef.current?.click()}>Change</button>
+                    <button type="button" className="rl-text-link" style={{ color: 'var(--err)' }} onClick={() => setBranding((b) => ({ ...b, logoDataUri: null }))}>Remove</button>
+                  </div>
+                </div>
+              ) : (
                 <button
                   type="button"
-                  className="btn btn-ghost"
-                  onClick={() => setBranding((b) => ({ ...b, logoDataUri: null }))}
+                  onClick={() => logoInputRef.current?.click()}
+                  style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', width: '100%',
+                    padding: 'var(--s4)', border: '1px dashed var(--border-strong)', borderRadius: 'var(--r-md)',
+                    background: 'var(--surface-2)', color: 'var(--text-2)', cursor: 'pointer',
+                  }}
                 >
-                  Remove
+                  <DownloadIcon size={18} style={{ transform: 'rotate(180deg)', color: 'var(--text-3)' }} />
+                  <span style={{ fontWeight: 600, fontSize: 'var(--fs-sm)', color: 'var(--text)' }}>Upload logo</span>
+                  <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>PNG, JPG or SVG · Max 2MB</span>
                 </button>
               )}
+              {logoError && <div className="input-error">{logoError}</div>}
             </div>
-            {logoError && <div className="input-error">{logoError}</div>}
-          </div>
-          </div>
 
-          <div>
-          <div className="input-group">
-            <label className="input-label" htmlFor="branding-accent">Accent color</label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s3)' }}>
-              <input
-                id="branding-accent"
-                type="color"
-                value={branding.accentColor}
-                onChange={(e) => setBranding((b) => ({ ...b, accentColor: e.target.value }))}
-                style={{ width: '40px', height: '36px', padding: '2px', border: '1px solid var(--border-strong)', borderRadius: 'var(--r-sm)', cursor: 'pointer', background: 'none' }}
+            <div className="input-group">
+              <label className="input-label">Logo position</label>
+              <Select
+                value={branding.logoPosition}
+                onChange={(v) => setBranding((b) => ({ ...b, logoPosition: v }))}
+                options={[
+                  { value: 'left', label: 'Left' },
+                  { value: 'center', label: 'Centered' },
+                  { value: 'right', label: 'Right' },
+                ]}
+                style={{ width: '100%' }}
               />
-              <span className="mono" style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-2)' }}>{branding.accentColor}</span>
             </div>
+
+            <button type="button" className="btn btn-primary" style={{ marginTop: 'var(--s3)' }} disabled={brandingSaving || !user?.features?.reportBranding} onClick={handleBrandingSave}>
+              {brandingSaving ? 'Saving...' : 'Save branding'}
+            </button>
           </div>
 
-          <div className="input-group">
-            <label className="input-label">Logo position</label>
-            <Select
-              value={branding.logoPosition}
-              onChange={(v) => setBranding((b) => ({ ...b, logoPosition: v }))}
-              options={[
-                { value: 'left', label: 'Left' },
-                { value: 'center', label: 'Centered' },
-                { value: 'right', label: 'Right' },
-              ]}
-              style={{ maxWidth: '220px' }}
-            />
-          </div>
+          {/* RIGHT: live preview -- a light surface inside the dark settings
+              page on purpose, so it reads as "this is what your client
+              sees" rather than more settings-page chrome. Reflects unsaved
+              changes as you make them (draft-before-commit, same as any
+              theme editor); Save is the separate, deliberate step that
+              actually persists it. The summary/highlights/table numbers
+              below are static representative content -- this page has no
+              real report loaded to preview against, and the instruction was
+              explicit not to invent a new calculation or API call just to
+              fill this in. */}
+          <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--r-md)', overflow: 'hidden' }}>
+            <div style={{ padding: '6px var(--s3)', fontSize: 'var(--fs-xs)', color: 'var(--text-3)', backgroundColor: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}>
+              Live preview
+            </div>
+            <div style={{ backgroundColor: '#F7F6F3', color: '#1A1C20', padding: 'var(--s4)' }}>
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 'var(--s3)', paddingBottom: 'var(--s3)', marginBottom: 'var(--s3)', borderBottom: `3px solid ${branding.accentColor}`,
+                flexDirection: branding.logoPosition === 'right' ? 'row-reverse' : 'row',
+                justifyContent: branding.logoPosition === 'center' ? 'center' : (branding.logoPosition === 'right' ? 'flex-end' : 'flex-start'),
+              }}>
+                {branding.logoDataUri ? (
+                  <div style={{ backgroundColor: '#fff', border: '1px solid rgba(0,0,0,0.08)', borderRadius: '6px', padding: '3px 8px', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                    <img src={branding.logoDataUri} alt="" style={{ height: '22px', maxWidth: '90px', objectFit: 'contain', display: 'block' }} />
+                  </div>
+                ) : (
+                  <div style={{ width: '26px', height: '26px', borderRadius: '6px', backgroundColor: branding.accentColor, flexShrink: 0 }} />
+                )}
+                {branding.showAgencyName && (
+                  <div style={{ fontWeight: 700, fontSize: '15px', color: branding.accentColor, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {branding.agencyName || 'Your agency name'}
+                  </div>
+                )}
+                <div style={{ marginLeft: branding.logoPosition === 'right' ? 0 : 'auto', marginRight: branding.logoPosition === 'right' ? 'auto' : 0, textAlign: branding.logoPosition === 'right' ? 'left' : 'right' }}>
+                  <div style={{ fontWeight: 700, fontSize: '13px' }}>Reel Report</div>
+                  <div style={{ fontSize: '10px', color: '#8B8F98' }}>Generated {new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+                </div>
+              </div>
 
-          <div className="input-group" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--s2)' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--s2)', fontSize: 'var(--fs-sm)', cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={branding.showAgencyName}
-                onChange={(e) => setBranding((b) => ({ ...b, showAgencyName: e.target.checked }))}
-              />
-              Show agency name on reports
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--s2)', fontSize: 'var(--fs-sm)', cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={branding.showHighlights}
-                onChange={(e) => setBranding((b) => ({ ...b, showHighlights: e.target.checked }))}
-              />
-              Show top/lowest performer highlights
-            </label>
-          </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px', marginBottom: 'var(--s3)' }}>
+                {[
+                  { value: '200', label: 'Processed', Icon: FileIcon, color: '#5D6169' },
+                  { value: '137', sub: '68.5%', label: 'Succeeded', Icon: SuccessIcon, color: '#1F9D6B' },
+                  { value: '63', sub: '31.5%', label: 'Failed', Icon: WarningIcon, color: '#D33131' },
+                  { value: '16m 47s', label: 'Total time', Icon: ClockIcon, color: '#5D6169' },
+                ].map((tile) => (
+                  <div key={tile.label} style={{ border: '1px solid #E4E1DA', borderRadius: '6px', padding: '6px 8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                      <span style={{ fontWeight: 700, fontSize: '13px', color: tile.color }}>{tile.value}</span>
+                      {tile.sub && <span style={{ fontSize: '10px', color: tile.color }}>{tile.sub}</span>}
+                    </div>
+                    <div style={{ fontSize: '9px', color: '#8B8F98' }}>{tile.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              {branding.showHighlights && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', marginBottom: 'var(--s3)' }}>
+                  <div style={{ border: '1px solid #E4E1DA', borderRadius: '6px', padding: '6px 8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '9px', color: '#8B8F98', textTransform: 'uppercase' }}><TrendingUpIcon size={10} style={{ color: '#1F9D6B' }} />Top performer</div>
+                    <div style={{ fontWeight: 700, fontSize: '11px' }}>@creatorname</div>
+                    <div style={{ fontSize: '10px', color: '#1F9D6B' }}>12.5M Views · 3.42% ER</div>
+                  </div>
+                  <div style={{ border: '1px solid #E4E1DA', borderRadius: '6px', padding: '6px 8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '9px', color: '#8B8F98', textTransform: 'uppercase' }}><TrendingDownIcon size={10} style={{ color: '#D33131' }} />Lowest performer</div>
+                    <div style={{ fontWeight: 700, fontSize: '11px' }}>@creatorname</div>
+                    <div style={{ fontSize: '10px', color: '#D33131' }}>210K Views · 0.4% ER</div>
+                  </div>
+                  <div style={{ border: '1px solid #E4E1DA', borderRadius: '6px', padding: '6px 8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '9px', color: '#8B8F98', textTransform: 'uppercase' }}><EyeIcon size={10} style={{ color: branding.accentColor }} />Avg. engagement rate</div>
+                    <div style={{ fontWeight: 700, fontSize: '13px', color: branding.accentColor }}>2.05%</div>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ border: '1px solid #E4E1DA', borderRadius: '6px', overflow: 'hidden' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#F1EFEA' }}>
+                      {['Username', 'Views', 'Likes', 'Comments', 'Shares', 'ER %'].map((h) => (
+                        <th key={h} style={{ textAlign: h === 'Username' ? 'left' : 'right', padding: '5px 8px', color: '#5D6169', fontWeight: 600 }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[
+                      ['@user_one', '1.2M', '45.1K', '1.2K', '2.3K', '3.76%'],
+                      ['@user_two', '980K', '33.5K', '982', '1.8K', '3.42%'],
+                      ['@user_three', '870K', '28.7K', '876', '1.5K', '3.21%'],
+                    ].map((row) => (
+                      <tr key={row[0]} style={{ borderTop: '1px solid #E4E1DA' }}>
+                        {row.map((cell, i) => (
+                          <td key={i} style={{ textAlign: i === 0 ? 'left' : 'right', padding: '5px 8px', fontWeight: i === 0 ? 600 : 400 }}>{cell}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
           </div>
           )}
-
-          <button type="button" className="btn btn-primary" style={{ marginTop: 'var(--s5)' }} disabled={brandingSaving || !user?.features?.reportBranding} onClick={handleBrandingSave}>
-            {brandingSaving ? 'Saving...' : 'Save branding'}
-          </button>
-          </div>
           </div>
         </div>
       </div>

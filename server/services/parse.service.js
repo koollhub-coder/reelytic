@@ -23,6 +23,26 @@ function cellToString(value) {
   return String(value);
 }
 
+/*
+  A header row is free text someone typed in Excel -- nothing enforces it's
+  unique. Two columns literally named the same thing, or two blank header
+  cells (which both come through as ''), happen on real agency sheets.
+  Left alone, `rowObj[h] = ...` below silently overwrites the first column's
+  data with the second's on every row -- this isn't just the cosmetic
+  duplicate-key React warning it also produces downstream in ColumnsModal,
+  it's actual data loss from the uploaded sheet. De-duplicated once here,
+  before anything else reads the header list.
+*/
+function dedupeHeaders(headers) {
+  const seen = new Map();
+  return headers.map((raw, i) => {
+    const base = raw && raw.trim() ? raw : `Column ${i + 1}`;
+    const count = seen.get(base) || 0;
+    seen.set(base, count + 1);
+    return count === 0 ? base : `${base} (${count + 1})`;
+  });
+}
+
 async function parseSpreadsheetBuffer(buffer, filename, type = 'reel') {
   const ext = filename.split('.').pop().toLowerCase();
   let rawRows = [];
@@ -38,7 +58,7 @@ async function parseSpreadsheetBuffer(buffer, filename, type = 'reel') {
     worksheet.eachRow((row, rowNumber) => {
       const values = row.values.slice(1);
       if (rowNumber === 1) {
-        headers = values.map(v => cellToString(v).trim());
+        headers = dedupeHeaders(values.map(v => cellToString(v).trim()));
         originalColumns = headers.map(h => ({ name: h, renamedTo: h }));
       } else {
         const rowObj = {};
@@ -57,7 +77,7 @@ async function parseSpreadsheetBuffer(buffer, filename, type = 'reel') {
 
     if (ext === 'csv' && !text.includes('http')) {
       const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-      const headers = lines[0].split(',').map(h => h.trim().replace(/^["']|["']$/g, ''));
+      const headers = dedupeHeaders(lines[0].split(',').map(h => h.trim().replace(/^["']|["']$/g, '')));
       originalColumns = headers.map(h => ({ name: h, renamedTo: h }));
       for (let i = 1; i < lines.length; i++) {
         const vals = lines[i].split(',').map(v => v.trim().replace(/^["']|["']$/g, ''));

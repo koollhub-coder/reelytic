@@ -108,7 +108,12 @@ async function createDemoJob(username) {
     ownerUsername: username,
     status: 'done',
     fileName: DEMO_FILE_NAME,
-    originalColumns: ['Creator', 'Brief', 'Posted'],
+    // { name, renamedTo } objects, matching the shape parse.service.js
+    // produces for a real upload -- ColumnsModal and the preview table both
+    // read c.name/c.renamedTo, so a bare string array here left both
+    // undefined for every column (same value for all three -> the
+    // duplicate-key React warning the regression console gate caught).
+    originalColumns: ['Creator', 'Brief', 'Posted'].map((name) => ({ name, renamedTo: name })),
     rows,
     avgRowMs: 1400,
     counts: {

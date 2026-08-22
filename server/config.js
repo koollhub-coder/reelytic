@@ -20,4 +20,11 @@ module.exports = {
   cacheTtlDays: parseInt(process.env.CACHE_TTL_DAYS || '7', 10),
   adminUsername: process.env.ADMIN_USERNAME || 'admin',
   adminPassword: process.env.ADMIN_PASSWORD || '',
+  // The one place the app's public URL is read from -- password-reset
+  // emails, robots.txt/sitemap.xml, and alerting.service.js's own Slack
+  // links all resolve from this same env var, so switching domains (e.g.
+  // onto tryreelytic.com once it's bought) is a one-line .env change, not a
+  // find-and-replace. Trailing slash stripped so nothing downstream has to
+  // guard against a double slash before the path it appends.
+  appUrl: (process.env.APP_URL || 'http://localhost:5173').replace(/\/+$/, ''),
 };

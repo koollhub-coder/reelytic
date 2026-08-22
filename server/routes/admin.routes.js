@@ -14,6 +14,7 @@ const { getProfilePipelineMode, setProfilePipelineMode, PROFILE_PIPELINE_INFO, g
 const { getCacheTtlDays, setProfileCacheTtlDays, DEFAULT_PROFILE_CACHE_TTL_DAYS } = require('../services/cache.service');
 const { getReelPipelineMode, setReelPipelineMode, REEL_PIPELINE_INFO } = require('../services/reelPipeline.service');
 const { fallbackCostUsd } = require('../services/costEstimate.service');
+const { getLegalDoc, updateLegalDoc, TYPES: LEGAL_TYPES } = require('../services/legal.service');
 
 router.get('/overview', requireAdmin, async (req, res, next) => {
   try {
@@ -1114,6 +1115,38 @@ router.patch('/health/errors/:id', requireAdmin, async (req, res, next) => {
   try {
     await resolveError(req.params.id, req.body && req.body.resolved !== false);
     res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ---- Terms of Service / Privacy Policy editor -----------------------------
+// The public copy lives at GET /api/legal/:type (legal.routes.js); these two
+// are the admin-only read/write side behind requireAdmin.
+router.get('/legal/:type', requireAdmin, async (req, res, next) => {
+  try {
+    const { type } = req.params;
+    if (!LEGAL_TYPES.includes(type)) {
+      return res.status(400).json({ error: 'Unknown document type.' });
+    }
+    res.json(await getLegalDoc(type));
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.put('/legal/:type', requireAdmin, async (req, res, next) => {
+  try {
+    const { type } = req.params;
+    if (!LEGAL_TYPES.includes(type)) {
+      return res.status(400).json({ error: 'Unknown document type.' });
+    }
+    const content = (req.body && req.body.content) || '';
+    if (!content.trim()) {
+      return res.status(400).json({ error: 'Content is required.' });
+    }
+    const value = await updateLegalDoc(type, content, req.currentUser.username);
+    res.json(value);
   } catch (err) {
     next(err);
   }

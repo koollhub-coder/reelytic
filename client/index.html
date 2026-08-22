@@ -3,7 +3,48 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!--
+      Base/fallback SEO tags -- what a crawler or link-unfurler sees before
+      React has run, and what every page keeps unless useDocumentMeta.jsx
+      overrides it with something more specific (Pricing, Terms, Privacy,
+      etc all do). %VITE_APP_URL% is Vite's own env-interpolation syntax for
+      index.html (see https://vite.dev/guide/env-and-mode.html#html-env-replacement)
+      -- it's replaced at BUILD time from client/.env's VITE_APP_URL, so
+      pointing this whole site at a new domain (e.g. tryreelytic.com once
+      it's bought) is a one-line env change and a rebuild, never a find-and-
+      replace through this file or any component.
+    -->
     <title>Reelytic</title>
+    <meta name="description" content="Turn a sheet of Instagram Reel or profile links into a client-ready engagement report in minutes. Built for agencies and marketers who report on Instagram performance every week." />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="%VITE_APP_URL%/" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Reelytic" />
+    <meta property="og:title" content="Reelytic — Instagram Reel & Profile Analytics for Agencies" />
+    <meta property="og:description" content="Turn a sheet of Instagram Reel or profile links into a client-ready engagement report in minutes." />
+    <meta property="og:url" content="%VITE_APP_URL%/" />
+    <meta property="og:image" content="%VITE_APP_URL%/logo-mark-512.png" />
+
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Reelytic — Instagram Reel & Profile Analytics for Agencies" />
+    <meta name="twitter:description" content="Turn a sheet of Instagram Reel or profile links into a client-ready engagement report in minutes." />
+    <meta name="twitter:image" content="%VITE_APP_URL%/logo-mark-512.png" />
+
+    <meta name="theme-color" content="#F7F6F3" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#101216" media="(prefers-color-scheme: dark)" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "Reelytic",
+        "url": "%VITE_APP_URL%/",
+        "logo": "%VITE_APP_URL%/logo-mark-512.png"
+      }
+    </script>
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
