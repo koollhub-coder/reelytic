@@ -8,6 +8,8 @@ WORKDIR /app
 # real, easy-to-miss distinction for Docker-based services specifically).
 ARG VITE_GOOGLE_CLIENT_ID
 ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
+ARG VITE_APP_URL
+ENV VITE_APP_URL=$VITE_APP_URL
 
 COPY . .
 RUN npm install
