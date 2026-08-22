@@ -901,3 +901,42 @@ div.chip {
   background-size: 8px 1px;
   background-repeat: repeat-x;
 }
+
+/* Dashboard Activity card: the 3 icon-badge stats (processed/active days/
+   busiest day) and the chart's y-axis label column. */
+.rl-activity-stat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 0;
+  min-width: 0;
+}
+.rl-activity-stat-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.rl-activity-stat-value {
+  display: block;
+  font-family: var(--font-data);
+  font-weight: 700;
+  font-size: 13px;
+  line-height: 1.3;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rl-activity-stat-label {
+  display: block;
+  font-size: 10px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.rl-dashboard-chart-yaxis {
+  width: 22px;
+}

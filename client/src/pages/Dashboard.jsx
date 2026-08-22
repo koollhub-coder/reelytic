@@ -19,6 +19,19 @@ import {
 // stays correct with zero code changes here.
 const FREE_TIER_CREDITS = 10;
 
+// Rounds a chart's real max value up to a clean axis ceiling (1/2/5 x a
+// power of ten) -- "the busiest day was 37" should label its axis 0/20/40,
+// not 0/12.3/24.7. Used for both the y-axis tick labels AND the bar-height
+// percentage math below, so a bar's height and the gridline it appears to
+// touch always agree with each other.
+function niceAxisMax(n) {
+  if (n <= 0) return 4;
+  const magnitude = Math.pow(10, Math.floor(Math.log10(n)));
+  const normalized = n / magnitude;
+  const step = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
+  return step * magnitude;
+}
+
 const STATUS_LABELS = {
   preview: { label: 'Not started', chip: 'warn' },
   running: { label: 'Running', chip: 'info' },
@@ -57,8 +70,8 @@ function MetricCard({ icon, tone, label, value, trend, tooltip }) {
   const toneColor = tone === 'ok' ? 'var(--ok)' : tone === 'warn' ? 'var(--warn)' : tone === 'info' ? 'var(--info)' : 'var(--accent)';
   const toneSoft = tone === 'ok' ? 'var(--ok-soft)' : tone === 'warn' ? 'var(--warn-soft)' : tone === 'info' ? 'var(--info-soft)' : 'var(--accent-soft)';
   return (
-    <div className="card" style={{ height: `${METRIC_CARD_H}px`, padding: '20px', display: 'flex', flexDirection: 'column' }}>
-      <div style={{
+    <div className="card rl-metric-card" style={{ height: `${METRIC_CARD_H}px`, padding: '20px', display: 'flex', flexDirection: 'column' }}>
+      <div className="rl-metric-card-icon" style={{
         width: '44px', height: '44px', borderRadius: '12px', flexShrink: 0,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         background: toneSoft, color: toneColor, marginBottom: '12px',
@@ -66,14 +79,14 @@ function MetricCard({ icon, tone, label, value, trend, tooltip }) {
         {icon}
       </div>
       <Tooltip content={tooltip}>
-        <div style={{ fontSize: '12px', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600, cursor: tooltip ? 'help' : 'default', width: 'fit-content' }}>{label}</div>
+        <div className="rl-metric-card-label" style={{ fontSize: '12px', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600, cursor: tooltip ? 'help' : 'default', width: 'fit-content' }}>{label}</div>
       </Tooltip>
-      <div style={{ fontFamily: 'var(--font-data)', fontSize: '32px', fontWeight: 700, marginTop: '2px', lineHeight: 1.1 }}>{value}</div>
+      <div className="rl-metric-card-value" style={{ fontFamily: 'var(--font-data)', fontSize: '32px', fontWeight: 700, marginTop: '2px', lineHeight: 1.1 }}>{value}</div>
       <div style={{ marginTop: 'auto', paddingTop: '8px' }}>
         {trend !== null && trend !== undefined && (
           <Tooltip content="Compared with the previous 14-day period">
-            <div style={{ fontSize: '12px', fontWeight: 600, color: trend >= 0 ? 'var(--ok)' : 'var(--err)', width: 'fit-content', cursor: 'help' }}>
-              {trend >= 0 ? '↑' : '↓'} {Math.abs(trend)}% <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>vs previous 14 days</span>
+            <div className="rl-metric-card-trend" style={{ fontSize: '12px', fontWeight: 600, color: trend >= 0 ? 'var(--ok)' : 'var(--err)', width: 'fit-content', cursor: 'help' }}>
+              {trend >= 0 ? '↑' : '↓'} {Math.abs(trend)}% <span className="rl-hide-mobile" style={{ color: 'var(--text-3)', fontWeight: 400 }}>vs previous 14 days</span>
             </div>
           </Tooltip>
         )}
@@ -248,7 +261,22 @@ export function Dashboard() {
   }
 
   const daily = data.activity14Days || [];
+  // Display only, reusing the same 14 dates the chart already has -- no new
+  // fetch, no new calculation of what the window actually is.
+  const dateRangeLabel = daily.length > 0
+    ? (() => {
+      const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const parse = (s) => { const [, , m, d] = s.match(/^(\d{4})-(\d{2})-(\d{2})$/).map(Number); return { d, m }; };
+      const start = parse(daily[0].date);
+      const end = parse(daily[daily.length - 1].date);
+      return start.m === end.m
+        ? `${String(start.d).padStart(2, '0')}-${String(end.d).padStart(2, '0')} ${MONTHS_SHORT[start.m - 1]}`
+        : `${String(start.d).padStart(2, '0')} ${MONTHS_SHORT[start.m - 1]} - ${String(end.d).padStart(2, '0')} ${MONTHS_SHORT[end.m - 1]}`;
+    })()
+    : null;
   const maxTotal = Math.max(...daily.map((d) => d.total), 1);
+  const axisMax = niceAxisMax(maxTotal);
+  const axisTicks = [axisMax, Math.round(axisMax * 2 / 3), Math.round(axisMax / 3), 0];
   const periodTotal = daily.reduce((sum, d) => sum + d.total, 0);
   const activeDays = daily.filter((d) => d.total > 0).length;
   const busiestDay = daily.reduce((best, d) => (d.total > (best?.total || 0) ? d : best), null);
@@ -284,7 +312,7 @@ export function Dashboard() {
         </div>
         <div className="rl-dashboard-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
           <span className="chip" style={{ height: '48px', padding: '0 16px', gap: '8px', fontSize: '13px' }}>
-            <CalendarIcon size={14} />Last 14 days
+            <CalendarIcon size={14} />Last 14 days{dateRangeLabel ? ` (${dateRangeLabel})` : ''}
           </span>
           <button type="button" className="btn btn-primary" onClick={() => navigate('/reels')} style={{ gap: '8px', height: '48px', padding: '0 20px' }}>
             <PlusIcon size={16} />New Reel Report
@@ -294,6 +322,28 @@ export function Dashboard() {
           </button>
         </div>
       </div>
+
+      {/* Mobile only: one prominent "total processed + trend" summary,
+          matching the reference design's top card -- real data already
+          computed below (data.totalCount, trends.totalCount), nothing
+          invented. This sits ABOVE the 4-metric grid rather than replacing
+          it: the reference shows this one number most prominently, but the
+          per-type breakdown and success rate it doesn't show are still
+          real, previously-required information that stays, restructured
+          rather than removed. */}
+      {trends.totalCount !== null && trends.totalCount !== undefined && (
+        <div className="rl-mobile-only card" style={{ padding: 'var(--s4)', marginBottom: '16px', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: trends.totalCount >= 0 ? 'var(--ok)' : 'var(--err)' }}>
+              {trends.totalCount >= 0 ? '↑' : '↓'} {Math.abs(trends.totalCount)}% <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>vs previous 14 days</span>
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginTop: '4px' }}>
+            <span style={{ fontSize: '13px', color: 'var(--text-2)' }}>Total reports processed</span>
+            <span style={{ fontFamily: 'var(--font-data)', fontSize: '24px', fontWeight: 700 }}>{data.totalCount.toLocaleString()}</span>
+          </div>
+        </div>
+      )}
 
       {/* 4 equal metric cards -- see METRIC_CARD_H, all identical height regardless of content. */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '16px' }} className="rl-dashboard-metrics">
@@ -336,24 +386,44 @@ export function Dashboard() {
               a naturally shorter card never reads as leftover dead space. */}
           <div style={{ display: 'grid', gridTemplateColumns: '7fr 5fr', gap: '16px', marginBottom: '16px' }} className="rl-dashboard-analytics">
             <div className="card" style={{ height: `${ANALYTICS_CARD_H}px`, display: 'flex', flexDirection: 'column' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--s3)', marginBottom: 'var(--s4)' }}>
-                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 600 }}>
-                  Activity (last 14 days)
-                </h3>
-                {hasActivity && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s4)', fontSize: '12px', color: 'var(--text-2)' }}>
-                    <span><strong style={{ color: 'var(--text)', fontFamily: 'var(--font-data)' }}>{periodTotal.toLocaleString()}</strong> processed</span>
-                    <span>Active <strong style={{ color: 'var(--text)', fontFamily: 'var(--font-data)' }}>{activeDays}/14</strong> days</span>
-                    {busiestDay && busiestDay.total > 0 && (
-                      <span>Busiest: <strong style={{ color: 'var(--text)', fontFamily: 'var(--font-data)' }}>{formatDayKey(busiestDay.date)}</strong></span>
-                    )}
-                  </div>
-                )}
-              </div>
+              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 600, marginBottom: 'var(--s3)' }}>
+                Activity (last 14 days)
+              </h3>
               {!hasActivity ? (
                 <div style={{ color: 'var(--text-3)', textAlign: 'center', padding: 'var(--s6)' }}>No activity in this window yet.</div>
               ) : (
                 <>
+                  {/* Three icon-badge stats: same shape as the reference
+                      design, and the same information the old plain-text
+                      row had (nothing added, nothing dropped) -- just
+                      restructured so it reads clearly at any width instead
+                      of one wrapping text line. */}
+                  <div className="rl-activity-stats" style={{ display: 'flex', gap: 'var(--s3)', marginBottom: 'var(--s4)' }}>
+                    <div className="rl-activity-stat">
+                      <span className="rl-activity-stat-icon" style={{ background: 'var(--info-soft)', color: 'var(--info)' }}><LayersIcon size={14} /></span>
+                      <span>
+                        <span className="rl-activity-stat-value">{periodTotal.toLocaleString()}</span>
+                        <span className="rl-activity-stat-label">Processed</span>
+                      </span>
+                    </div>
+                    <div className="rl-activity-stat">
+                      <span className="rl-activity-stat-icon" style={{ background: 'var(--ok-soft)', color: 'var(--ok)' }}><SuccessIcon size={14} /></span>
+                      <span>
+                        <span className="rl-activity-stat-value">{activeDays}/14</span>
+                        <span className="rl-activity-stat-label">Active days</span>
+                      </span>
+                    </div>
+                    {busiestDay && busiestDay.total > 0 && (
+                      <div className="rl-activity-stat">
+                        <span className="rl-activity-stat-icon" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}><ClockIcon size={14} /></span>
+                        <span>
+                          <span className="rl-activity-stat-value">{formatDayKey(busiestDay.date)}</span>
+                          <span className="rl-activity-stat-label">Busiest day</span>
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
                   <div style={{ display: 'flex', gap: 'var(--s4)', marginBottom: 'var(--s3)', fontSize: '12px', color: 'var(--text-2)' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <span style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: 'var(--accent)', display: 'inline-block' }} />Reel reports
@@ -362,49 +432,71 @@ export function Dashboard() {
                       <span style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: 'var(--ok)', display: 'inline-block' }} />Profile reports
                     </span>
                   </div>
-                  {/* Bar height is a PERCENTAGE of its own flex:1 sub-container,
-                      not a hardcoded pixel cap against a guessed track height --
-                      a fixed 130px cap here is exactly what overflowed the card
-                      (the value label got pushed up into the legend row above)
-                      whenever the actual available track height came out
-                      shorter than 130px. A percentage of a flex-computed
-                      container can never exceed the space that's really there. */}
-                  {/* Own class, not the shared .rl-chart-track -- that class's
-                      mobile rule (mobile.css) forces a fixed per-column width
-                      and horizontal scroll, meant for a chart with too many
-                      bars to compress. This one only ever has 14 slim bars,
-                      each already flex:1/minWidth:0 below, so it can shrink
-                      to fit any card width cleanly with nothing clipped. */}
-                  <div className="rl-dashboard-chart-track" style={{ width: '100%', flex: 1, minHeight: 0, display: 'flex', gap: '8px', paddingBottom: '24px', borderBottom: '1px solid var(--border)' }}>
-                    {daily.map((d, i) => {
-                      const reelPct = maxTotal > 0 ? (d.reels / maxTotal) * 100 : 0;
-                      const profilePct = maxTotal > 0 ? (d.profiles / maxTotal) * 100 : 0;
-                      const dateLabel = formatDayKey(d.date);
-                      const bar = (
-                        <div style={{ width: '100%', maxWidth: '28px', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-                          {d.profiles > 0 && <div style={{ width: '100%', height: `${Math.max(profilePct, 3)}%`, backgroundColor: 'var(--ok)', borderRadius: '3px 3px 0 0', transition: 'height 300ms ease' }} />}
-                          {d.reels > 0 && <div style={{ width: '100%', height: `${Math.max(reelPct, 3)}%`, backgroundColor: 'var(--accent)', borderRadius: d.profiles > 0 ? 0 : '3px 3px 0 0', transition: 'height 300ms ease' }} />}
-                          {d.total === 0 && <div style={{ width: '100%', height: '2px', backgroundColor: 'var(--border)', flexShrink: 0 }} />}
-                        </div>
-                      );
-                      return (
-                        <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0 }}>
-                          <div style={{ fontFamily: 'var(--font-data)', fontSize: '10px', color: 'var(--text-3)', marginBottom: '4px', minHeight: '13px', flexShrink: 0 }}>{d.total || ''}</div>
-                          {d.total > 0 ? (
-                            <Tooltip
-                              content={<TooltipRows heading={dateLabel} rows={[
-                                { color: 'var(--accent)', label: 'Reel reports', value: d.reels },
-                                { color: 'var(--ok)', label: 'Profile reports', value: d.profiles },
-                              ]} />}
-                              style={{ width: '100%', flex: 1, minHeight: 0 }}
-                            >
-                              {bar}
-                            </Tooltip>
-                          ) : bar}
-                          <div style={{ fontFamily: 'var(--font-data)', fontSize: '9px', color: 'var(--text-3)', transform: 'rotate(-45deg)', whiteSpace: 'nowrap', marginTop: '10px', flexShrink: 0 }}>{d.date.slice(5)}</div>
-                        </div>
-                      );
-                    })}
+
+                  {/* Y-axis: axisMax is a clean rounded ceiling (niceAxisMax),
+                      and every bar below scales against that SAME number --
+                      so a bar that visually reaches the "40" gridline really
+                      does represent 40, not an approximation. */}
+                  <div style={{ display: 'flex', flex: 1, minHeight: 0, gap: '8px' }}>
+                    <div className="rl-dashboard-chart-yaxis" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', paddingBottom: '24px', flexShrink: 0 }}>
+                      {axisTicks.map((t, i) => (
+                        <span key={i} className="mono" style={{ fontSize: '9px', color: 'var(--text-3)', lineHeight: 1 }}>{t}</span>
+                      ))}
+                    </div>
+                    <div style={{ position: 'relative', flex: 1, minHeight: 0 }}>
+                      {/* Gridlines, positioned to land exactly on the same
+                          0/33/66/100% marks the y-axis labels use, within the
+                          bar area only (excludes the 24px reserved for the
+                          rotated date labels below the baseline). */}
+                      <div aria-hidden="true" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: '24px', pointerEvents: 'none' }}>
+                        {[0, 1, 2, 3].map((i) => (
+                          <div key={i} style={{ position: 'absolute', left: 0, right: 0, top: `${(i / 3) * 100}%`, borderTop: '1px solid var(--border)', opacity: i === 3 ? 0.6 : 0.35 }} />
+                        ))}
+                      </div>
+                      {/* Bar height is a PERCENTAGE of its own flex:1 sub-container,
+                          not a hardcoded pixel cap against a guessed track height --
+                          a fixed pixel cap here is exactly what overflowed the card
+                          (the value label got pushed up into the legend row above)
+                          whenever the actual available track height came out
+                          shorter than that guess. A percentage of a flex-computed
+                          container can never exceed the space that's really there. */}
+                      {/* Own class, not the shared .rl-chart-track -- that class's
+                          mobile rule (mobile.css) forces a fixed per-column width
+                          and horizontal scroll, meant for a chart with too many
+                          bars to compress. This one only ever has 14 slim bars,
+                          each already flex:1/minWidth:0 below, so it can shrink
+                          to fit any card width cleanly with nothing clipped. */}
+                      <div className="rl-dashboard-chart-track" style={{ width: '100%', height: '100%', display: 'flex', gap: '8px', paddingBottom: '24px', borderBottom: '1px solid var(--border)' }}>
+                        {daily.map((d, i) => {
+                          const reelPct = (d.reels / axisMax) * 100;
+                          const profilePct = (d.profiles / axisMax) * 100;
+                          const dateLabel = formatDayKey(d.date);
+                          const bar = (
+                            <div style={{ width: '100%', maxWidth: '28px', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+                              {d.profiles > 0 && <div style={{ width: '100%', height: `${Math.max(profilePct, 3)}%`, backgroundColor: 'var(--ok)', borderRadius: '3px 3px 0 0', transition: 'height 300ms ease' }} />}
+                              {d.reels > 0 && <div style={{ width: '100%', height: `${Math.max(reelPct, 3)}%`, backgroundColor: 'var(--accent)', borderRadius: d.profiles > 0 ? 0 : '3px 3px 0 0', transition: 'height 300ms ease' }} />}
+                              {d.total === 0 && <div style={{ width: '100%', height: '2px', backgroundColor: 'var(--border)', flexShrink: 0 }} />}
+                            </div>
+                          );
+                          return (
+                            <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0 }}>
+                              {d.total > 0 ? (
+                                <Tooltip
+                                  content={<TooltipRows heading={dateLabel} rows={[
+                                    { color: 'var(--accent)', label: 'Reel reports', value: d.reels },
+                                    { color: 'var(--ok)', label: 'Profile reports', value: d.profiles },
+                                  ]} />}
+                                  style={{ width: '100%', flex: 1, minHeight: 0 }}
+                                >
+                                  {bar}
+                                </Tooltip>
+                              ) : bar}
+                              <div className="rl-dashboard-chart-datelabel mono" style={{ fontSize: '9px', color: 'var(--text-3)', transform: 'rotate(-45deg)', whiteSpace: 'nowrap', marginTop: '10px', flexShrink: 0 }}>{d.date.slice(5)}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
                 </>
               )}
@@ -428,7 +520,55 @@ export function Dashboard() {
                 <div style={{ color: 'var(--text-3)', textAlign: 'center', padding: 'var(--s5)' }}>No reports yet.</div>
               ) : (
                 <>
-                  <div className="rl-table-scroll" style={{ flex: 1 }}>
+                  {/* Mobile: icon + filename + status + date as one compact
+                      row per report, instead of the 5-column desktop table
+                      squeezed into a horizontal scroll -- same pattern
+                      already used for History's own report list. */}
+                  <div className="rl-mobile-only" style={{ flexDirection: 'column', flex: 1, overflowY: 'auto' }}>
+                    {data.recentJobs.map((j) => {
+                      const statusInfo = STATUS_LABELS[j.status] || { label: j.status, chip: '' };
+                      const canDownload = j.status === 'done' && (j.counts?.success || 0) > 0;
+                      return (
+                        <div key={j.id} style={{ display: 'flex', alignItems: 'center', gap: 'var(--s3)', padding: 'var(--s3) var(--s4)', borderBottom: '1px solid var(--border)' }}>
+                          <div style={{
+                            width: '36px', height: '36px', borderRadius: 'var(--r-md)', flexShrink: 0,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            background: j.type === 'reel' ? 'var(--accent-soft)' : 'var(--ok-soft)',
+                            color: j.type === 'reel' ? 'var(--accent)' : 'var(--ok)',
+                          }}>
+                            {j.type === 'reel' ? <ReelIcon size={16} /> : <ProfileIcon size={16} />}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 600, fontSize: 'var(--fs-sm)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {j.fileName || 'Pasted links'}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px' }}>
+                              <span className={`chip ${statusInfo.chip}`} style={{ fontSize: '10px' }}>{statusInfo.label}</span>
+                              <span className="mono" style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>{formatDate(j.createdAt)}</span>
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                            <IconButton tooltip="View report" onClick={() => navigate(j.type === 'reel' ? '/reels' : '/profiles')}>
+                              <EyeIcon size={14} />
+                            </IconButton>
+                            {canDownload && (
+                              <Tooltip content="Download report">
+                                <a
+                                  href={`/api/export/${j.id}.xlsx`}
+                                  download
+                                  style={{ width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: '1px solid var(--border-strong)', borderRadius: 'var(--r-sm)', color: 'var(--text-2)' }}
+                                >
+                                  <DownloadIcon size={14} />
+                                </a>
+                              </Tooltip>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="rl-table-scroll rl-hide-mobile" style={{ flex: 1 }}>
                     <table className="data-table rl-dashboard-table">
                       <thead>
                         <tr>
