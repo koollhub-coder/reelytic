@@ -1829,7 +1829,7 @@ export function ReportEngine({ type = 'reel' }) {
               Retry and "run another report" stay, because those are the two
               things that actually help from here.
             */}
-            <div style={{ display: 'flex', gap: 'var(--s3)', flexWrap: 'wrap' }}>
+            <div className="rl-summary-actions" style={{ display: 'flex', gap: 'var(--s3)', flexWrap: 'wrap' }}>
               {counts.success > 0 && (
                 <>
                   <a href={`/api/export/${jobId}.xlsx`} className="btn btn-primary" data-tour="download-excel" download>

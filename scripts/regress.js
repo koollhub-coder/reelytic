@@ -36,6 +36,31 @@ const env = { ...process.env, MONGODB_DB_NAME: TEST_DB_NAME, NODE_ENV: 'test' };
 
 const suites = [
   {
+    /*
+      Runs the actual `vite build` Render's Docker image runs, deliberately
+      WITHOUT VITE_APP_URL -- this machine has its own client/.env with that
+      var already set (gitignored, never seen by Render), so a normal local
+      build always had it to lean on and never reproduced what broke the
+      deploy. Every other suite here drives the app through Vite's DEV
+      server (see playwright.config.js's webServer), which never runs the
+      vite:build-html plugin at all -- so nothing else in this file could
+      have caught a build-only failure like that one, no matter how
+      thorough. This is the one suite standing in for "does this actually
+      produce a deployable build," not just "does the app behave correctly
+      once one exists."
+    */
+    name: 'BUILD: production client build (Render-clean env)',
+    cmd: process.execPath,
+    args: [path.resolve(__dirname, '..', 'client', 'node_modules', 'vite', 'bin', 'vite.js'), 'build'],
+    cwd: path.resolve(__dirname, '..', 'client'),
+    // NODE_ENV=test (set below, for the API/UI suites' throwaway database)
+    // must not leak into this one -- Vite's CLI only forces NODE_ENV to
+    // 'production' for `build` when the var isn't already set, so
+    // inheriting 'test' here silently produced an unminified, dev-shaped
+    // bundle instead of the real production build Render ships.
+    stripEnv: ['VITE_APP_URL', 'VITE_GOOGLE_CLIENT_ID', 'NODE_ENV'],
+  },
+  {
     name: 'API: entitlements, tiers, ownership',
     cmd: process.execPath,
     args: ['--test', 'tests/entitlements.test.js'],
@@ -84,7 +109,11 @@ for (const suite of suites) {
 
   process.stdout.write(`\n──────── ${suite.name}\n`);
   const started = Date.now();
-  const run = spawnSync(suite.cmd, suite.args, { env, stdio: 'inherit', shell: !!suite.shell });
+  const suiteEnv = { ...env };
+  if (suite.stripEnv) {
+    for (const key of suite.stripEnv) delete suiteEnv[key];
+  }
+  const run = spawnSync(suite.cmd, suite.args, { env: suiteEnv, stdio: 'inherit', shell: !!suite.shell, cwd: suite.cwd });
   const seconds = ((Date.now() - started) / 1000).toFixed(1);
 
   const missingBrowser = suite.optional && run.status !== 0 && run.status !== 1;

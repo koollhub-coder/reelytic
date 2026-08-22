@@ -95,8 +95,8 @@ function ReportSplitDonut({ reelCount, profileCount }) {
   const reelLen = circumference * reelFrac;
   const gap = 3; // surface-color gap between the two segments, both ends
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '28px', flex: 1 }}>
-      <svg width="160" height="160" viewBox="0 0 160 160" style={{ flexShrink: 0 }}>
+    <div className="rl-donut-row" style={{ display: 'flex', alignItems: 'center', gap: '28px', flex: 1 }}>
+      <svg className="rl-donut-svg" width="160" height="160" viewBox="0 0 160 160" style={{ flexShrink: 0 }}>
         <g transform="translate(80,80) rotate(-90)">
           <circle r={r} fill="none" stroke="var(--surface-2)" strokeWidth="18" />
           {reelCount > 0 && (
@@ -369,7 +369,13 @@ export function Dashboard() {
                       whenever the actual available track height came out
                       shorter than 130px. A percentage of a flex-computed
                       container can never exceed the space that's really there. */}
-                  <div className="rl-chart-track" style={{ width: '100%', flex: 1, minHeight: 0, display: 'flex', gap: '8px', paddingBottom: '24px', borderBottom: '1px solid var(--border)' }}>
+                  {/* Own class, not the shared .rl-chart-track -- that class's
+                      mobile rule (mobile.css) forces a fixed per-column width
+                      and horizontal scroll, meant for a chart with too many
+                      bars to compress. This one only ever has 14 slim bars,
+                      each already flex:1/minWidth:0 below, so it can shrink
+                      to fit any card width cleanly with nothing clipped. */}
+                  <div className="rl-dashboard-chart-track" style={{ width: '100%', flex: 1, minHeight: 0, display: 'flex', gap: '8px', paddingBottom: '24px', borderBottom: '1px solid var(--border)' }}>
                     {daily.map((d, i) => {
                       const reelPct = maxTotal > 0 ? (d.reels / maxTotal) * 100 : 0;
                       const profilePct = maxTotal > 0 ? (d.profiles / maxTotal) * 100 : 0;

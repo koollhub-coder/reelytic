@@ -31,6 +31,19 @@
 */
 html {
   overflow-x: hidden;
+  /* Mobile Chrome/Safari's default tap feedback: a flat grey/blue flash
+     over whatever was tapped, for as long as the touch is held -- reads as
+     "the button just got selected like text" on anything with visible
+     background/border, which is every button in this app. Buttons/links
+     also get user-select:none below so a slightly-too-long tap can't kick
+     off a real text-selection drag on top of it. */
+  -webkit-tap-highlight-color: transparent;
+}
+
+button, a, [role="button"], .btn {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 body {

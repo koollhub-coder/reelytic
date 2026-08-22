@@ -414,4 +414,58 @@
   .rl-howitworks-steps { flex-direction: column; align-items: center; gap: var(--s5); }
   .rl-howitworks-step { max-width: 320px; }
   .rl-howitworks-connector { width: 1px; height: 24px; margin: 0; background-image: linear-gradient(180deg, var(--border-strong) 50%, transparent 50%); background-size: 1px 8px; }
+
+  /* History page: "+ New campaign"/"Compare campaigns" go full-width and
+     stack instead of sitting in a row that ran past the right edge of the
+     screen once both labels had to fit next to the page title. */
+  .rl-history-header-actions { width: 100%; }
+  .rl-history-header-actions .btn { flex: 1 1 auto; }
+
+  /* Filter toolbar: type chips / status / date chips / search were one long
+     wrapped row that read as a cluttered pile on a narrow screen. Stacked
+     into one clean full-width row per group instead. */
+  .rl-history-filters { flex-direction: column; align-items: stretch; }
+  .rl-history-filter-group { justify-content: center; }
+  .rl-history-filter-select { width: 100% !important; }
+  .rl-history-filter-search { max-width: none !important; flex: none !important; width: 100%; }
+
+  /* Pagination: "Showing X-Y", the per-page Select, and the page-number
+     buttons were one row that overflowed past the card's right edge on a
+     narrow screen. Stacked, centered, and the page-number row gets its own
+     scroll as a safety net for a report list with many pages. */
+  .rl-history-pagination { flex-direction: column; align-items: stretch; text-align: center; }
+  .rl-history-pagination-controls { flex-direction: column; width: 100%; }
+  .rl-history-pagination-controls > div:first-child { width: 100%; }
+  .rl-history-pagination-pages { overflow-x: auto; max-width: 100%; padding-bottom: 2px; justify-content: center; }
+
+  /* Dashboard's Report-type-split donut: at the desktop 160px size, the SVG
+     plus its legend needed more width than a phone-width card had left
+     after padding, pushing the legend (and the card's own right edge) past
+     what was visible -- "not utilizing the available space" and "the edge
+     isn't visible" was this overflow, not an actual missing-margin bug.
+     Shrinking the SVG (viewBox stays 160x160, so the ring math is
+     untouched) and the gap next to it is enough for both to fit side by
+     side without clipping. */
+  .rl-donut-svg { width: 108px !important; height: 108px !important; }
+  .rl-donut-row { gap: 16px !important; }
+
+  /* Settings' branding live-preview mock: 4 stat tiles and 3 highlight
+     tiles were fixed-column grids regardless of the preview box's own
+     width -- on a phone that squeezed "16m 47s"/"Total time" and the
+     highlight cards into slivers narrower than their own text, which is
+     what read as content clipped past the edge. The results table below
+     stays a real (if tiny) 6-column table, matching what the real export
+     looks like, so it gets its own contained horizontal scroll instead. */
+  .rl-preview-stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
+  .rl-preview-highlights-grid { grid-template-columns: 1fr !important; }
+
+  /* Report-complete action row: up to 5 buttons (Excel, CSV, branded
+     preview, retry, run another) wrapping one-per-line at full content
+     width each just reads as a long list of same-weight buttons, not a
+     deliberate hierarchy. The primary download stays full-width and
+     prominent; everything else groups into a compact 2-column grid instead
+     of a fifth of the screen each. */
+  .rl-summary-actions { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: var(--s2) !important; }
+  .rl-summary-actions > * { width: 100%; box-sizing: border-box; }
+  .rl-summary-actions > .btn-primary { grid-column: 1 / -1; }
 }

@@ -10,7 +10,7 @@ import { formatDate, formatDateTime, formatDayKey } from '../utils/date';
 import { TableSkeleton } from '../components/TableSkeleton';
 import {
   PlusIcon, ChartIcon, FileIcon, ReelIcon, ProfileIcon, SuccessIcon, ClockIcon,
-  SearchIcon, ChevronDownIcon, MoreIcon,
+  SearchIcon, ChevronDownIcon, MoreIcon, TrashIcon,
 } from '../components/Icon';
 import { CampaignAvatar, CampaignAvatarPicker } from '../components/CampaignAvatar';
 
@@ -151,9 +151,9 @@ function Pagination({ page, totalPages, pageSize, totalItems, onPageChange, onPa
   const start = (page - 1) * pageSize + 1;
   const end = Math.min(page * pageSize, totalItems);
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 'var(--s3)', padding: 'var(--s3) var(--s4)' }}>
+    <div className="rl-history-pagination" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 'var(--s3)', padding: 'var(--s3) var(--s4)' }}>
       <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>Showing {start}-{end} of {totalItems}</span>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s3)' }}>
+      <div className="rl-history-pagination-controls" style={{ display: 'flex', alignItems: 'center', gap: 'var(--s3)' }}>
         <Select
           value={String(pageSize)}
           onChange={(v) => onPageSizeChange(Number(v))}
@@ -161,7 +161,7 @@ function Pagination({ page, totalPages, pageSize, totalItems, onPageChange, onPa
           style={{ minWidth: '110px' }}
         />
         {totalPages > 1 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <div className="rl-history-pagination-pages" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <button type="button" className="btn btn-secondary" disabled={page <= 1} onClick={() => onPageChange(page - 1)} style={{ height: '28px', width: '28px', padding: 0, fontSize: 'var(--fs-sm)' }}>‹</button>
             {paginationRange(page, totalPages).map((p, i) => (
               p === '...'
@@ -272,32 +272,135 @@ function ReportRow({ job, campaigns, onReassign, navigate, selectable, selected,
   );
 }
 
+/*
+  Mobile equivalent of ReportRow -- an 8-column table (checkbox, name, type,
+  links, status, time, date, campaign, actions) has no honest way to fit a
+  375px screen, and forcing it to meant either crushed columns or a
+  horizontal-scroll table where the actions on the far right were the part
+  most likely to need reaching. Stacked card, same fields, same handlers,
+  hierarchy matching ReportRow's own comment: name -> status -> links ->
+  time/date -> campaign -> actions.
+*/
+function ReportCardMobile({ job, campaigns, onReassign, navigate, selectable, selected, onToggleSelect }) {
+  const statusInfo = STATUS_LABELS[job.status] || { label: job.status, chip: '' };
+  const isDone = job.status === 'done';
+  const campaignOptions = [{ value: '', label: 'No campaign' }, ...campaigns.map((c) => ({ value: c.id, label: c.name }))];
+
+  return (
+    <div className="card" style={{ padding: 'var(--s3) var(--s4)', marginBottom: 'var(--s3)' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--s2)' }}>
+        {selectable && (
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={() => onToggleSelect(job.id)}
+            aria-label={`Select ${job.fileName}`}
+            style={{ marginTop: '3px', flexShrink: 0 }}
+          />
+        )}
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ fontWeight: 600, fontSize: 'var(--fs-sm)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={job.fileName}>
+            {job.fileName}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
+            <span className={`chip ${job.type === 'reel' ? 'accent' : 'ok'}`} style={{ textTransform: 'uppercase', fontSize: '10px' }}>{job.type}</span>
+            <span className={`chip ${statusInfo.chip}`} style={{ fontSize: '10px' }}>{statusInfo.label}</span>
+            <span className="mono" style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>{job.counts?.total || 0} links</span>
+          </div>
+          <div className="mono" style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', marginTop: '4px' }}>
+            {formatDuration(job.startedAt, job.finishedAt)} &middot; {formatDateTime(job.createdAt)}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ marginTop: 'var(--s3)' }}>
+        <Select
+          value={job.campaignId || ''}
+          onChange={(v) => onReassign(job.id, v || null)}
+          options={campaignOptions}
+          style={{ width: '100%' }}
+        />
+      </div>
+
+      <div style={{ display: 'flex', gap: '8px', marginTop: 'var(--s3)' }}>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          style={{ flex: 1, height: '36px', fontSize: 'var(--fs-sm)' }}
+          onClick={() => navigate(`${job.type === 'reel' ? '/reels' : '/profiles'}?job=${job.id}`)}
+        >
+          {isDone ? 'View' : 'Resume →'}
+        </button>
+        {isDone && (job.counts?.success || 0) > 0 && (
+          <RowMenu
+            items={[
+              { label: 'Download Excel (.xlsx)', href: `/api/export/${job.id}.xlsx`, download: true },
+              { label: 'Download CSV', href: `/api/export/${job.id}.csv`, download: true },
+              { label: 'Branded report', onClick: () => navigate(`/reports/${job.id}/branded`) },
+            ]}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ReportsTable({ jobs, campaigns, navigate, onReassign, loading = false, selectable, selectedIds, onToggleSelect, onToggleSelectAll }) {
   const allSelected = selectable && jobs.length > 0 && jobs.every((j) => selectedIds && selectedIds.has(j.id));
   return (
-    <div className="rl-table-scroll" data-tour="history-table">
-      <table className="data-table rl-history-table">
-        <thead>
-          <tr>
-            {selectable && (
-              <th style={{ width: '32px' }}>
-                <input type="checkbox" checked={allSelected} onChange={() => onToggleSelectAll(jobs)} aria-label="Select all" />
-              </th>
-            )}
-            <th>File Name</th>
-            <th>Type</th>
-            <th className="numeric">Links</th>
-            <th>Status</th>
-            <th>Time taken</th>
-            <th>Date</th>
-            <th>Campaign</th>
-            <th style={{ textAlign: 'right' }}>Actions</th>
-          </tr>
-        </thead>
-        {loading ? <TableSkeleton rows={6} columns={8} rowHeight={67} label="Loading your reports" /> : (
-        <tbody>
-          {jobs.map((j) => (
-            <ReportRow
+    <>
+      <div className="rl-table-scroll rl-hide-mobile" data-tour="history-table">
+        <table className="data-table rl-history-table">
+          <thead>
+            <tr>
+              {selectable && (
+                <th style={{ width: '32px' }}>
+                  <input type="checkbox" checked={allSelected} onChange={() => onToggleSelectAll(jobs)} aria-label="Select all" />
+                </th>
+              )}
+              <th>File Name</th>
+              <th>Type</th>
+              <th className="numeric">Links</th>
+              <th>Status</th>
+              <th>Time taken</th>
+              <th>Date</th>
+              <th>Campaign</th>
+              <th style={{ textAlign: 'right' }}>Actions</th>
+            </tr>
+          </thead>
+          {loading ? <TableSkeleton rows={6} columns={8} rowHeight={67} label="Loading your reports" /> : (
+          <tbody>
+            {jobs.map((j) => (
+              <ReportRow
+                key={j.id}
+                job={j}
+                navigate={navigate}
+                campaigns={campaigns}
+                onReassign={onReassign}
+                selectable={selectable}
+                selected={!!(selectedIds && selectedIds.has(j.id))}
+                onToggleSelect={onToggleSelect}
+              />
+            ))}
+          </tbody>
+          )}
+        </table>
+      </div>
+
+      {/* Mobile: stacked cards instead of the same 8-column table squeezed
+          into a horizontal scroll -- see ReportCardMobile's own note. */}
+      <div className="rl-mobile-only" style={{ flexDirection: 'column', padding: 'var(--s3)' }}>
+        {selectable && jobs.length > 0 && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: 'var(--fs-sm)', color: 'var(--text-2)', marginBottom: 'var(--s2)' }}>
+            <input type="checkbox" checked={allSelected} onChange={() => onToggleSelectAll(jobs)} />
+            Select all
+          </label>
+        )}
+        {loading ? (
+          <div style={{ padding: 'var(--s4)', textAlign: 'center', color: 'var(--text-3)', fontSize: 'var(--fs-sm)' }}>Loading your reports...</div>
+        ) : (
+          jobs.map((j) => (
+            <ReportCardMobile
               key={j.id}
               job={j}
               navigate={navigate}
@@ -307,11 +410,10 @@ function ReportsTable({ jobs, campaigns, navigate, onReassign, loading = false, 
               selected={!!(selectedIds && selectedIds.has(j.id))}
               onToggleSelect={onToggleSelect}
             />
-          ))}
-        </tbody>
+          ))
         )}
-      </table>
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -345,9 +447,23 @@ function CampaignCard({ campaign, jobs, campaigns, navigate, onReassign, expande
             <div style={{ fontFamily: 'var(--font-data)', fontSize: 'var(--fs-md)', fontWeight: 700, color: 'var(--ok)' }}>{campaign.avgEr != null ? `${campaign.avgEr}%` : '-'}</div>
             <div style={{ fontSize: '10px', color: 'var(--text-3)', textTransform: 'uppercase' }}>Avg ER</div>
           </div>
-          <span onClick={(e) => e.stopPropagation()}>
-            <RowMenu items={[{ label: 'Delete campaign', onClick: () => onDelete(campaign) }]} />
-          </span>
+          {/* A single-item "..." menu was ceremony for its own sake -- one
+              action gets one button, a direct delete icon, not a dropdown
+              that opens to reveal exactly one row. */}
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onDelete(campaign); }}
+            aria-label={`Delete ${campaign.name}`}
+            style={{
+              width: '28px', height: '28px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'none', border: '1px solid var(--border-strong)', borderRadius: 'var(--r-sm)',
+              color: 'var(--text-2)', cursor: 'pointer', transition: 'background var(--t-fast), color var(--t-fast), border-color var(--t-fast)',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--err-soft)'; e.currentTarget.style.color = 'var(--err)'; e.currentTarget.style.borderColor = 'var(--err)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--text-2)'; e.currentTarget.style.borderColor = 'var(--border-strong)'; }}
+          >
+            <TrashIcon size={14} />
+          </button>
           <span
             style={{
               width: '26px', height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -525,7 +641,10 @@ export function History() {
         setJobs(firstPage);
         setCampaigns(campaignsRes.campaigns || []);
         setUncategorizedRollup(campaignsRes.uncategorized || null);
-        setExpandedIds(new Set((campaignsRes.campaigns || []).map((c) => c.id)));
+        // Collapsed by default -- every campaign auto-expanding on load meant
+        // the page opened as one long wall of every report in every
+        // campaign at once, which is what "doesn't look responsive at all"
+        // on a phone actually was: nothing to scroll past, just everything.
         if (!creator) setHasAnyReports(firstPage.length > 0);
         setLoading(false);
 
@@ -779,7 +898,7 @@ export function History() {
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-xl)', fontWeight: 700 }}>Report History</h1>
           <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)' }}>Track, review and manage all your reports</p>
         </div>
-        <div style={{ display: 'flex', gap: 'var(--s3)' }}>
+        <div className="rl-history-header-actions" style={{ display: 'flex', gap: 'var(--s3)', flexWrap: 'wrap' }}>
           {campaigns.length >= 2 && (
             <button className="btn btn-secondary" onClick={() => setCompareOpen(true)} style={{ gap: 'var(--s2)' }}>
               <ChartIcon size={15} />Compare campaigns
@@ -840,21 +959,21 @@ export function History() {
           {/* Filter toolbar: type + status + date + search, all filtering
               the SAME jobs array already in memory -- statusFilter is the
               only new piece of state; every handler below already existed. */}
-          <div className="card" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--s3)', padding: 'var(--s3) var(--s4)', marginBottom: 'var(--s4)' }}>
-            <div style={{ display: 'flex', gap: '4px' }}>
+          <div className="card rl-history-filters" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--s3)', padding: 'var(--s3) var(--s4)', marginBottom: 'var(--s4)' }}>
+            <div className="rl-history-filter-group" style={{ display: 'flex', gap: '4px' }}>
               <button onClick={() => setTypeFilter('all')} className={`chip ${typeFilter === 'all' ? 'accent' : ''}`} style={{ cursor: 'pointer', padding: '6px 12px' }}>All</button>
               <button onClick={() => setTypeFilter('reel')} className={`chip ${typeFilter === 'reel' ? 'accent' : ''}`} style={{ cursor: 'pointer', padding: '6px 12px' }}>Reel</button>
               <button onClick={() => setTypeFilter('profile')} className={`chip ${typeFilter === 'profile' ? 'ok' : ''}`} style={{ cursor: 'pointer', padding: '6px 12px' }}>Profile</button>
             </div>
             <span className="rl-hide-mobile" style={{ width: '1px', alignSelf: 'stretch', backgroundColor: 'var(--border)' }} />
-            <Select value={statusFilter} onChange={setStatusFilter} options={statusOptions} style={{ minWidth: '150px' }} />
-            <div style={{ display: 'flex', gap: '4px' }}>
+            <Select value={statusFilter} onChange={setStatusFilter} options={statusOptions} style={{ minWidth: '150px' }} className="rl-history-filter-select" />
+            <div className="rl-history-filter-group" style={{ display: 'flex', gap: '4px' }}>
               <button onClick={() => setDateFilter('all')} className={`chip ${dateFilter === 'all' ? 'accent' : ''}`} style={{ cursor: 'pointer', padding: '6px 12px' }}>All time</button>
               <button onClick={() => setDateFilter('30d')} className={`chip ${dateFilter === '30d' ? 'accent' : ''}`} style={{ cursor: 'pointer', padding: '6px 12px' }}>Last 30 days</button>
               <button onClick={() => setDateFilter('7d')} className={`chip ${dateFilter === '7d' ? 'accent' : ''}`} style={{ cursor: 'pointer', padding: '6px 12px' }}>Last 7 days</button>
             </div>
             <span className="rl-hide-mobile" style={{ width: '1px', alignSelf: 'stretch', backgroundColor: 'var(--border)' }} />
-            <span style={{ position: 'relative', flex: '1 1 220px', minWidth: 0, maxWidth: '260px' }}>
+            <span className="rl-history-filter-search" style={{ position: 'relative', flex: '1 1 220px', minWidth: 0, maxWidth: '260px' }}>
               <SearchIcon size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)', pointerEvents: 'none' }} />
               <input
                 type="text"

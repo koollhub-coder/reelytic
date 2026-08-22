@@ -191,7 +191,13 @@ export function Shell() {
       {mobileOpen && <button className="rl-mobile-only rl-backdrop" aria-label="Close navigation menu" onClick={() => setMobileOpen(false)} />}
 
       {/* Sidebar (desktop) / slide-in drawer (mobile). Same markup for both so theming stays correct. */}
-      <aside style={{ width: effectiveCollapsed ? SIDEBAR_COLLAPSED_W : 'var(--sidebar-w)', backgroundColor: 'var(--surface)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', position: 'fixed', top: 0, bottom: 0, left: 0, zIndex: 50, transition: 'width var(--t-base)' }} className={`desktop-sidebar rl-shell-sidebar${mobileOpen ? ' rl-open' : ''}`}>
+      {/* transition lists BOTH width (desktop collapse/expand) and transform
+          (mobile slide-in) always, not just width -- an inline style's
+          transition value fully replaces a stylesheet rule's for the same
+          element, so mobile.css's own transform-transition on this same
+          class was silently never applying, and the drawer's open/close was
+          snapping instantly instead of sliding. */}
+      <aside style={{ width: effectiveCollapsed ? SIDEBAR_COLLAPSED_W : 'var(--sidebar-w)', backgroundColor: 'var(--surface)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', position: 'fixed', top: 0, bottom: 0, left: 0, zIndex: 50, transition: 'width var(--t-base), transform var(--t-base)' }} className={`desktop-sidebar rl-shell-sidebar${mobileOpen ? ' rl-open' : ''}`}>
         <div
           style={{
             padding: effectiveCollapsed ? 'var(--s4) var(--s2)' : 'var(--s5)',

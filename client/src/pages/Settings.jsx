@@ -138,7 +138,16 @@ export function Settings() {
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-xl)', fontWeight: 700 }}>Workspace Settings</h1>
           <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)' }}>Manage your account, security and branded report preferences.</p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s3)', flexShrink: 0 }}>
+        {/* flexWrap here too, not just on the outer row -- the outer wrap
+            alone only moved this whole avatar+name+chips cluster onto its
+            own line; as the sole item on that line a flex item's width
+            defaults to its own unwrapped content width (avatar + name +
+            email + two chips, ~423px) rather than the space actually
+            available, so it grew straight past a phone's viewport with
+            nothing left to wrap inside it. maxWidth:100% is what actually
+            constrains it back down to that available width so flexWrap has
+            something to do. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s3)', flexWrap: 'wrap', maxWidth: '100%', flexShrink: 0 }}>
           <div style={{
             width: '40px', height: '40px', borderRadius: '50%', flexShrink: 0,
             background: 'linear-gradient(135deg, var(--accent), var(--accent-hover))',
@@ -566,7 +575,7 @@ export function Settings() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px', marginBottom: 'var(--s3)' }}>
+              <div className="rl-preview-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px', marginBottom: 'var(--s3)' }}>
                 {[
                   { value: '200', label: 'Processed', Icon: FileIcon, color: '#5D6169' },
                   { value: '137', sub: '68.5%', label: 'Succeeded', Icon: SuccessIcon, color: '#1F9D6B' },
@@ -584,7 +593,7 @@ export function Settings() {
               </div>
 
               {branding.showHighlights && (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', marginBottom: 'var(--s3)' }}>
+                <div className="rl-preview-highlights-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', marginBottom: 'var(--s3)' }}>
                   <div style={{ border: '1px solid #E4E1DA', borderRadius: '6px', padding: '6px 8px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '9px', color: '#8B8F98', textTransform: 'uppercase' }}><TrendingUpIcon size={10} style={{ color: '#1F9D6B' }} />Top performer</div>
                     <div style={{ fontWeight: 700, fontSize: '11px' }}>@creatorname</div>
@@ -603,6 +612,7 @@ export function Settings() {
               )}
 
               <div style={{ border: '1px solid #E4E1DA', borderRadius: '6px', overflow: 'hidden' }}>
+                <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px' }}>
                   <thead>
                     <tr style={{ backgroundColor: '#F1EFEA' }}>
@@ -625,6 +635,7 @@ export function Settings() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
             </div>
           </div>

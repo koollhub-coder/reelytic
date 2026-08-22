@@ -6,7 +6,7 @@ import { AccountMenu } from '../components/AccountMenu';
 import {
   SunIcon, MoonIcon, ReelIcon, ProfileIcon, CheckIcon, SpreadsheetIcon,
   PaletteIcon, LinkIcon, EyeIcon, DownloadIcon, PlayIcon,
-  GridIcon, UploadIcon, TrendingUpIcon, LoaderIcon, ChevronDownIcon,
+  GridIcon, UploadIcon, TrendingUpIcon, ChartIcon, ChevronDownIcon,
   MenuIcon, XIcon, CreditCardIcon, GiftIcon, ShieldIcon, SparkleIcon,
   FileIcon, PackageIcon, TourIcon, ZapIcon, InstagramIcon, LinkedinIcon, TwitterIcon,
 } from '../components/Icon';
@@ -259,7 +259,7 @@ export function Landing() {
         <div className="workflow-row">
           {[
             { Icon: SpreadsheetIcon, title: 'Upload your sheet', desc: 'Drop your Excel or CSV file with Instagram links.', green: true },
-            { Icon: LoaderIcon, title: 'We pull the data', desc: 'We extract all metrics & insights.' },
+            { Icon: ChartIcon, title: 'We pull the data', desc: 'We extract all metrics & insights.' },
             { Icon: FileIcon, title: 'Get your report', desc: 'Branded report ready to share or download.' },
           ].map((step, i, arr) => (
             <React.Fragment key={step.title}>
