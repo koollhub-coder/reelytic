@@ -26,7 +26,11 @@ async function getPlans() {
   return (doc && doc.value && doc.value.length > 0) ? doc.value : DEFAULT_PLANS;
 }
 
-async function hasFeature(user, featureKey) {
+// `plans` is optional -- pass it when the caller already has it (see
+// getUserFeatures below) so this doesn't re-fetch the same settings
+// document; single-key call sites (jobs.routes.js, settings.routes.js)
+// omit it and this fetches it itself exactly as before.
+async function hasFeature(user, featureKey, plans) {
   if (!FEATURE_KEYS.includes(featureKey)) return false;
   if (!user) return false;
   if (user.role === 'admin') return true;
@@ -35,13 +39,21 @@ async function hasFeature(user, featureKey) {
   if (override === true) return true;
   if (override === false) return false;
 
-  const plans = await getPlans();
-  const plan = plans.find((p) => p.id === user.plan);
+  const resolvedPlans = plans || await getPlans();
+  const plan = resolvedPlans.find((p) => p.id === user.plan);
   return !!(plan && plan.featureFlags && plan.featureFlags[featureKey] === true);
 }
 
+/*
+  Checks all 3 feature keys for one user -- called on every /auth/me, so on
+  every page load. It used to call hasFeature() 3 times with no plans
+  argument, which meant 3 separate (if parallel) round trips fetching the
+  exact same pricingPlans settings document. One fetch, shared across all
+  three checks below, cuts this route's DB work by two thirds.
+*/
 async function getUserFeatures(user) {
-  const entries = await Promise.all(FEATURE_KEYS.map(async (key) => [key, await hasFeature(user, key)]));
+  const plans = await getPlans();
+  const entries = await Promise.all(FEATURE_KEYS.map(async (key) => [key, await hasFeature(user, key, plans)]));
   return Object.fromEntries(entries);
 }
 

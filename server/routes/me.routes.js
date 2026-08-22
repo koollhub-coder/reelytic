@@ -43,9 +43,38 @@ router.get('/stats', requireLogin, async (req, res, next) => {
         const previousPeriodStart = new Date(now);
         previousPeriodStart.setDate(previousPeriodStart.getDate() - 28);
 
-        const [current, previous] = await Promise.all([
+        // Every date this endpoint's chart needs, computed up front so the
+        // 14-day usageStats lookup below can be ONE query instead of 14.
+        const dateStrs = [];
+        for (let i = 13; i >= 0; i--) {
+            const d = new Date(now);
+            d.setDate(d.getDate() - i);
+            dateStrs.push(d.toISOString().split('T')[0]);
+        }
+
+        /*
+          This used to be windowCounts() x2 (already parallel with each
+          other) followed by 14 SEPARATE sequential `await ...findOne()`
+          calls in a for-loop, then the recentJobs query after that -- 16
+          round trips total, 14 of them one-at-a-time. On Atlas latency from
+          Render that alone was measured at 4.5s for this one endpoint,
+          which is what made the Dashboard feel slow to load. Everything
+          this route needs is independent of everything else it needs, so
+          it all goes in one Promise.all: two count-aggregates, one
+          $in-batched usageStats query replacing the whole loop, and the
+          recent-jobs query, all firing concurrently instead of queued
+          behind each other.
+        */
+        const [current, previous, statsRows, recentJobs] = await Promise.all([
             windowCounts(db, username, periodStart, now),
             windowCounts(db, username, previousPeriodStart, periodStart),
+            db.collection('usageStats').find({ username, date: { $in: dateStrs } }).toArray(),
+            db.collection('jobs')
+                .find({ ownerUsername: username })
+                .sort({ createdAt: -1 })
+                .limit(6)
+                .project({ type: 1, status: 1, counts: 1, createdAt: 1, fileName: 1 })
+                .toArray(),
         ]);
 
         const trends = {
@@ -61,26 +90,16 @@ router.get('/stats', requireLogin, async (req, res, next) => {
                 : null,
         };
 
-        const days14 = [];
-        for (let i = 13; i >= 0; i--) {
-            const d = new Date(now);
-            d.setDate(d.getDate() - i);
-            const dateStr = d.toISOString().split('T')[0];
-            const stat = await db.collection('usageStats').findOne({ username, date: dateStr });
-            days14.push({
+        const statsByDate = new Map(statsRows.map((s) => [s.date, s]));
+        const days14 = dateStrs.map((dateStr) => {
+            const stat = statsByDate.get(dateStr);
+            return {
                 date: dateStr,
                 reels: (stat && stat.reelJobs) || 0,
                 profiles: (stat && stat.profileJobs) || 0,
                 total: (stat && stat.itemsProcessed) || 0,
-            });
-        }
-
-        const recentJobs = await db.collection('jobs')
-            .find({ ownerUsername: username })
-            .sort({ createdAt: -1 })
-            .limit(6)
-            .project({ type: 1, status: 1, counts: 1, createdAt: 1, fileName: 1 })
-            .toArray();
+            };
+        });
 
         res.json({
             ...current,

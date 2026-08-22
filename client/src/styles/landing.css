@@ -862,7 +862,12 @@
   .report-hero-arrow { transform: rotate(90deg); align-self: center; }
   .report-hero-flow { flex: 0 0 auto; width: 100%; }
   .report-hero-sheet-wrap { flex: 0 0 auto; width: 100%; margin-top: var(--s5); }
-  .report-hero-badge { position: static; margin: var(--s3) auto 0; width: fit-content; }
+  /* On desktop this floats absolutely, half off the report card's corner --
+     on mobile it drops into normal flow instead, right under that same
+     card. var(--s3) (12px) was carried over from being a decorative
+     overlap offset, not a real "gap from the thing above it" -- that's
+     what read as stuck to the card with no breathing room. */
+  .report-hero-badge { position: static; margin: var(--s5) auto 0; width: fit-content; }
 }
 @media (prefers-reduced-motion: reduce) {
   .report-hero-spinner, .report-hero-badge { animation: none; }
