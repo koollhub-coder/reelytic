@@ -1,5 +1,6 @@
 const { getDb } = require('../db');
 const crypto = require('crypto');
+const config = require('../config');
 
 /*
   Production error tracking.
@@ -168,10 +169,17 @@ async function recordError(input = {}) {
         route,
         status,
         firstSeenAt: now,
-        resolvedAt: null,
       },
       $set: {
         lastSeenAt: now,
+        // resolvedAt lives in $set, not $setOnInsert -- $setOnInsert only
+        // ever applies on the ONE write that creates the document, so
+        // putting it there meant a group that recurred after being marked
+        // (or auto-) resolved kept its old resolvedAt forever: the count
+        // went up, lastSeenAt moved, but it stayed filed as fixed. Any fresh
+        // occurrence reopens it, which is the whole point of tracking this
+        // at all -- a bug that comes back is real news, not a duplicate.
+        resolvedAt: null,
         // Only the most recent context is kept. Older copies of the same bug
         // add storage without adding information.
         lastContext: scrub({
@@ -208,8 +216,40 @@ async function recordError(input = {}) {
   }
 }
 
+/*
+  Auto-resolves anything that has gone quiet.
+
+  There is no way to positively confirm a bug fix from inside an error
+  tracker -- the only honest signal available is "this stopped happening."
+  So an open group with no new occurrence in config.healthAutoResolveDays
+  (default 7) gets marked resolved on its own, exactly as if someone had
+  clicked "Mark fixed" -- which is what this whole feature exists to save
+  an admin from doing by hand, one row at a time, for things that were
+  never going to recur anyway. Nothing is deleted: the row still exists,
+  still shows up with "Include ones I have marked fixed" checked, and still
+  reopens the instant it actually recurs (see recordError's $set.resolvedAt
+  above) -- auto-resolving just means it stops counting as an open issue.
+
+  Run lazily on read (same TTL-on-read shape as cache.service.js) rather
+  than on a timer, so there is no separate scheduled job to keep alive --
+  it self-corrects the moment anyone next looks at the Health page or the
+  sidebar polls the unresolved badge.
+*/
+async function autoResolveStale() {
+  try {
+    const db = getDb();
+    const days = Number(config.healthAutoResolveDays) || 7;
+    const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    await db.collection(COLLECTION).updateMany(
+      { resolvedAt: null, lastSeenAt: { $lt: cutoff } },
+      { $set: { resolvedAt: new Date(), autoResolved: true } }
+    );
+  } catch (e) { /* best-effort, same as everything else in this file */ }
+}
+
 // Unresolved groups, newest activity first. Used by the admin Health page.
 async function listErrors({ includeResolved = false, limit = 100 } = {}) {
+  await autoResolveStale();
   const db = getDb();
   const query = includeResolved ? {} : { resolvedAt: null };
   return db.collection(COLLECTION)
@@ -223,6 +263,7 @@ async function listErrors({ includeResolved = false, limit = 100 } = {}) {
 // things are broken" is more actionable than "9,120 errors".
 async function unresolvedCount() {
   try {
+    await autoResolveStale();
     return await getDb().collection(COLLECTION).countDocuments({ resolvedAt: null });
   } catch (e) {
     return 0;
@@ -231,9 +272,12 @@ async function unresolvedCount() {
 
 async function resolveError(id, resolved = true) {
   const db = getDb();
+  // A human clicking "Mark fixed"/"Reopen" is a deliberate decision, not the
+  // silence-based guess autoResolveStale makes -- clearing autoResolved here
+  // means the badge never claims credit the admin didn't ask it to take.
   await db.collection(COLLECTION).updateOne(
     { _id: String(id) },
-    { $set: { resolvedAt: resolved ? new Date() : null } }
+    { $set: { resolvedAt: resolved ? new Date() : null, autoResolved: false } }
   );
   return true;
 }

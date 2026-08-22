@@ -16,6 +16,30 @@ const { getReelPipelineMode, setReelPipelineMode, REEL_PIPELINE_INFO } = require
 const { fallbackCostUsd } = require('../services/costEstimate.service');
 const { getLegalDoc, updateLegalDoc, TYPES: LEGAL_TYPES } = require('../services/legal.service');
 
+/*
+  Total credits currently held across every client account -- the sidebar's
+  "your credits" panel means nothing for an admin (their own balance is a
+  fixed 1,000,000 placeholder so internal runs never block, see
+  credits.service.js's ADMIN_CREDITS), so admin sees this platform-wide
+  total there instead. Excludes admin accounts themselves for the same
+  reason; a real client on the Unlimited plan still has a genuine numeric
+  balance and is counted normally. Its own tiny route (not folded into
+  /overview) because Shell.jsx needs this on every admin page load, and
+  /overview does a lot more work than this one number needs.
+*/
+router.get('/credits-total', requireAdmin, async (req, res, next) => {
+  try {
+    const db = getDb();
+    const [agg] = await db.collection('users').aggregate([
+      { $match: { role: { $ne: 'admin' } } },
+      { $group: { _id: null, total: { $sum: { $ifNull: ['$credits', 0] } } } },
+    ]).toArray();
+    res.json({ totalCredits: (agg && agg.total) || 0 });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.get('/overview', requireAdmin, async (req, res, next) => {
   try {
     const db = getDb();

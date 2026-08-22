@@ -17,6 +17,17 @@ import {
 const SIDEBAR_COLLAPSED_KEY = 'reelytic-sidebar-collapsed';
 const SIDEBAR_COLLAPSED_W = '72px';
 
+// The collapsed credits pill is ~64px wide -- a full "1,284,500" would
+// overflow it, so admin's platform total gets the same K/M compaction the
+// report engine already uses for on-screen metric counts. null (still
+// loading) reads as an en dash rather than a misleading 0.
+function formatCompactCredits(n) {
+  if (n == null) return '–';
+  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
+  return String(n);
+}
+
 export function Shell() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -60,6 +71,18 @@ export function Shell() {
     check();
     const t = setInterval(check, 60000);
     return () => { alive = false; clearInterval(t); };
+  }, [user]);
+
+  // Admin's own credits panel would otherwise show '∞' -- meaningless, since
+  // an admin's balance is a fixed placeholder (see credits.service.js's
+  // ADMIN_CREDITS), not a real number. Platform-wide total is the number
+  // that's actually useful to an admin here.
+  const [totalPlatformCredits, setTotalPlatformCredits] = useState(null);
+  useEffect(() => {
+    if (user?.role !== 'admin') return;
+    apiFetch('/admin/credits-total')
+      .then((r) => setTotalPlatformCredits(r.totalCredits))
+      .catch(() => {});
   }, [user]);
   // Only the automatic first-login show lives here. Settings' "Replay tour"
   // renders its own independent WelcomeTour instance -- simpler than
@@ -324,10 +347,22 @@ export function Shell() {
           )}
         </nav>
 
-        {/* Credits panel */}
+        {/* Credits panel. Admin's own balance is a fixed 1,000,000
+            placeholder (see credits.service.js's ADMIN_CREDITS) so their
+            runs never block -- showing it, or '∞', here means nothing to an
+            admin. Platform-wide total across every client is the number
+            that's actually useful in this spot for that role. A real client
+            on the paid Unlimited plan is unaffected -- they still see their
+            own genuine balance as '∞ Unlimited', same as always. */}
         <div style={{ padding: effectiveCollapsed ? 'var(--s3) var(--s2)' : 'var(--s4)', borderTop: '1px solid var(--border)' }}>
           {effectiveCollapsed ? (
-            <Tooltip position="right" content={user?.role === 'admin' ? 'Admin: unlimited credits' : `${(user?.credits ?? 0).toLocaleString()} credits: view plans & top up`} style={{ display: 'flex', width: '100%' }}>
+            <Tooltip
+              position="right"
+              content={user?.role === 'admin'
+                ? `${(totalPlatformCredits ?? 0).toLocaleString()} credits held across every client`
+                : `${(user?.credits ?? 0).toLocaleString()} credits: view plans & top up`}
+              style={{ display: 'flex', width: '100%' }}
+            >
             <div
               onClick={() => { if (user?.role !== 'admin') { navigate('/billing'); setMobileOpen(false); } }}
               style={{
@@ -337,25 +372,36 @@ export function Shell() {
                 fontWeight: 700, fontSize: 'var(--fs-xs)', color: 'var(--accent)',
               }}
             >
-              {user?.plan === 'unlimited' ? '∞' : (user?.credits ?? 0)}
+              {user?.role === 'admin'
+                ? formatCompactCredits(totalPlatformCredits)
+                : (user?.plan === 'unlimited' ? '∞' : (user?.credits ?? 0))}
             </div>
             </Tooltip>
           ) : (
-            <Tooltip content={user?.role === 'admin' ? 'Admin: unlimited credits' : 'View plans & top up'} style={{ display: 'flex', width: '100%' }}>
+            <Tooltip
+              content={user?.role === 'admin' ? 'Total credits held across every client account' : 'View plans & top up'}
+              style={{ display: 'flex', width: '100%' }}
+            >
             <div
               onClick={() => { if (user?.role !== 'admin') { navigate('/billing'); setMobileOpen(false); } }}
               style={{ padding: '10px 12px', borderRadius: 'var(--r-md)', backgroundColor: 'var(--surface-2)', cursor: user?.role === 'admin' ? 'default' : 'pointer', width: '100%' }}
             >
-              <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600, marginBottom: '6px' }}>Credits</div>
+              <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600, marginBottom: '6px' }}>
+                {user?.role === 'admin' ? 'Platform Credits' : 'Credits'}
+              </div>
               {/* Number and plan chip share one baseline instead of the chip
                   sitting centered against the whole label+number block --
                   centering it there put the chip floating between the two
                   lines rather than lined up with the number. */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '8px' }}>
                 <div style={{ fontFamily: 'var(--font-data)', fontWeight: 700, fontSize: 'var(--fs-md)', minWidth: 0 }}>
-                  {user?.plan === 'unlimited' ? '∞ Unlimited' : (user?.credits ?? 0).toLocaleString()}
+                  {user?.role === 'admin'
+                    ? (totalPlatformCredits ?? 0).toLocaleString()
+                    : (user?.plan === 'unlimited' ? '∞ Unlimited' : (user?.credits ?? 0).toLocaleString())}
                 </div>
-                <span className="chip accent" style={{ textTransform: 'capitalize', flexShrink: 0 }}>{user?.plan || 'free'}</span>
+                {user?.role !== 'admin' && (
+                  <span className="chip accent" style={{ textTransform: 'capitalize', flexShrink: 0 }}>{user?.plan || 'free'}</span>
+                )}
               </div>
             </div>
             </Tooltip>

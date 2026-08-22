@@ -101,9 +101,16 @@ function ErrorRow({ row, onResolve }) {
           {open ? 'Hide detail' : 'Show detail'}
         </button>
         {row.resolvedAt ? (
-          <button type="button" className="btn btn-ghost" style={{ height: 28, fontSize: 'var(--fs-xs)', padding: '0 var(--s3)' }} onClick={() => onResolve(row._id, false)}>
-            Reopen
-          </button>
+          <>
+            <button type="button" className="btn btn-ghost" style={{ height: 28, fontSize: 'var(--fs-xs)', padding: '0 var(--s3)' }} onClick={() => onResolve(row._id, false)}>
+              Reopen
+            </button>
+            {row.autoResolved && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>
+                Auto-resolved &mdash; no recurrence in a while
+              </span>
+            )}
+          </>
         ) : (
           <button type="button" className="btn btn-secondary" style={{ height: 28, fontSize: 'var(--fs-xs)', padding: '0 var(--s3)' }} onClick={() => onResolve(row._id, true)}>
             Mark fixed
@@ -397,7 +404,9 @@ export function Health() {
         <InfoIcon size={13} style={{ marginTop: 2 }} />
         <span>
           Passwords, tokens and session ids are stripped before anything is written, and email addresses are reduced to
-          their domain. Marking something fixed keeps the record: if it happens again it reopens by itself.
+          their domain. An open issue that goes quiet for a week resolves itself, so you do not have to clear things by
+          hand -- and whether you mark it fixed or it resolves on its own, it reopens automatically the moment it
+          actually happens again.
         </span>
       </p>
     </div>

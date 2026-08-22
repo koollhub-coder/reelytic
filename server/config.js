@@ -18,6 +18,10 @@ module.exports = {
   apifyApiKey: process.env.APIFY_API_KEY || '',
   timezone: process.env.APP_TIMEZONE || 'Asia/Kolkata',
   cacheTtlDays: parseInt(process.env.CACHE_TTL_DAYS || '7', 10),
+  // Health page: how many days of silence before an open error auto-resolves
+  // itself (see errorTracking.service.js's autoResolveStale). Same idea as
+  // cacheTtlDays above -- a stale-after window, not a one-time wipe.
+  healthAutoResolveDays: parseInt(process.env.HEALTH_AUTO_RESOLVE_DAYS || '7', 10),
   adminUsername: process.env.ADMIN_USERNAME || 'admin',
   adminPassword: process.env.ADMIN_PASSWORD || '',
   // The one place the app's public URL is read from -- password-reset
