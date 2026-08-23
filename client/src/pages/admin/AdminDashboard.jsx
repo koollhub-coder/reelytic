@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../../api/client';
 import { StatCard } from '../../components/StatCard';
 import { BrandLoader } from '../../components/BrandLoader';
+import { Tooltip, TooltipRows } from '../../components/Tooltip';
 import { formatDate, formatDateTime, formatDayKey } from '../../utils/date';
 
 export function AdminDashboard() {
@@ -72,24 +73,27 @@ export function AdminDashboard() {
                 const reelPct = (a.reels / maxCount) * 160;
                 const profilePct = (a.profiles / maxCount) * 160;
                 const dateLabel = formatDayKey(a.date);
+                const bar = (
+                  <div style={{ width: '100%', maxWidth: '36px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+                    {a.profiles > 0 && <div style={{ width: '100%', height: `${Math.max(profilePct, 3)}px`, backgroundColor: 'var(--ok)', borderRadius: '4px 4px 0 0', transition: 'height 300ms ease' }} />}
+                    {a.reels > 0 && <div style={{ width: '100%', height: `${Math.max(reelPct, 3)}px`, backgroundColor: 'var(--accent)', borderRadius: a.profiles > 0 ? 0 : '4px 4px 0 0', transition: 'height 300ms ease' }} />}
+                    {a.count === 0 && <div style={{ width: '100%', height: '2px', backgroundColor: 'var(--border)' }} />}
+                  </div>
+                );
                 return (
-                  // Themed tooltip (components.css) instead of a native title=
-                  // box, which never themes for dark mode and effectively
-                  // never shows on touch devices.
-                  <div key={i} className="chart-bar-wrap" tabIndex={0} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end', outline: 'none' }}>
-                    {a.count > 0 && (
-                      <div className="chart-tooltip">
-                        <div className="chart-tooltip-date">{dateLabel}</div>
-                        <div className="chart-tooltip-row"><span className="chart-tooltip-dot" style={{ backgroundColor: 'var(--accent)' }} />{a.reels} reel {a.reels === 1 ? 'report' : 'reports'}</div>
-                        <div className="chart-tooltip-row"><span className="chart-tooltip-dot" style={{ backgroundColor: 'var(--ok)' }} />{a.profiles} profile {a.profiles === 1 ? 'report' : 'reports'}</div>
-                      </div>
-                    )}
+                  <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}>
                     <div style={{ fontFamily: 'var(--font-data)', fontSize: '10px', color: 'var(--text-3)', marginBottom: '4px' }}>{a.count || ''}</div>
-                    <div style={{ width: '100%', maxWidth: '36px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-                      {a.profiles > 0 && <div style={{ width: '100%', height: `${Math.max(profilePct, 3)}px`, backgroundColor: 'var(--ok)', borderRadius: '4px 4px 0 0', transition: 'height 300ms ease' }} />}
-                      {a.reels > 0 && <div style={{ width: '100%', height: `${Math.max(reelPct, 3)}px`, backgroundColor: 'var(--accent)', borderRadius: a.profiles > 0 ? 0 : '4px 4px 0 0', transition: 'height 300ms ease' }} />}
-                      {a.count === 0 && <div style={{ width: '100%', height: '2px', backgroundColor: 'var(--border)' }} />}
-                    </div>
+                    {a.count > 0 ? (
+                      <Tooltip
+                        content={<TooltipRows heading={dateLabel} rows={[
+                          { color: 'var(--accent)', label: 'Reel reports', value: a.reels },
+                          { color: 'var(--ok)', label: 'Profile reports', value: a.profiles },
+                        ]} />}
+                        style={{ width: '100%' }}
+                      >
+                        {bar}
+                      </Tooltip>
+                    ) : bar}
                     <div style={{ fontFamily: 'var(--font-data)', fontSize: '9px', color: 'var(--text-3)', transform: 'rotate(-45deg)', whiteSpace: 'nowrap', marginTop: '12px' }}>{a.date.slice(5)}</div>
                   </div>
                 );

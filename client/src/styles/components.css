@@ -387,12 +387,6 @@ div.chip {
   padding-right: var(--s4);
 }
 .chip.locked { background-color: var(--locked); color: var(--text-3); }
-/* Themed chart tooltip -- replaces native browser title= tooltips (which
-   render as an ugly unstyled black box) with a real, theme-matched tooltip
-   that appears on hover, CSS-only, no JS state needed. */
-.chart-bar-wrap {
-  position: relative;
-}
 
 /* ---------------------------------------------------------------------
    Reelytic Tooltip system (Tooltip.jsx) -- the ONE tooltip design for the
@@ -479,12 +473,6 @@ div.chip {
   flex-shrink: 0;
 }
 
-.chart-tooltip-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
 /* ---- Card grid --------------------------------------------------------
    Use this for any grid of equal-weight CARDS (feature tiles, explainer
    panels), not for metric tiles.
