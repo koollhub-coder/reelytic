@@ -41,8 +41,23 @@
 }
 
 @media (max-width: 768px) {
-  .rl-dashboard-metrics { grid-template-columns: 1fr !important; }
-  .rl-dashboard-metrics > .card,
+  /* 2-up, not stacked to a single column -- 4 full-width 176px-tall cards
+     stacked vertically was almost 900px of scrolling before anything else
+     on the page even started, which is what read as "oversized." A
+     compact 2x2 grid (with the card content itself shrunk below) shows all
+     four at a glance instead. */
+  .rl-dashboard-metrics { grid-template-columns: repeat(2, 1fr) !important; }
+  .rl-dashboard-metrics > .card {
+    height: auto !important;
+    min-height: 96px;
+    padding: 14px !important;
+  }
+  .rl-metric-card-icon { width: 32px !important; height: 32px !important; margin-bottom: 8px !important; }
+  .rl-metric-card-icon svg { width: 16px; height: 16px; }
+  .rl-metric-card-label { font-size: 10px !important; }
+  .rl-metric-card-value { font-size: 22px !important; }
+  .rl-metric-card-trend { font-size: 11px !important; }
+
   .rl-dashboard-analytics > .card,
   .rl-dashboard-lower > .card {
     height: auto !important;
@@ -297,8 +312,19 @@
      at 375px instead of landing.css's own 720px breakpoint stacking it
      vertically -- the reference keeps these compact on one line all the way
      down to phone width, so this deliberately overrides that rule at a
-     narrower one. Icon badges shrink to fit three across a narrow screen. */
-  .workflow-row { flex-direction: row !important; align-items: flex-start; gap: 6px; }
+     narrower one. Icon badges shrink to fit three across a narrow screen.
+
+     align-items needs !important too, not just flex-direction -- without
+     it, landing.css's own 720px rule (which sets align-items:center, since
+     it was written for the STACKED-column layout it also sets) was still
+     winning the align-items property specifically (later source order,
+     equal specificity) even though flex-direction correctly stayed row.
+     center on three columns of differing height (each title/description
+     wraps to a different number of lines) is exactly what shifted every
+     icon down by a different amount instead of keeping them level --
+     flex-start aligns all three to the same top edge regardless of how
+     tall each column's own text ends up being. */
+  .workflow-row { flex-direction: row !important; align-items: flex-start !important; gap: 6px; }
   .workflow-step { flex: 1 1 0; max-width: none; }
   .workflow-icon-badge { width: 44px; height: 44px; margin-bottom: var(--s2); }
   /* landing.css's OWN 720px breakpoint (a narrower query than this file's
@@ -421,10 +447,13 @@
   .rl-history-header-actions { width: 100%; }
   .rl-history-header-actions .btn { flex: 1 1 auto; }
 
-  /* Filter toolbar: type chips / status / date chips / search were one long
-     wrapped row that read as a cluttered pile on a narrow screen. Stacked
-     into one clean full-width row per group instead. */
-  .rl-history-filters { flex-direction: column; align-items: stretch; }
+  /* Filter toolbar: hidden behind the "Filters" toggle button by default
+     (all four groups sitting on screen permanently was the actual clutter
+     complaint, not just how they wrapped) -- and when it IS open, stacked
+     into one clean full-width row per group rather than the desktop's
+     wrapped single row. */
+  .rl-history-filters { display: none !important; }
+  .rl-history-filters.rl-history-filters-open { display: flex !important; flex-direction: column; align-items: stretch; }
   .rl-history-filter-group { justify-content: center; }
   .rl-history-filter-select { width: 100% !important; }
   .rl-history-filter-search { max-width: none !important; flex: none !important; width: 100%; }
@@ -448,6 +477,20 @@
      side without clipping. */
   .rl-donut-svg { width: 108px !important; height: 108px !important; }
   .rl-donut-row { gap: 16px !important; }
+
+  /* Activity chart: 14 slim bars is fine at desktop width, but a rotated
+     date label under every single one starts to visually collide with its
+     neighbours once each bar is down to ~15px wide. Every other label
+     hidden (visibility, not display, so the remaining ones don't shift)
+     keeps every bar and its real data -- only the label density drops. */
+  .rl-dashboard-chart-track > div:nth-child(even) .rl-dashboard-chart-datelabel {
+    visibility: hidden;
+  }
+  /* Icon-badge stats row: 3 items at their desktop min-width can still be
+     tight on a 360px card -- letting them wrap to 2+1 instead of forcing
+     three into one cramped row keeps each stat's value/label readable. */
+  .rl-activity-stats { flex-wrap: wrap !important; row-gap: var(--s3) !important; }
+  .rl-activity-stat { flex: 1 1 42% !important; }
 
   /* Settings' branding live-preview mock: 4 stat tiles and 3 highlight
      tiles were fixed-column grids regardless of the preview box's own

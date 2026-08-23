@@ -13,6 +13,7 @@ import {
   SearchIcon, ChevronDownIcon, MoreIcon, TrashIcon,
 } from '../components/Icon';
 import { CampaignAvatar, CampaignAvatarPicker } from '../components/CampaignAvatar';
+import { Tooltip } from '../components/Tooltip';
 
 // chip: matches the same semantic language as everywhere else in the app --
 // green = done, amber = not started, and running/paused share one "in
@@ -209,8 +210,8 @@ function ReportRow({ job, campaigns, onReassign, navigate, selectable, selected,
           time/date -> campaign -> actions. Filenames are arbitrary length
           and were wrapping to two lines, which set the height of every row;
           truncate with the full name on hover instead. */}
-      <td style={{ fontWeight: 600, maxWidth: '170px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={job.fileName}>
-        {job.fileName}
+      <td style={{ fontWeight: 600, maxWidth: '170px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <Tooltip content={job.fileName}><span>{job.fileName}</span></Tooltip>
       </td>
       <td>
         <span className={`chip ${job.type === 'reel' ? 'accent' : 'ok'}`} style={{ textTransform: 'uppercase' }}>
@@ -299,9 +300,11 @@ function ReportCardMobile({ job, campaigns, onReassign, navigate, selectable, se
           />
         )}
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontWeight: 600, fontSize: 'var(--fs-sm)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={job.fileName}>
-            {job.fileName}
-          </div>
+          <Tooltip content={job.fileName}>
+            <div style={{ fontWeight: 600, fontSize: 'var(--fs-sm)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {job.fileName}
+            </div>
+          </Tooltip>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
             <span className={`chip ${job.type === 'reel' ? 'accent' : 'ok'}`} style={{ textTransform: 'uppercase', fontSize: '10px' }}>{job.type}</span>
             <span className={`chip ${statusInfo.chip}`} style={{ fontSize: '10px' }}>{statusInfo.label}</span>
@@ -595,6 +598,10 @@ export function History() {
   // filter over data already in memory rather than a new query.
   const [statusFilter, setStatusFilter] = useState('all'); // all, not-started, in-progress, done
   const [creatorSearch, setCreatorSearch] = useState('');
+  // Mobile-only: whether the filter toolbar (desktop: always visible) is
+  // currently expanded. Never read on desktop -- the toolbar's own CSS
+  // only checks this class inside the mobile media query.
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   // Display-only paging over the already-loaded jobs array -- separate page
   // state for the flat table and the Unassigned table since they show
   // different slices of the same underlying data.
@@ -891,6 +898,15 @@ export function History() {
     { value: 'not-started', label: `Not started (${notStartedCount})` },
   ];
 
+  // Drives the dot on the mobile "Filters" toggle -- anything other than
+  // the all-encompassing default counts as "something is filtered."
+  const activeFilterCount = [
+    typeFilter !== 'all',
+    statusFilter !== 'all',
+    dateFilter !== 'all',
+    creatorSearch.trim() !== '',
+  ].filter(Boolean).length;
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--s4)', flexWrap: 'wrap', gap: 'var(--s3)' }}>
@@ -956,10 +972,31 @@ export function History() {
             </button>
           </div>
 
+          {/* Mobile only: the full toolbar below stays permanently visible
+              on desktop, but four filter groups sitting on screen at all
+              times on a phone is exactly the "cluttered" complaint -- this
+              button reveals the SAME toolbar (same state, same handlers,
+              nothing duplicated) rather than clutter every visit. The dot
+              is a real "something is filtered" signal, not decoration. */}
+          <button
+            type="button"
+            className="rl-mobile-only rl-history-filters-toggle"
+            onClick={() => setMobileFiltersOpen((v) => !v)}
+            style={{ alignItems: 'center', justifyContent: 'space-between', gap: 'var(--s2)', width: '100%', height: '40px', padding: '0 var(--s4)', marginBottom: 'var(--s3)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', color: 'var(--text)', fontSize: 'var(--fs-sm)', fontWeight: 600, cursor: 'pointer' }}
+          >
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+              Filters
+              {activeFilterCount > 0 && (
+                <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'var(--accent)', display: 'inline-block' }} aria-hidden="true" />
+              )}
+            </span>
+            <ChevronDownIcon size={15} style={{ transform: mobileFiltersOpen ? 'rotate(180deg)' : 'none', transition: 'transform var(--t-fast)' }} />
+          </button>
+
           {/* Filter toolbar: type + status + date + search, all filtering
               the SAME jobs array already in memory -- statusFilter is the
               only new piece of state; every handler below already existed. */}
-          <div className="card rl-history-filters" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--s3)', padding: 'var(--s3) var(--s4)', marginBottom: 'var(--s4)' }}>
+          <div className={`card rl-history-filters${mobileFiltersOpen ? ' rl-history-filters-open' : ''}`} style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--s3)', padding: 'var(--s3) var(--s4)', marginBottom: 'var(--s4)' }}>
             <div className="rl-history-filter-group" style={{ display: 'flex', gap: '4px' }}>
               <button onClick={() => setTypeFilter('all')} className={`chip ${typeFilter === 'all' ? 'accent' : ''}`} style={{ cursor: 'pointer', padding: '6px 12px' }}>All</button>
               <button onClick={() => setTypeFilter('reel')} className={`chip ${typeFilter === 'reel' ? 'accent' : ''}`} style={{ cursor: 'pointer', padding: '6px 12px' }}>Reel</button>
