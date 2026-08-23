@@ -132,25 +132,17 @@ function ReportSplitDonut({ reelCount, profileCount }) {
         <text x="80" y="96" textAnchor="middle" fontSize="11" fill="var(--text-3)">reports</text>
       </svg>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text-2)', minWidth: 0 }}>
-            <span style={{ width: 9, height: 9, borderRadius: '50%', backgroundColor: 'var(--accent)', display: 'inline-block', flexShrink: 0 }} />
-            Reel reports
-          </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', flexShrink: 0 }}>
-            <span style={{ fontFamily: 'var(--font-data)', fontSize: '20px', fontWeight: 700 }}>{reelCount.toLocaleString()}</span>
-            <span style={{ fontSize: '12px', color: 'var(--text-3)' }}>{Math.round(reelFrac * 100)}%</span>
-          </div>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', fontSize: '13px', color: 'var(--text-2)', flexWrap: 'wrap' }}>
+          <span style={{ width: 9, height: 9, borderRadius: '50%', backgroundColor: 'var(--accent)', display: 'inline-block', flexShrink: 0, alignSelf: 'center' }} />
+          <span>Reel reports</span>
+          <span style={{ fontFamily: 'var(--font-data)', fontWeight: 700, color: 'var(--text)' }}>{reelCount.toLocaleString()}</span>
+          <span style={{ color: 'var(--text-3)' }}>· {(reelFrac * 100).toFixed(1)}%</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text-2)', minWidth: 0 }}>
-            <span style={{ width: 9, height: 9, borderRadius: '50%', backgroundColor: 'var(--ok)', display: 'inline-block', flexShrink: 0 }} />
-            Profile reports
-          </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', flexShrink: 0 }}>
-            <span style={{ fontFamily: 'var(--font-data)', fontSize: '20px', fontWeight: 700 }}>{profileCount.toLocaleString()}</span>
-            <span style={{ fontSize: '12px', color: 'var(--text-3)' }}>{Math.round((1 - reelFrac) * 100)}%</span>
-          </div>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', fontSize: '13px', color: 'var(--text-2)', flexWrap: 'wrap' }}>
+          <span style={{ width: 9, height: 9, borderRadius: '50%', backgroundColor: 'var(--ok)', display: 'inline-block', flexShrink: 0, alignSelf: 'center' }} />
+          <span>Profile reports</span>
+          <span style={{ fontFamily: 'var(--font-data)', fontWeight: 700, color: 'var(--text)' }}>{profileCount.toLocaleString()}</span>
+          <span style={{ color: 'var(--text-3)' }}>· {((1 - reelFrac) * 100).toFixed(1)}%</span>
         </div>
       </div>
     </div>
@@ -437,13 +429,13 @@ export function Dashboard() {
                       and every bar below scales against that SAME number --
                       so a bar that visually reaches the "40" gridline really
                       does represent 40, not an approximation. */}
-                  <div style={{ display: 'flex', flex: 1, minHeight: 0, gap: '8px' }}>
+                  <div className="rl-dashboard-chart-row" style={{ display: 'flex', flex: 1, minWidth: 0, minHeight: 0, gap: '8px' }}>
                     <div className="rl-dashboard-chart-yaxis" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', paddingBottom: '24px', flexShrink: 0 }}>
                       {axisTicks.map((t, i) => (
                         <span key={i} className="mono" style={{ fontSize: '9px', color: 'var(--text-3)', lineHeight: 1 }}>{t}</span>
                       ))}
                     </div>
-                    <div style={{ position: 'relative', flex: 1, minHeight: 0 }}>
+                    <div style={{ position: 'relative', flex: 1, minWidth: 0, minHeight: 0 }}>
                       {/* Gridlines, positioned to land exactly on the same
                           0/33/66/100% marks the y-axis labels use, within the
                           bar area only (excludes the 24px reserved for the
@@ -472,7 +464,7 @@ export function Dashboard() {
                           const profilePct = (d.profiles / axisMax) * 100;
                           const dateLabel = formatDayKey(d.date);
                           const bar = (
-                            <div style={{ width: '100%', maxWidth: '28px', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+                            <div className="rl-dashboard-chart-bar" style={{ width: '100%', maxWidth: '28px', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
                               {d.profiles > 0 && <div style={{ width: '100%', height: `${Math.max(profilePct, 3)}%`, backgroundColor: 'var(--ok)', borderRadius: '3px 3px 0 0', transition: 'height 300ms ease' }} />}
                               {d.reels > 0 && <div style={{ width: '100%', height: `${Math.max(reelPct, 3)}%`, backgroundColor: 'var(--accent)', borderRadius: d.profiles > 0 ? 0 : '3px 3px 0 0', transition: 'height 300ms ease' }} />}
                               {d.total === 0 && <div style={{ width: '100%', height: '2px', backgroundColor: 'var(--border)', flexShrink: 0 }} />}
@@ -482,7 +474,7 @@ export function Dashboard() {
                             <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0 }}>
                               {d.total > 0 ? (
                                 <Tooltip
-                                  content={<TooltipRows heading={dateLabel} rows={[
+                                  content={<TooltipRows heading={`${dateLabel} · ${d.total} total`} rows={[
                                     { color: 'var(--accent)', label: 'Reel reports', value: d.reels },
                                     { color: 'var(--ok)', label: 'Profile reports', value: d.profiles },
                                   ]} />}
@@ -542,9 +534,12 @@ export function Dashboard() {
                             <div style={{ fontWeight: 600, fontSize: 'var(--fs-sm)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {j.fileName || 'Pasted links'}
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px', flexWrap: 'wrap' }}>
+                              <span className={`chip ${j.type === 'reel' ? 'accent' : 'ok'}`} style={{ fontSize: '10px', textTransform: 'uppercase' }}>{j.type}</span>
                               <span className={`chip ${statusInfo.chip}`} style={{ fontSize: '10px' }}>{statusInfo.label}</span>
-                              <span className="mono" style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>{formatDate(j.createdAt)}</span>
+                              <span className="mono" style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>
+                                {formatDate(j.createdAt)}{j.counts?.total ? ` · ${j.counts.total} links` : ''}
+                              </span>
                             </div>
                           </div>
                           <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>

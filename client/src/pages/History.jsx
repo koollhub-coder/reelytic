@@ -299,6 +299,14 @@ function ReportCardMobile({ job, campaigns, onReassign, navigate, selectable, se
             style={{ marginTop: '3px', flexShrink: 0 }}
           />
         )}
+        <div style={{
+          width: '32px', height: '32px', borderRadius: 'var(--r-md)', flexShrink: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: job.type === 'reel' ? 'var(--accent-soft)' : 'var(--ok-soft)',
+          color: job.type === 'reel' ? 'var(--accent)' : 'var(--ok)',
+        }}>
+          {job.type === 'reel' ? <ReelIcon size={15} /> : <ProfileIcon size={15} />}
+        </div>
         <div style={{ minWidth: 0, flex: 1 }}>
           <Tooltip content={job.fileName}>
             <div style={{ fontWeight: 600, fontSize: 'var(--fs-sm)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -314,6 +322,19 @@ function ReportCardMobile({ job, campaigns, onReassign, navigate, selectable, se
             {formatDuration(job.startedAt, job.finishedAt)} &middot; {formatDateTime(job.createdAt)}
           </div>
         </div>
+        {/* Secondary actions live here, top-right, next to the filename --
+            not competing with the primary action button below. Downloads
+            only exist once there's something to download; RowMenu already
+            renders nothing when items is empty. */}
+        {isDone && (job.counts?.success || 0) > 0 && (
+          <RowMenu
+            items={[
+              { label: 'Download Excel (.xlsx)', href: `/api/export/${job.id}.xlsx`, download: true },
+              { label: 'Download CSV', href: `/api/export/${job.id}.csv`, download: true },
+              { label: 'Branded report', onClick: () => navigate(`/reports/${job.id}/branded`) },
+            ]}
+          />
+        )}
       </div>
 
       <div style={{ marginTop: 'var(--s3)' }}>
@@ -325,25 +346,17 @@ function ReportCardMobile({ job, campaigns, onReassign, navigate, selectable, se
         />
       </div>
 
-      <div style={{ display: 'flex', gap: '8px', marginTop: 'var(--s3)' }}>
-        <button
-          type="button"
-          className="btn btn-secondary"
-          style={{ flex: 1, height: '36px', fontSize: 'var(--fs-sm)' }}
-          onClick={() => navigate(`${job.type === 'reel' ? '/reels' : '/profiles'}?job=${job.id}`)}
-        >
-          {isDone ? 'View' : 'Resume →'}
-        </button>
-        {isDone && (job.counts?.success || 0) > 0 && (
-          <RowMenu
-            items={[
-              { label: 'Download Excel (.xlsx)', href: `/api/export/${job.id}.xlsx`, download: true },
-              { label: 'Download CSV', href: `/api/export/${job.id}.csv`, download: true },
-              { label: 'Branded report', onClick: () => navigate(`/reports/${job.id}/branded`) },
-            ]}
-          />
-        )}
-      </div>
+      {/* One obvious primary action, full-width -- View for a finished
+          report, Resume for one that isn't. Nothing else competes with it
+          on this row; secondary actions already moved up to the ⋮ menu. */}
+      <button
+        type="button"
+        className="btn btn-secondary"
+        style={{ width: '100%', height: '36px', fontSize: 'var(--fs-sm)', marginTop: 'var(--s3)' }}
+        onClick={() => navigate(`${job.type === 'reel' ? '/reels' : '/profiles'}?job=${job.id}`)}
+      >
+        {isDone ? 'View report →' : 'Resume report →'}
+      </button>
     </div>
   );
 }
@@ -423,8 +436,11 @@ function ReportsTable({ jobs, campaigns, navigate, onReassign, loading = false, 
 function CampaignCard({ campaign, jobs, campaigns, navigate, onReassign, expanded, onToggle, onDelete, onAvatarChange }) {
   return (
     <div className="card" style={{ marginBottom: 'var(--s3)', padding: 0, overflow: 'hidden' }}>
+      {/* Desktop: one clickable row, everything (avatar, stats, delete,
+          expand chevron) inline -- unchanged from before this redesign. */}
       <div
         onClick={onToggle}
+        className="rl-hide-mobile"
         style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', rowGap: 'var(--s3)', padding: 'var(--s3) var(--s4)', cursor: 'pointer' }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s3)', minWidth: 0, flex: '1 1 160px' }}>
@@ -479,6 +495,48 @@ function CampaignCard({ campaign, jobs, campaigns, navigate, onReassign, expande
           </span>
         </div>
       </div>
+
+      {/* Mobile: identity + one kebab menu on top, stats on their own row,
+          one obvious primary action ("View reports") at the bottom -- the
+          desktop row above crams avatar/name/stats/delete/chevron into one
+          line, which is exactly the "too much info in one row" this
+          composition avoids. Same campaign object, same handlers. */}
+      <div className="rl-mobile-only" style={{ flexDirection: 'column', padding: 'var(--s3) var(--s4)' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 'var(--s2)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s3)', minWidth: 0, flex: 1 }}>
+            <CampaignAvatarPicker name={campaign.name} avatarUrl={campaign.avatarUrl} onChange={(url) => onAvatarChange(campaign.id, url)} size={36} />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '16px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{campaign.name}</div>
+              <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', marginTop: 2 }}>
+                {campaign.reportCount} {campaign.reportCount === 1 ? 'report' : 'reports'}
+                {campaign.earliestAt ? ` · ${formatDateRange(campaign.earliestAt, campaign.latestAt)}` : ''}
+              </div>
+            </div>
+          </div>
+          <RowMenu items={[{ label: 'Delete campaign', onClick: () => onDelete(campaign) }]} />
+        </div>
+
+        <div style={{ display: 'flex', gap: 'var(--s5)', marginTop: 'var(--s3)' }}>
+          <div>
+            <div style={{ fontFamily: 'var(--font-data)', fontSize: '18px', fontWeight: 700 }}>{formatViews(campaign.totalViews)}</div>
+            <div style={{ fontSize: '10px', color: 'var(--text-3)', textTransform: 'uppercase' }}>Views</div>
+          </div>
+          <div>
+            <div style={{ fontFamily: 'var(--font-data)', fontSize: '18px', fontWeight: 700, color: 'var(--ok)' }}>{campaign.avgEr != null ? `${campaign.avgEr}%` : '-'}</div>
+            <div style={{ fontSize: '10px', color: 'var(--text-3)', textTransform: 'uppercase' }}>Avg ER</div>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={onToggle}
+          className="btn btn-secondary"
+          style={{ width: '100%', height: '36px', fontSize: 'var(--fs-sm)', marginTop: 'var(--s3)' }}
+        >
+          {expanded ? 'Hide reports' : 'View reports'} {expanded ? '' : '→'}
+        </button>
+      </div>
+
       {expanded && (
         jobs.length === 0 ? (
           <div style={{ padding: 'var(--s4) var(--s5)', color: 'var(--text-3)', fontSize: 'var(--fs-sm)', borderTop: '1px solid var(--border)' }}>
@@ -510,42 +568,87 @@ function CampaignCompareTable({ campaigns }) {
   });
 
   return (
-    <div className="data-table-container">
-      <table className="data-table">
-        <thead>
-          <tr>
-            <th>Campaign</th>
-            <th>Reports</th>
-            <th>Links</th>
-            <th>Success rate</th>
-            <th>Total views</th>
-            <th>Avg ER</th>
-            <th>Active</th>
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map((c) => {
-            const successRate = c.totalLinks > 0 ? Math.round((c.successCount / c.totalLinks) * 100) : null;
-            return (
-              <tr key={c.id}>
-                <td style={{ fontWeight: 600 }}>
-                  {c.name}
-                  {c.id === bestId && (
-                    <span className="chip ok" style={{ marginLeft: 'var(--s2)', fontSize: '10px' }}>Top performer</span>
-                  )}
-                </td>
-                <td className="numeric mono">{c.reportCount}</td>
-                <td className="numeric mono">{c.totalLinks}</td>
-                <td className="numeric mono">{successRate != null ? `${successRate}%` : '-'}</td>
-                <td className="numeric mono">{formatViews(c.totalViews)}</td>
-                <td className="numeric mono" style={{ color: 'var(--ok)', fontWeight: 600 }}>{c.avgEr != null ? `${c.avgEr}%` : '-'}</td>
-                <td className="mono" style={{ color: 'var(--text-3)', fontSize: 'var(--fs-xs)' }}>{c.earliestAt ? formatDateRange(c.earliestAt, c.latestAt) : '-'}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+    <>
+      <div className="data-table-container rl-hide-mobile">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Campaign</th>
+              <th>Reports</th>
+              <th>Links</th>
+              <th>Success rate</th>
+              <th>Total views</th>
+              <th>Avg ER</th>
+              <th>Active</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((c) => {
+              const successRate = c.totalLinks > 0 ? Math.round((c.successCount / c.totalLinks) * 100) : null;
+              return (
+                <tr key={c.id}>
+                  <td style={{ fontWeight: 600 }}>
+                    {c.name}
+                    {c.id === bestId && (
+                      <span className="chip ok" style={{ marginLeft: 'var(--s2)', fontSize: '10px' }}>Top performer</span>
+                    )}
+                  </td>
+                  <td className="numeric mono">{c.reportCount}</td>
+                  <td className="numeric mono">{c.totalLinks}</td>
+                  <td className="numeric mono">{successRate != null ? `${successRate}%` : '-'}</td>
+                  <td className="numeric mono">{formatViews(c.totalViews)}</td>
+                  <td className="numeric mono" style={{ color: 'var(--ok)', fontWeight: 600 }}>{c.avgEr != null ? `${c.avgEr}%` : '-'}</td>
+                  <td className="mono" style={{ color: 'var(--text-3)', fontSize: 'var(--fs-xs)' }}>{c.earliestAt ? formatDateRange(c.earliestAt, c.latestAt) : '-'}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Mobile: the same rows as stacked comparison cards instead of a
+          7-column table -- same sort, same "Top performer" flag, same
+          fields, just one per card instead of one per row. */}
+      <div className="rl-mobile-only" style={{ flexDirection: 'column', gap: 'var(--s3)' }}>
+        {sorted.map((c) => {
+          const successRate = c.totalLinks > 0 ? Math.round((c.successCount / c.totalLinks) * 100) : null;
+          return (
+            <div key={c.id} className="card" style={{ padding: 'var(--s3) var(--s4)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: 'var(--s3)' }}>
+                <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '15px' }}>{c.name}</span>
+                {c.id === bestId && <span className="chip ok" style={{ fontSize: '10px' }}>Top performer</span>}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--s3)' }}>
+                <div>
+                  <div className="mono" style={{ fontSize: '13px', fontWeight: 700 }}>{c.reportCount}</div>
+                  <div style={{ fontSize: '10px', color: 'var(--text-3)', textTransform: 'uppercase' }}>Reports</div>
+                </div>
+                <div>
+                  <div className="mono" style={{ fontSize: '13px', fontWeight: 700 }}>{c.totalLinks}</div>
+                  <div style={{ fontSize: '10px', color: 'var(--text-3)', textTransform: 'uppercase' }}>Links</div>
+                </div>
+                <div>
+                  <div className="mono" style={{ fontSize: '13px', fontWeight: 700 }}>{successRate != null ? `${successRate}%` : '-'}</div>
+                  <div style={{ fontSize: '10px', color: 'var(--text-3)', textTransform: 'uppercase' }}>Success</div>
+                </div>
+                <div>
+                  <div className="mono" style={{ fontSize: '13px', fontWeight: 700 }}>{formatViews(c.totalViews)}</div>
+                  <div style={{ fontSize: '10px', color: 'var(--text-3)', textTransform: 'uppercase' }}>Views</div>
+                </div>
+                <div>
+                  <div className="mono" style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ok)' }}>{c.avgEr != null ? `${c.avgEr}%` : '-'}</div>
+                  <div style={{ fontSize: '10px', color: 'var(--text-3)', textTransform: 'uppercase' }}>Avg ER</div>
+                </div>
+                <div>
+                  <div className="mono" style={{ fontSize: '11px', color: 'var(--text-3)' }}>{c.earliestAt ? formatDateRange(c.earliestAt, c.latestAt) : '-'}</div>
+                  <div style={{ fontSize: '10px', color: 'var(--text-3)', textTransform: 'uppercase' }}>Active</div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </>
   );
 }
 
@@ -556,8 +659,8 @@ function SummaryTile({ icon, tone, value, label, sublabel }) {
   const toneColor = tone === 'ok' ? 'var(--ok)' : tone === 'warn' ? 'var(--warn)' : tone === 'info' ? 'var(--info)' : tone === 'accent' ? 'var(--accent)' : 'var(--text-2)';
   const toneSoft = tone === 'ok' ? 'var(--ok-soft)' : tone === 'warn' ? 'var(--warn-soft)' : tone === 'info' ? 'var(--info-soft)' : tone === 'accent' ? 'var(--accent-soft)' : 'var(--surface-2)';
   return (
-    <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', flex: '1 1 150px' }}>
-      <div style={{
+    <div className="card rl-summary-tile" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', flex: '1 1 150px' }}>
+      <div className="rl-summary-tile-icon" style={{
         width: '40px', height: '40px', borderRadius: '50%', flexShrink: 0,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         background: toneSoft, color: toneColor,
@@ -911,8 +1014,8 @@ export function History() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--s4)', flexWrap: 'wrap', gap: 'var(--s3)' }}>
         <div>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-xl)', fontWeight: 700 }}>Report History</h1>
-          <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)' }}>Track, review and manage all your reports</p>
+          <h1 className="rl-history-heading" style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-xl)', fontWeight: 700 }}>History</h1>
+          <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)' }}>All your past imports and reports.</p>
         </div>
         <div className="rl-history-header-actions" style={{ display: 'flex', gap: 'var(--s3)', flexWrap: 'wrap' }}>
           {campaigns.length >= 2 && (
@@ -930,7 +1033,7 @@ export function History() {
         <>
           {/* Summary strip: read-only counts, not filters -- the toolbar
               below is where filtering actually happens. */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--s2)', marginBottom: 'var(--s3)' }}>
+          <div className="rl-history-summary" style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--s2)', marginBottom: 'var(--s3)' }}>
             <SummaryTile icon={<FileIcon size={14} />} tone="neutral" value={dateFilteredJobs.length} label="Total reports" />
             <SummaryTile icon={<ReelIcon size={14} />} tone="accent" value={reelCount} label="Reel reports" />
             <SummaryTile icon={<ProfileIcon size={14} />} tone="info" value={profileCount} label="Profile reports" />
@@ -972,55 +1075,78 @@ export function History() {
             </button>
           </div>
 
-          {/* Mobile only: the full toolbar below stays permanently visible
-              on desktop, but four filter groups sitting on screen at all
-              times on a phone is exactly the "cluttered" complaint -- this
-              button reveals the SAME toolbar (same state, same handlers,
-              nothing duplicated) rather than clutter every visit. The dot
-              is a real "something is filtered" signal, not decoration. */}
-          <button
-            type="button"
-            className="rl-mobile-only rl-history-filters-toggle"
-            onClick={() => setMobileFiltersOpen((v) => !v)}
-            style={{ alignItems: 'center', justifyContent: 'space-between', gap: 'var(--s2)', width: '100%', height: '40px', padding: '0 var(--s4)', marginBottom: 'var(--s3)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', color: 'var(--text)', fontSize: 'var(--fs-sm)', fontWeight: 600, cursor: 'pointer' }}
-          >
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-              Filters
-              {activeFilterCount > 0 && (
-                <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'var(--accent)', display: 'inline-block' }} aria-hidden="true" />
-              )}
-            </span>
-            <ChevronDownIcon size={15} style={{ transform: mobileFiltersOpen ? 'rotate(180deg)' : 'none', transition: 'transform var(--t-fast)' }} />
-          </button>
-
-          {/* Filter toolbar: type + status + date + search, all filtering
-              the SAME jobs array already in memory -- statusFilter is the
-              only new piece of state; every handler below already existed. */}
-          <div className={`card rl-history-filters${mobileFiltersOpen ? ' rl-history-filters-open' : ''}`} style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--s3)', padding: 'var(--s3) var(--s4)', marginBottom: 'var(--s4)' }}>
-            <div className="rl-history-filter-group" style={{ display: 'flex', gap: '4px' }}>
-              <button onClick={() => setTypeFilter('all')} className={`chip ${typeFilter === 'all' ? 'accent' : ''}`} style={{ cursor: 'pointer', padding: '6px 12px' }}>All</button>
-              <button onClick={() => setTypeFilter('reel')} className={`chip ${typeFilter === 'reel' ? 'accent' : ''}`} style={{ cursor: 'pointer', padding: '6px 12px' }}>Reel</button>
-              <button onClick={() => setTypeFilter('profile')} className={`chip ${typeFilter === 'profile' ? 'ok' : ''}`} style={{ cursor: 'pointer', padding: '6px 12px' }}>Profile</button>
-            </div>
-            <span className="rl-hide-mobile" style={{ width: '1px', alignSelf: 'stretch', backgroundColor: 'var(--border)' }} />
-            <Select value={statusFilter} onChange={setStatusFilter} options={statusOptions} style={{ minWidth: '150px' }} className="rl-history-filter-select" />
-            <div className="rl-history-filter-group" style={{ display: 'flex', gap: '4px' }}>
-              <button onClick={() => setDateFilter('all')} className={`chip ${dateFilter === 'all' ? 'accent' : ''}`} style={{ cursor: 'pointer', padding: '6px 12px' }}>All time</button>
-              <button onClick={() => setDateFilter('30d')} className={`chip ${dateFilter === '30d' ? 'accent' : ''}`} style={{ cursor: 'pointer', padding: '6px 12px' }}>Last 30 days</button>
-              <button onClick={() => setDateFilter('7d')} className={`chip ${dateFilter === '7d' ? 'accent' : ''}`} style={{ cursor: 'pointer', padding: '6px 12px' }}>Last 7 days</button>
-            </div>
-            <span className="rl-hide-mobile" style={{ width: '1px', alignSelf: 'stretch', backgroundColor: 'var(--border)' }} />
-            <span className="rl-history-filter-search" style={{ position: 'relative', flex: '1 1 220px', minWidth: 0, maxWidth: '260px' }}>
-              <SearchIcon size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)', pointerEvents: 'none' }} />
+          {/* Mobile-only top row: search stays visible at all times (same
+              creatorSearch state/debounce as the toolbar's own search box
+              below, just surfaced up top per the reference layout) next to
+              a compact Filters trigger for the other three groups, instead
+              of four filter groups sitting on screen at once on a phone. */}
+          <div className="rl-mobile-only rl-history-searchbar" style={{ gap: 'var(--s2)', marginBottom: 'var(--s3)' }}>
+            <span style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+              <SearchIcon size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)', pointerEvents: 'none' }} />
               <input
                 type="text"
                 className="input-field"
                 placeholder="Search by creator username"
                 value={creatorSearch}
                 onChange={(e) => setCreatorSearch(e.target.value)}
-                style={{ height: '32px', fontSize: 'var(--fs-sm)', width: '100%', paddingLeft: '30px' }}
+                style={{ height: '40px', fontSize: 'var(--fs-sm)', width: '100%', paddingLeft: '34px' }}
               />
             </span>
+            <button
+              type="button"
+              className="rl-history-filters-toggle"
+              onClick={() => setMobileFiltersOpen((v) => !v)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', height: '40px', padding: '0 var(--s3)', flexShrink: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', color: 'var(--text)', fontSize: 'var(--fs-sm)', fontWeight: 600, cursor: 'pointer' }}
+            >
+              Filters
+              {activeFilterCount > 0 && (
+                <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'var(--accent)', display: 'inline-block' }} aria-hidden="true" />
+              )}
+            </button>
+          </div>
+
+          {/* Filter toolbar: type + status + date + search, all filtering
+              the SAME jobs array already in memory -- statusFilter is the
+              only new piece of state; every handler below already existed.
+              On mobile the search box hides here (it now lives in the
+              always-visible bar above) and each group gets its own labeled
+              row inside the collapsible panel. */}
+          <div className={`card rl-history-filters${mobileFiltersOpen ? ' rl-history-filters-open' : ''}`} style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--s3)', padding: 'var(--s3) var(--s4)', marginBottom: 'var(--s4)' }}>
+            <div className="rl-history-filter-row">
+              <span className="rl-history-filter-label rl-mobile-only">Report type</span>
+              <div className="rl-history-filter-group" style={{ display: 'flex', gap: '4px' }}>
+                <button onClick={() => setTypeFilter('all')} className={`chip ${typeFilter === 'all' ? 'accent' : ''}`} style={{ cursor: 'pointer', padding: '6px 12px' }}>All</button>
+                <button onClick={() => setTypeFilter('reel')} className={`chip ${typeFilter === 'reel' ? 'accent' : ''}`} style={{ cursor: 'pointer', padding: '6px 12px' }}>Reel</button>
+                <button onClick={() => setTypeFilter('profile')} className={`chip ${typeFilter === 'profile' ? 'ok' : ''}`} style={{ cursor: 'pointer', padding: '6px 12px' }}>Profile</button>
+              </div>
+            </div>
+            <span className="rl-hide-mobile" style={{ width: '1px', alignSelf: 'stretch', backgroundColor: 'var(--border)' }} />
+            <div className="rl-history-filter-row">
+              <span className="rl-history-filter-label rl-mobile-only">Status</span>
+              <Select value={statusFilter} onChange={setStatusFilter} options={statusOptions} style={{ minWidth: '150px' }} className="rl-history-filter-select" />
+            </div>
+            <div className="rl-history-filter-row">
+              <span className="rl-history-filter-label rl-mobile-only">Date</span>
+              <div className="rl-history-filter-group" style={{ display: 'flex', gap: '4px' }}>
+                <button onClick={() => setDateFilter('all')} className={`chip ${dateFilter === 'all' ? 'accent' : ''}`} style={{ cursor: 'pointer', padding: '6px 12px' }}>All time</button>
+                <button onClick={() => setDateFilter('30d')} className={`chip ${dateFilter === '30d' ? 'accent' : ''}`} style={{ cursor: 'pointer', padding: '6px 12px' }}>Last 30 days</button>
+                <button onClick={() => setDateFilter('7d')} className={`chip ${dateFilter === '7d' ? 'accent' : ''}`} style={{ cursor: 'pointer', padding: '6px 12px' }}>Last 7 days</button>
+              </div>
+            </div>
+            <span className="rl-hide-mobile" style={{ width: '1px', alignSelf: 'stretch', backgroundColor: 'var(--border)' }} />
+            <div className="rl-history-filter-row rl-hide-mobile">
+              <span className="rl-history-filter-search" style={{ position: 'relative', flex: '1 1 220px', minWidth: 0, maxWidth: '260px' }}>
+                <SearchIcon size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)', pointerEvents: 'none' }} />
+                <input
+                  type="text"
+                  className="input-field"
+                  placeholder="Search by creator username"
+                  value={creatorSearch}
+                  onChange={(e) => setCreatorSearch(e.target.value)}
+                  style={{ height: '32px', fontSize: 'var(--fs-sm)', width: '100%', paddingLeft: '30px' }}
+                />
+              </span>
+            </div>
           </div>
         </>
       )}
@@ -1079,7 +1205,7 @@ export function History() {
           {campaigns.length > 0 && (
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 'var(--s3)' }}>
               <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-md)', fontWeight: 700 }}>
-                {showAllCampaigns ? 'Campaigns' : 'Recent reports'}
+                {showAllCampaigns ? 'All campaigns' : 'Recent campaigns'}
               </h2>
               {campaigns.length > RECENT_CAMPAIGNS_COUNT && (
                 <button
@@ -1124,13 +1250,18 @@ export function History() {
                     endpoint, only appears once something is actually
                     selected. */}
                 {selectedUnassignedIds.size > 0 && (
-                  <Select
-                    value=""
-                    onChange={handleBulkAssign}
-                    options={campaigns.map((c) => ({ value: c.id, label: c.name }))}
-                    placeholder={bulkAssigning ? 'Assigning...' : `Assign ${selectedUnassignedIds.size} to campaign`}
-                    style={{ minWidth: '200px' }}
-                  />
+                  <div className="rl-history-bulk-bar" style={{ display: 'flex', alignItems: 'center', gap: 'var(--s2)' }}>
+                    <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-2)', whiteSpace: 'nowrap' }}>
+                      {selectedUnassignedIds.size} selected
+                    </span>
+                    <Select
+                      value=""
+                      onChange={handleBulkAssign}
+                      options={campaigns.map((c) => ({ value: c.id, label: c.name }))}
+                      placeholder={bulkAssigning ? 'Assigning...' : 'Assign to campaign'}
+                      style={{ minWidth: '180px' }}
+                    />
+                  </div>
                 )}
               </div>
               <div style={{ borderTop: '1px solid var(--border)', overflowX: 'auto' }}>

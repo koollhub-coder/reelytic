@@ -61,6 +61,16 @@
   .rl-dashboard-analytics > .card,
   .rl-dashboard-lower > .card {
     height: auto !important;
+    /* A 1fr grid track's automatic minimum is "auto" -- the largest
+       min-content width among its items -- not the track's own size. With
+       unshrinkable content anywhere inside (nowrap text, fixed-width chart
+       bits), the track blows out past the viewport instead of respecting
+       1fr. min-width:0 on the grid item is what lets it actually shrink. */
+    min-width: 0 !important;
+  }
+  .rl-dashboard-analytics,
+  .rl-dashboard-lower {
+    min-width: 0;
   }
   /* Date chip + two report buttons: three content-width items whose combined
      natural width (~520px) is wider than any phone. Stacked full-width
@@ -457,6 +467,32 @@
   .rl-history-filter-group { justify-content: center; }
   .rl-history-filter-select { width: 100% !important; }
   .rl-history-filter-search { max-width: none !important; flex: none !important; width: 100%; }
+  /* Each filter group is its own labeled full-width row inside the open
+     panel (Report type / Status / Date), instead of the desktop's single
+     wrapped row with no group labels -- same buttons/Select, just given
+     room and a heading so a phone screen can tell the groups apart. */
+  .rl-history-filter-row { width: 100%; display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
+  .rl-history-filter-label { font-size: 10px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.03em; }
+
+  /* Always-visible search + Filters trigger row, sitting above the
+     collapsible panel -- search never has to be opened via Filters to be
+     reachable. */
+  .rl-history-searchbar { display: flex !important; align-items: center; }
+
+  /* Page heading: desktop's fs-xl reads oversized on a phone. */
+  .rl-history-heading { font-size: 22px !important; }
+
+  /* Summary strip: 5 wide desktop tiles -> a compact 2-up grid, values
+     and icons shrunk to match -- same counts, same data, just not one
+     150px-wide card per metric stacking the page tall before any real
+     content shows. */
+  .rl-history-summary { display: grid !important; grid-template-columns: repeat(2, 1fr) !important; gap: var(--s2) !important; }
+  .rl-summary-tile { flex: auto !important; padding: 10px 12px !important; gap: 8px !important; }
+  .rl-summary-tile-icon { width: 32px !important; height: 32px !important; }
+
+  /* Bulk-assign bar: "N selected" + the assign Select wrap instead of
+     pushing the unassigned-section title off to one side on a narrow card. */
+  .rl-history-bulk-bar { flex-wrap: wrap; width: 100%; }
 
   /* Pagination: "Showing X-Y", the per-page Select, and the page-number
      buttons were one row that overflowed past the card's right edge on a
@@ -486,11 +522,30 @@
   .rl-dashboard-chart-track > div:nth-child(even) .rl-dashboard-chart-datelabel {
     visibility: hidden;
   }
-  /* Icon-badge stats row: 3 items at their desktop min-width can still be
-     tight on a 360px card -- letting them wrap to 2+1 instead of forcing
-     three into one cramped row keeps each stat's value/label readable. */
-  .rl-activity-stats { flex-wrap: wrap !important; row-gap: var(--s3) !important; }
-  .rl-activity-stat { flex: 1 1 42% !important; }
+  /* The chart row used to be flex:1 against a card whose OWN height had
+     just been forced to auto (the .rl-dashboard-analytics > .card rule
+     above) -- flex:1 has nothing to grow into on an auto-height ancestor,
+     so every bar collapsed to a few percent-of-nothing pixels tall. That
+     read as "fits but unreadable," which is exactly the bug: shrinking the
+     whole chart isn't the fix, giving it a real fixed height that isn't
+     borrowed from anything else is. Y-axis numbers drop (the gridlines and
+     the tooltip's exact values already carry that information); the width
+     they freed goes to the bars instead of empty space. */
+  .rl-dashboard-chart-row { height: 168px !important; flex: none !important; }
+  .rl-dashboard-chart-yaxis { display: none !important; }
+  .rl-dashboard-chart-bar { max-width: none !important; }
+  .rl-dashboard-chart-track { gap: 5px !important; }
+
+  /* Icon-badge stats row: a real 3-column grid, not flex-wrap -- 2-up-then-1
+     read as an accidental leftover slot, and the reference wants all three
+     legible in one row. Value text wraps instead of ellipsis-truncating
+     (nothing about "16-Aug-26" may ever get clipped), icon shrunk slightly
+     to give the value column more room to do that wrapping in. */
+  .rl-activity-stats { display: grid !important; grid-template-columns: repeat(3, 1fr) !important; gap: var(--s2) !important; }
+  .rl-activity-stat { flex: unset !important; gap: 6px !important; }
+  .rl-activity-stat-icon { width: 24px !important; height: 24px !important; }
+  .rl-activity-stat-icon svg { width: 12px; height: 12px; }
+  .rl-activity-stat-value { white-space: normal !important; overflow: visible !important; text-overflow: clip !important; font-size: 12px !important; line-height: 1.2 !important; }
 
   /* Settings' branding live-preview mock: 4 stat tiles and 3 highlight
      tiles were fixed-column grids regardless of the preview box's own

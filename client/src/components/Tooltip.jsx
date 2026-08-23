@@ -99,6 +99,21 @@ export function Tooltip({ content, children, position = 'top', maxWidth = 240, s
 
   useEffect(() => clearShowTimer, []);
 
+  const handlePointerDown = (e) => {
+    if (e.pointerType !== 'touch') return;
+    clearShowTimer();
+    setVisible((v) => !v);
+  };
+
+  useEffect(() => {
+    if (!visible) return undefined;
+    const handleOutside = (e) => {
+      if (e.pointerType === 'touch' && wrapRef.current && !wrapRef.current.contains(e.target)) hide();
+    };
+    document.addEventListener('pointerdown', handleOutside);
+    return () => document.removeEventListener('pointerdown', handleOutside);
+  }, [visible]);
+
   if (!content) return children;
 
   const handleKeyDown = (e) => {
@@ -129,6 +144,7 @@ export function Tooltip({ content, children, position = 'top', maxWidth = 240, s
       onFocus={handleFocus}
       onBlur={hide}
       onKeyDown={handleKeyDown}
+      onPointerDown={handlePointerDown}
       className="rl-tooltip-wrap"
       style={{ position: 'relative', display: 'inline-flex', ...style }}
     >
