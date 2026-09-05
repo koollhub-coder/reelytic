@@ -354,6 +354,22 @@ async function ensureIndexes() {
     await db.collection('analyzedCreators').createIndex({ ownerUsername: 1, lastAnalyzedAt: -1, _id: -1 });
     await db.collection('analyzedCreators').createIndex({ ownerUsername: 1, username: 1 });
     await db.collection('analyzedCreators').createIndex({ ownerUsername: 1, name: 1 });
+    /*
+      One more per sort option the creator database's filter bar offers
+      (see SORT_FIELDS in creatorDb.service.js) -- "most followers",
+      "highest engagement", "most times analyzed" each keyset-paginate on a
+      different field, and keyset pagination needs its sort field to be the
+      leading (well, second-after-ownerUsername) key of an index or it
+      degrades to an in-memory sort past the first page. followers/minEr
+      range filters used ALONGSIDE a different sort (e.g. sort by recency,
+      filter by follower count) are deliberately not each given their own
+      index for every combination -- that's combinatorial, and Mongo
+      applies them as a residual filter on the sorted index scan instead,
+      the same trade-off any faceted-filter product makes.
+    */
+    await db.collection('analyzedCreators').createIndex({ ownerUsername: 1, followers: -1, _id: -1 });
+    await db.collection('analyzedCreators').createIndex({ ownerUsername: 1, bestAvgEr: -1, _id: -1 });
+    await db.collection('analyzedCreators').createIndex({ ownerUsername: 1, timesAnalyzed: -1, _id: -1 });
     await db.collection('cache').createIndex({ url: 1 }, { unique: true });
     await db.collection('loginHistory').createIndex({ at: -1 });
     await db.collection('loginHistory').createIndex({ username: 1, at: -1 });

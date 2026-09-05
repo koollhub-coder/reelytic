@@ -40,6 +40,10 @@ router.get('/', requireLogin, async (req, res, next) => {
       search: req.query.search,
       cursor: req.query.cursor,
       limit: req.query.limit,
+      sort: req.query.sort,
+      minFollowers: req.query.minFollowers,
+      maxFollowers: req.query.maxFollowers,
+      minEr: req.query.minEr,
     });
 
     res.json({ creators, nextCursor });

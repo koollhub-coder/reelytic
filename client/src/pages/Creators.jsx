@@ -6,6 +6,7 @@ import { EmptyState } from '../components/EmptyState';
 import { TableSkeleton } from '../components/TableSkeleton';
 import { Pagination } from '../components/Pagination';
 import { UpgradeDialog, PREMIUM_FEATURES } from '../components/Premium';
+import { Select } from '../components/Select';
 import { SearchIcon, UsersIcon } from '../components/Icon';
 
 /*
@@ -43,6 +44,37 @@ import { SearchIcon, UsersIcon } from '../components/Icon';
 
 const PAGE_SIZE = 50;
 const WARM_CAP = 500;
+
+// Follower tiers are the actual vocabulary influencer marketing uses to
+// segment creators (nano/micro/mid/macro), not an arbitrary number range
+// slider -- an agency scanning this table for "who's worth a micro-budget
+// vs a macro one" thinks in these buckets already, so the filter should
+// speak them back rather than making someone guess a follower count.
+const FOLLOWER_TIERS = [
+  { value: 'all', label: 'All sizes', min: null, max: null },
+  { value: 'nano', label: 'Nano · <10K', min: null, max: 9999 },
+  { value: 'micro', label: 'Micro · 10K-100K', min: 10000, max: 99999 },
+  { value: 'mid', label: 'Mid · 100K-500K', min: 100000, max: 499999 },
+  { value: 'macro', label: 'Macro · 500K+', min: 500000, max: null },
+];
+
+// Whichever of a creator's reel/profile average ER is higher (bestAvgEr,
+// computed server-side -- see creatorDb.service.js) is what these filter
+// against, so a creator who's only ever had profile reports run still
+// shows up under a reel-shaped ER threshold and vice versa.
+const ER_THRESHOLDS = [
+  { value: 0, label: 'Any engagement' },
+  { value: 2, label: '2%+ ER' },
+  { value: 5, label: '5%+ ER' },
+  { value: 10, label: '10%+ ER' },
+];
+
+const SORT_OPTIONS = [
+  { value: 'recent', label: 'Most recently analyzed' },
+  { value: 'followers', label: 'Most followers' },
+  { value: 'engagement', label: 'Highest engagement' },
+  { value: 'timesAnalyzed', label: 'Most times analyzed' },
+];
 
 function formatCompactNumber(n) {
   if (n == null) return '-';
@@ -125,28 +157,44 @@ export function Creators() {
   const [error, setError] = useState('');
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [scope, setScope] = useState('all'); // admin only: 'all' | 'mine'
+  const [followerTier, setFollowerTier] = useState('all');
+  const [minEr, setMinEr] = useState(0);
+  const [sortBy, setSortBy] = useState('recent');
 
   const runId = useRef(0);
 
-  const fetchPage = useCallback((term, adminScope, afterCursor) => {
+  // Every filter knob (search, scope, follower tier, ER threshold, sort)
+  // funnels through here -- one place building the query string means one
+  // place to keep it consistent between the initial/warm fetch and the
+  // on-demand extend-past-window fetch below, instead of two copies that
+  // could quietly drift.
+  const fetchPage = useCallback((afterCursor) => {
     const params = new URLSearchParams({ limit: String(PAGE_SIZE) });
+    const term = search.trim();
     if (term) params.set('search', term);
-    if (adminScope) params.set('scope', adminScope);
+    if (scope) params.set('scope', scope);
     if (afterCursor) params.set('cursor', afterCursor);
+    if (sortBy !== 'recent') params.set('sort', sortBy);
+    const tier = FOLLOWER_TIERS.find((t) => t.value === followerTier);
+    if (tier?.min != null) params.set('minFollowers', String(tier.min));
+    if (tier?.max != null) params.set('maxFollowers', String(tier.max));
+    if (minEr) params.set('minEr', String(minEr));
     return apiFetch(`/creators?${params.toString()}`);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, scope, sortBy, followerTier, minEr]);
 
-  // Fresh query: fires on mount, on scope change, and on debounced search.
-  // Renders the first page the moment it lands, then keeps quietly pulling
-  // more pages behind it up to WARM_CAP so the pages that follow are
-  // instant. Guarded by runId throughout -- a query that's since gone stale
-  // (user kept typing, or flipped scope mid-fetch) stops touching state.
-  const runQuery = useCallback((term, adminScope) => {
+  // Fresh query: fires on mount and on any filter change (search, scope,
+  // follower tier, ER threshold, sort). Renders the first page the moment
+  // it lands, then keeps quietly pulling more pages behind it up to
+  // WARM_CAP so the pages that follow are instant. Guarded by runId
+  // throughout -- a query that's since gone stale (user kept typing, or
+  // changed a filter mid-fetch) stops touching state.
+  const runQuery = useCallback(() => {
     const id = ++runId.current;
     setLoading(true);
     setError('');
     setPage(1);
-    fetchPage(term, adminScope, null)
+    fetchPage(null)
       .then(async (res) => {
         if (id !== runId.current) return;
         const firstRows = res.creators || [];
@@ -162,7 +210,7 @@ export function Creators() {
         while (nextCursor && acc.length < WARM_CAP) {
           if (id !== runId.current) return;
           // eslint-disable-next-line no-await-in-loop
-          const chunk = await fetchPage(term, adminScope, nextCursor).catch(() => null);
+          const chunk = await fetchPage(nextCursor).catch(() => null);
           if (!chunk || id !== runId.current) break;
           acc = acc.concat(chunk.creators || []);
           nextCursor = chunk.nextCursor || null;
@@ -179,26 +227,26 @@ export function Creators() {
       });
   }, [fetchPage]);
 
-  // One effect drives every (re)query: initial mount, the admin scope
-  // toggle, and debounced search typing all land here instead of three
-  // separate effects each trying to fire on every change EXCEPT their own
-  // first render. That "skip only the first run" idea sounds simple but
-  // isn't: every effect runs once on mount no matter what its dependency
-  // array says, so a version of this split into three effects either fired
-  // a redundant duplicate query on mount (three "first runs" competing) or,
-  // fixed the naive way with a ref, went the other direction and silently
-  // stopped firing on real changes -- React re-runs an effect's cleanup
-  // before every subsequent invocation, not just on unmount, so a cleanup
-  // that resets a "first run" flag resets it before every keystroke too,
-  // permanently stuck skipping. One effect sidesteps the whole class of
-  // bug: firing on mount is exactly what should happen here, so there is
-  // no "first run" to skip in the first place.
+  // One effect drives every (re)query: initial mount and every filter
+  // change land here instead of separate effects each trying to fire on
+  // every change EXCEPT their own first render. That "skip only the first
+  // run" idea sounds simple but isn't: every effect runs once on mount no
+  // matter what its dependency array says, so a version of this split
+  // across effects either fired a redundant duplicate query on mount
+  // (competing "first runs") or, fixed the naive way with a ref, went the
+  // other direction and silently stopped firing on real changes -- React
+  // re-runs an effect's cleanup before every subsequent invocation, not
+  // just on unmount, so a cleanup that resets a "first run" flag resets it
+  // before every keystroke too, permanently stuck skipping. One effect
+  // sidesteps the whole class of bug: firing on mount is exactly what
+  // should happen here, so there is no "first run" to skip in the first
+  // place.
   useEffect(() => {
     if (locked) { setLoading(false); return undefined; }
-    const handle = setTimeout(() => runQuery(search.trim(), scope), 300);
+    const handle = setTimeout(() => runQuery(), 300);
     return () => clearTimeout(handle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [locked, search, scope]);
+  }, [locked, search, scope, followerTier, minEr, sortBy]);
 
   const totalPages = Math.ceil(rows.length / PAGE_SIZE);
 
@@ -213,7 +261,7 @@ export function Creators() {
     if (!hasMore || !cursor || extending) return;
     const id = runId.current;
     setExtending(true);
-    fetchPage(search.trim(), scope, cursor)
+    fetchPage(cursor)
       .then((res) => {
         if (id !== runId.current) return;
         setRows((prev) => prev.concat(res.creators || []));
@@ -224,6 +272,9 @@ export function Creators() {
       .catch((err) => setError(err.message || "Couldn't load more, try again."))
       .finally(() => { if (id === runId.current) setExtending(false); });
   };
+
+  const filtersActive = followerTier !== 'all' || minEr !== 0 || sortBy !== 'recent';
+  const resetFilters = () => { setFollowerTier('all'); setMinEr(0); setSortBy('recent'); };
 
   if (locked) {
     return (
@@ -305,6 +356,50 @@ export function Creators() {
         )}
       </div>
 
+      {/* Follower tier and engagement threshold are the two facets an
+          agency actually screens creators by before reaching out -- "who's
+          worth a micro-budget vs a macro one" and "who's actually engaged,
+          not just big." Both are real server-side range queries (see
+          creatorDb.service.js's bestAvgEr/followers indexes), not a filter
+          over whatever's already loaded, so they narrow the FULL dataset
+          the same way search does, not just the warmed first 500. */}
+      <div className="card" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--s3)', padding: 'var(--s3) var(--s4)', marginBottom: 'var(--s4)' }}>
+        <div style={{ display: 'flex', gap: '4px' }}>
+          {FOLLOWER_TIERS.map((t) => (
+            <button
+              key={t.value}
+              type="button"
+              onClick={() => setFollowerTier(t.value)}
+              className={`chip ${followerTier === t.value ? 'accent' : ''}`}
+              style={{ cursor: 'pointer', padding: '6px 12px', whiteSpace: 'nowrap' }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <span className="rl-hide-mobile" style={{ width: '1px', alignSelf: 'stretch', backgroundColor: 'var(--border)' }} />
+        <div style={{ display: 'flex', gap: '4px' }}>
+          {ER_THRESHOLDS.map((t) => (
+            <button
+              key={t.value}
+              type="button"
+              onClick={() => setMinEr(t.value)}
+              className={`chip ${minEr === t.value ? 'accent' : ''}`}
+              style={{ cursor: 'pointer', padding: '6px 12px', whiteSpace: 'nowrap' }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <span className="rl-hide-mobile" style={{ width: '1px', alignSelf: 'stretch', backgroundColor: 'var(--border)' }} />
+        <Select value={sortBy} onChange={setSortBy} options={SORT_OPTIONS} style={{ minWidth: '190px' }} />
+        {filtersActive && (
+          <button type="button" onClick={resetFilters} className="rl-text-link" style={{ fontSize: 'var(--fs-xs)' }}>
+            Reset filters
+          </button>
+        )}
+      </div>
+
       {error && <div style={{ color: 'var(--err)', fontSize: 'var(--fs-sm)', marginBottom: 'var(--s3)' }}>{error}</div>}
 
       {loading ? (
@@ -317,11 +412,13 @@ export function Creators() {
       ) : rows.length === 0 ? (
         <EmptyState
           icon={<UsersIcon size={32} />}
-          title={search.trim() ? 'No creators match that search' : 'No creators analyzed yet'}
+          title={search.trim() || followerTier !== 'all' || minEr ? 'No creators match this search' : 'No creators analyzed yet'}
           description={
             search.trim()
               ? `Nothing found for "${search.trim()}". Check the spelling or try a shorter search.`
-              : 'Run a reel or profile report and the creators in it will show up here automatically.'
+              : followerTier !== 'all' || minEr
+                ? 'Nothing in this follower/engagement range yet. Try widening it, or reset filters above.'
+                : 'Run a reel or profile report and the creators in it will show up here automatically.'
           }
         />
       ) : (

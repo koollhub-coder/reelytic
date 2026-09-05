@@ -37,6 +37,20 @@ const { getDb } = require('../db');
   count averaged across three years of scrapes would be a made-up number
   nobody asked for. Every new appearance overwrites these three fields with
   whatever was just seen, so the card always shows the most current read.
+
+  WHY THE UPDATE IS A PIPELINE, NOT A PLAIN $set/$inc.
+  The filter bar (routes/creators.routes.js) needs to sort and range-filter
+  by average engagement rate and by "times analyzed" -- neither is a raw
+  stored counter, both are derived from reel.totalEr/reel.count etc, and a
+  keyset-paginated query can only sort/filter on a field that actually
+  exists on the document with an index behind it. Computing avgEr at READ
+  time (as this used to) means there is nothing to put that index on. So
+  this update is a two-stage aggregation pipeline: stage 1 bumps the raw
+  counters exactly like the old $inc did, stage 2 recomputes reel.avgEr /
+  profile.avgEr / timesAnalyzed / bestAvgEr FROM those just-updated
+  counters, all inside one atomic upsert -- the derived fields can never
+  drift out of sync with the totals because they're computed from them in
+  the same operation, not written separately.
 */
 
 function creatorId(ownerUsername, username) {
@@ -66,32 +80,53 @@ async function recordAnalyzedCreator({ ownerUsername, type, jobId, result }) {
   const db = getDb();
   const username = String(result.username).toLowerCase();
   const now = new Date();
+  const isReel = type === 'reel';
 
-  const set = { ownerUsername, username, lastAnalyzedAt: now, updatedAt: now };
-  if (result.name) set.name = result.name;
-  if (result.profileLink) set.profileLink = result.profileLink;
-  if (result.followers != null) set.followers = result.followers;
+  // Stage 1: bump raw counters (both reel.* and profile.* kept fully
+  // present every call, incremented by 0 on the side this report isn't --
+  // stage 2 needs both to always exist to compute timesAnalyzed/bestAvgEr).
+  // $ifNull stands in for $setOnInsert / $inc, neither of which pipeline
+  // updates support.
+  const stage1 = {
+    $set: {
+      ownerUsername,
+      username,
+      lastAnalyzedAt: now,
+      updatedAt: now,
+      firstAnalyzedAt: { $ifNull: ['$firstAnalyzedAt', now] },
+      ...(result.name ? { name: result.name } : {}),
+      ...(result.profileLink ? { profileLink: result.profileLink } : {}),
+      ...(result.followers != null ? { followers: result.followers } : {}),
+      'reel.count': { $add: [{ $ifNull: ['$reel.count', 0] }, isReel ? 1 : 0] },
+      'reel.totalViews': { $add: [{ $ifNull: ['$reel.totalViews', 0] }, isReel ? (result.views || 0) : 0] },
+      'reel.totalLikes': { $add: [{ $ifNull: ['$reel.totalLikes', 0] }, isReel ? (result.likes || 0) : 0] },
+      'reel.totalComments': { $add: [{ $ifNull: ['$reel.totalComments', 0] }, isReel ? (result.comments || 0) : 0] },
+      'reel.totalEr': { $add: [{ $ifNull: ['$reel.totalEr', 0] }, isReel ? (result.er || 0) : 0] },
+      'profile.count': { $add: [{ $ifNull: ['$profile.count', 0] }, isReel ? 0 : 1] },
+      'profile.totalViews': { $add: [{ $ifNull: ['$profile.totalViews', 0] }, isReel ? 0 : (result.avgViews || 0)] },
+      'profile.totalEr': { $add: [{ $ifNull: ['$profile.totalEr', 0] }, isReel ? 0 : (result.avgEr || 0)] },
+      ...(jobId ? { jobIds: { $slice: [{ $concatArrays: [{ $ifNull: ['$jobIds', []] }, [String(jobId)]] }, -20] } } : {}),
+    },
+  };
 
-  const inc = type === 'reel'
-    ? {
-        'reel.count': 1,
-        'reel.totalViews': result.views || 0,
-        'reel.totalLikes': result.likes || 0,
-        'reel.totalComments': result.comments || 0,
-        'reel.totalEr': result.er || 0,
-      }
-    : {
-        'profile.count': 1,
-        'profile.totalViews': result.avgViews || 0,
-        'profile.totalEr': result.avgEr || 0,
-      };
+  // Stage 2: derive avgEr per type from the counters stage 1 just set.
+  const stage2 = {
+    $set: {
+      'reel.avgEr': { $cond: [{ $gt: ['$reel.count', 0] }, { $round: [{ $divide: ['$reel.totalEr', '$reel.count'] }, 2] }, 0] },
+      'profile.avgEr': { $cond: [{ $gt: ['$profile.count', 0] }, { $round: [{ $divide: ['$profile.totalEr', '$profile.count'] }, 2] }, 0] },
+      timesAnalyzed: { $add: ['$reel.count', '$profile.count'] },
+    },
+  };
 
-  const update = { $set: set, $setOnInsert: { firstAnalyzedAt: now }, $inc: inc };
-  if (jobId) update.$push = { jobIds: { $each: [String(jobId)], $slice: -20 } };
+  // Stage 3: bestAvgEr is whichever of the two is higher -- the single
+  // number the "engagement rate" filter/sort actually queries on, so a
+  // creator only measured via profile reports (or only via reels) still
+  // shows up correctly instead of needing the filter to check both fields.
+  const stage3 = { $set: { bestAvgEr: { $max: ['$reel.avgEr', '$profile.avgEr'] } } };
 
   await db.collection('analyzedCreators').updateOne(
     { _id: creatorId(ownerUsername, username) },
-    update,
+    [stage1, stage2, stage3],
     { upsert: true }
   );
 }
@@ -100,10 +135,17 @@ async function recordAnalyzedCreator({ ownerUsername, type, jobId, result }) {
   Keyset (not skip/offset) pagination -- an offset-based "page 4,000" query
   degrades linearly with how far in you page, which is exactly the wrong
   shape for a collection meant to hold up to a million rows. `cursor` is an
-  opaque token carrying the last row's (lastAnalyzedAt, _id): the next page
-  asks for "everything older than that point, or exactly as old but sorting
-  after it by id" -- the standard two-column keyset comparison, needed
-  because lastAnalyzedAt alone isn't unique.
+  opaque token carrying the last row's (sort field value, _id): the next
+  page asks for "everything past that point on the sort field, or exactly
+  tied but sorting after it by id" -- the standard two-column keyset
+  comparison, needed because no single sort field here is unique on its own.
+
+  Which field that is depends on SORT_FIELDS below -- the filter bar offers
+  more than one sort, and each one keyset-paginates on ITS OWN field rather
+  than always on lastAnalyzedAt, or "most followers" would still be
+  fetching pages in recency order underneath a followers-sorted first page.
+  decodeCursor needs to know which field produced the cursor because dates
+  and numbers serialize (and must deserialize) differently.
 
   Search is a case-insensitive PREFIX match (^term), not a substring match,
   and that's deliberate rather than a shortcut: MongoDB can only use a
@@ -114,22 +156,30 @@ async function recordAnalyzedCreator({ ownerUsername, type, jobId, result }) {
   lookup normally works elsewhere (GitHub, Twitter user search): type the
   start of a handle or name and matches narrow as you go.
 */
-function encodeCursor(row) {
+const SORT_FIELDS = {
+  recent: 'lastAnalyzedAt',
+  followers: 'followers',
+  engagement: 'bestAvgEr',
+  timesAnalyzed: 'timesAnalyzed',
+};
+
+function encodeCursor(row, sortField) {
   if (!row) return null;
-  return Buffer.from(JSON.stringify({ t: row.lastAnalyzedAt, id: row._id })).toString('base64url');
+  return Buffer.from(JSON.stringify({ v: row[sortField], id: row._id })).toString('base64url');
 }
 
-function decodeCursor(cursor) {
+function decodeCursor(cursor, sortField) {
   try {
-    const { t, id } = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
-    return { t: new Date(t), id };
+    const { v, id } = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
+    return { v: sortField === 'lastAnalyzedAt' ? new Date(v) : v, id };
   } catch (e) {
     return null;
   }
 }
 
-async function searchAnalyzedCreators({ ownerUsername, isAdmin, search, cursor, limit = 30 }) {
+async function searchAnalyzedCreators({ ownerUsername, isAdmin, search, cursor, limit = 30, sort, minFollowers, maxFollowers, minEr }) {
   const db = getDb();
+  const sortField = SORT_FIELDS[sort] || SORT_FIELDS.recent;
   const and = [];
   if (!isAdmin) and.push({ ownerUsername });
   const cleanSearch = (search || '').trim();
@@ -137,11 +187,18 @@ async function searchAnalyzedCreators({ ownerUsername, isAdmin, search, cursor, 
     const rx = new RegExp(`^${escapeRegex(cleanSearch)}`, 'i');
     and.push({ $or: [{ username: rx }, { name: rx }] });
   }
-  const decoded = cursor ? decodeCursor(cursor) : null;
+  // Range filters (follower tier, minimum engagement rate) are independent
+  // of which sort is active -- they narrow the same set no matter which
+  // field the results happen to be ordered by.
+  if (minFollowers != null && minFollowers !== '') and.push({ followers: { $gte: Number(minFollowers) } });
+  if (maxFollowers != null && maxFollowers !== '') and.push({ followers: { $lte: Number(maxFollowers) } });
+  if (minEr != null && minEr !== '') and.push({ bestAvgEr: { $gte: Number(minEr) } });
+
+  const decoded = cursor ? decodeCursor(cursor, sortField) : null;
   if (decoded) {
     and.push({ $or: [
-      { lastAnalyzedAt: { $lt: decoded.t } },
-      { lastAnalyzedAt: decoded.t, _id: { $lt: decoded.id } },
+      { [sortField]: { $lt: decoded.v } },
+      { [sortField]: decoded.v, _id: { $lt: decoded.id } },
     ] });
   }
 
@@ -150,13 +207,13 @@ async function searchAnalyzedCreators({ ownerUsername, isAdmin, search, cursor, 
 
   const rows = await db.collection('analyzedCreators')
     .find(filter)
-    .sort({ lastAnalyzedAt: -1, _id: -1 })
+    .sort({ [sortField]: -1, _id: -1 })
     .limit(pageSize + 1)
     .toArray();
 
   const hasMore = rows.length > pageSize;
   const page = hasMore ? rows.slice(0, pageSize) : rows;
-  const nextCursor = hasMore ? encodeCursor(page[page.length - 1]) : null;
+  const nextCursor = hasMore ? encodeCursor(page[page.length - 1], sortField) : null;
 
   // Campaign tags: a live join against jobs.campaignId (see the module
   // comment on why this can't be a value stored on the creator row), scoped
@@ -206,16 +263,19 @@ async function searchAnalyzedCreators({ ownerUsername, isAdmin, search, cursor, 
       followers: row.followers ?? null,
       firstAnalyzedAt: row.firstAnalyzedAt,
       lastAnalyzedAt: row.lastAnalyzedAt,
-      timesAnalyzed: (reel.count || 0) + (profile.count || 0),
+      // avgEr/timesAnalyzed are stored now (see the pipeline update above),
+      // computed here from the raw totals only as a fallback for a row that
+      // somehow predates the migration that backfilled them.
+      timesAnalyzed: row.timesAnalyzed ?? ((reel.count || 0) + (profile.count || 0)),
       reel: {
         count: reel.count || 0,
         avgViews: reel.count ? Math.round(reel.totalViews / reel.count) : null,
-        avgEr: reel.count ? Math.round((reel.totalEr / reel.count) * 100) / 100 : null,
+        avgEr: reel.count ? (reel.avgEr ?? Math.round((reel.totalEr / reel.count) * 100) / 100) : null,
       },
       profile: {
         count: profile.count || 0,
         avgViews: profile.count ? Math.round(profile.totalViews / profile.count) : null,
-        avgEr: profile.count ? Math.round((profile.totalEr / profile.count) * 100) / 100 : null,
+        avgEr: profile.count ? (profile.avgEr ?? Math.round((profile.totalEr / profile.count) * 100) / 100) : null,
       },
       campaigns,
     };
