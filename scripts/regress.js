@@ -76,6 +76,11 @@ const suites = [
     args: ['--test', 'tests/crash-recovery.test.js'],
   },
   {
+    name: 'API: signup verification, forgot/reset password',
+    cmd: process.execPath,
+    args: ['--test', 'tests/auth-flows.test.js'],
+  },
+  {
     name: 'UI: browser smoke + console gate',
     // Invoked through its own CLI entry rather than `npx`, which on Windows
     // needs shell:true and then warns about unescaped arguments on every run.

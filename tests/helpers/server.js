@@ -56,6 +56,13 @@ async function startServer({ silent = true } = {}) {
       // lifecycle can be exercised without spending anything. Refused
       // outright if NODE_ENV were production; see apify.service.js.
       REELYTIC_SCRAPER_STUB: require('path').resolve(__dirname, 'scraperStub.js'),
+      // Same idea for outgoing email -- swaps mailer.service.js's Resend
+      // call for a capture-only stub, so signup/OTP/forgot-password can be
+      // driven through their real routes without a live inbox. See
+      // mailerStub.js for why it needs its own port rather than being read
+      // back via a plain require.
+      REELYTIC_MAILER_STUB: require('path').resolve(__dirname, 'mailerStub.js'),
+      REELYTIC_MAILER_STUB_PORT: String(process.env.REELYTIC_MAILER_STUB_PORT || 3458),
     },
     stdio: silent ? ['ignore', 'pipe', 'pipe'] : 'inherit',
   });

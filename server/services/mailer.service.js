@@ -57,7 +57,7 @@ function config() {
   };
 }
 
-async function sendTransactionalEmail({ to, subject, html, text }) {
+async function sendViaResend({ to, subject, html, text }) {
   const c = config();
   if (!c.apiKey) {
     throw new Error('Email is not configured on this server yet. Set RESEND_API_KEY (see .env.example).');
@@ -92,6 +92,41 @@ async function sendTransactionalEmail({ to, subject, html, text }) {
     throw new Error(`Email service rejected the request (${res.status}): ${detail.slice(0, 300)}`);
   }
 }
+
+/*
+  Same stub seam as apify.service.js's `impl`, for the same reason: signup,
+  OTP-resend, magic-link verify and forgot-password are otherwise untestable
+  for free, since every one of them sends a real email carrying the one
+  piece of data (a code or a token) the next step needs. `sendTransactional
+  Email` below is the stable reference every route file destructures at
+  require time, so the swap has to happen through this indirection -- see
+  apify.service.js's own comment on why replacing module.exports after the
+  fact would not work.
+
+  Refused outright when NODE_ENV is production, exactly like the scraper
+  stub, and off unless REELYTIC_MAILER_STUB names a module.
+*/
+const impl = { send: sendViaResend };
+
+async function sendTransactionalEmail(args) {
+  return impl.send(args);
+}
+
+(function loadStubIfRequested() {
+  const stubPath = process.env.REELYTIC_MAILER_STUB;
+  if (!stubPath) return;
+
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'REELYTIC_MAILER_STUB is set but NODE_ENV is production. '
+      + 'Refusing to replace the mailer on a production server.'
+    );
+  }
+
+  // eslint-disable-next-line global-require, import/no-dynamic-require
+  const stub = require(stubPath);
+  impl.send = stub.sendTransactionalEmail;
+})();
 
 /*
   Plain, clear, light-background HTML -- an email client is the one surface
