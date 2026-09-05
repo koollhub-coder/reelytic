@@ -16,13 +16,22 @@ const config = require('../config');
   that immediately redirects it to /login, and listing those would just
   waste crawl budget on pages that don't exist for a signed-out visitor.
 */
+/*
+  lastmod is the real date each route's page content last changed (pulled
+  from that file's own git history at the time this was written) -- not
+  "now" on every request. A sitemap's lastmod is a trust signal search
+  engines use to decide how often to re-crawl a page; stamping every route
+  with the current timestamp on every hit would claim everything changes
+  constantly, which is false and actively hurts that signal rather than
+  helping it. Bump a route's date here when that page's real content changes.
+*/
 const PUBLIC_ROUTES = [
-  { path: '/', changefreq: 'weekly', priority: '1.0' },
-  { path: '/pricing', changefreq: 'weekly', priority: '0.8' },
-  { path: '/login', changefreq: 'monthly', priority: '0.3' },
-  { path: '/signup', changefreq: 'monthly', priority: '0.5' },
-  { path: '/terms', changefreq: 'monthly', priority: '0.2' },
-  { path: '/privacy', changefreq: 'monthly', priority: '0.2' },
+  { path: '/', changefreq: 'weekly', priority: '1.0', lastmod: '2026-08-23' },
+  { path: '/pricing', changefreq: 'weekly', priority: '0.8', lastmod: '2026-08-22' },
+  { path: '/login', changefreq: 'monthly', priority: '0.3', lastmod: '2026-08-22' },
+  { path: '/signup', changefreq: 'monthly', priority: '0.5', lastmod: '2026-08-22' },
+  { path: '/terms', changefreq: 'monthly', priority: '0.2', lastmod: '2026-08-22' },
+  { path: '/privacy', changefreq: 'monthly', priority: '0.2', lastmod: '2026-08-22' },
 ];
 
 router.get('/robots.txt', (req, res) => {
@@ -48,9 +57,10 @@ router.get('/robots.txt', (req, res) => {
 });
 
 router.get('/sitemap.xml', (req, res) => {
-  const urls = PUBLIC_ROUTES.map(({ path, changefreq, priority }) => `
+  const urls = PUBLIC_ROUTES.map(({ path, changefreq, priority, lastmod }) => `
   <url>
     <loc>${config.appUrl}${path}</loc>
+    <lastmod>${lastmod}</lastmod>
     <changefreq>${changefreq}</changefreq>
     <priority>${priority}</priority>
   </url>`).join('');
