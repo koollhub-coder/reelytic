@@ -18,7 +18,7 @@ export default defineConfig(({ mode }) => {
   */
   if (!process.env.VITE_APP_URL) {
     const env = loadEnv(mode, process.cwd(), '');
-    process.env.VITE_APP_URL = env.VITE_APP_URL || 'https://reelytic.onrender.com';
+    process.env.VITE_APP_URL = env.VITE_APP_URL || 'https://getreelytic.com';
   }
 
   return {
