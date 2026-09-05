@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { PencilIcon } from './Icon';
+import { Tooltip } from './Tooltip';
 
 /*
   Every campaign needs a distinguishable mark next to its name in a list --
@@ -101,29 +102,30 @@ export function CampaignAvatarPicker({ name, avatarUrl, onChange, size = 44, dis
 
   return (
     <div style={{ display: 'inline-block' }}>
-      <button
-        type="button"
-        onClick={() => !disabled && inputRef.current && inputRef.current.click()}
-        title={disabled ? undefined : 'Change avatar'}
-        style={{
-          position: 'relative', width: size, height: size, borderRadius: '50%', padding: 0, border: 'none',
-          cursor: disabled ? 'default' : 'pointer', background: 'none', flexShrink: 0,
-        }}
-      >
-        <CampaignAvatar name={name} avatarUrl={avatarUrl} size={size} />
-        {!disabled && (
-          <span
-            aria-hidden="true"
-            style={{
-              position: 'absolute', bottom: 0, right: 0, width: Math.round(size * 0.4), height: Math.round(size * 0.4),
-              borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: 'var(--accent)', color: '#fff', border: '2px solid var(--surface)',
-            }}
-          >
-            <PencilIcon size={Math.round(size * 0.22)} />
-          </span>
-        )}
-      </button>
+      <Tooltip content={disabled ? undefined : 'Change avatar'}>
+        <button
+          type="button"
+          onClick={() => !disabled && inputRef.current && inputRef.current.click()}
+          style={{
+            position: 'relative', width: size, height: size, borderRadius: '50%', padding: 0, border: 'none',
+            cursor: disabled ? 'default' : 'pointer', background: 'none', flexShrink: 0,
+          }}
+        >
+          <CampaignAvatar name={name} avatarUrl={avatarUrl} size={size} />
+          {!disabled && (
+            <span
+              aria-hidden="true"
+              style={{
+                position: 'absolute', bottom: 0, right: 0, width: Math.round(size * 0.4), height: Math.round(size * 0.4),
+                borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: 'var(--accent)', color: '#fff', border: '2px solid var(--surface)',
+              }}
+            >
+              <PencilIcon size={Math.round(size * 0.22)} />
+            </span>
+          )}
+        </button>
+      </Tooltip>
       <input
         ref={inputRef}
         type="file"

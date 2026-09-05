@@ -4,6 +4,7 @@ import { BrandLoader } from '../../components/BrandLoader';
 import { EmptyState } from '../../components/EmptyState';
 import { formatDateTime } from '../../utils/date';
 import { WarningIcon, SuccessIcon, InfoIcon } from '../../components/Icon';
+import { Tooltip } from '../../components/Tooltip';
 
 /*
   Application health.
@@ -261,20 +262,20 @@ function DevChecks() {
 
       <div style={{ display: 'flex', gap: 'var(--s3)', flexWrap: 'wrap', marginBottom: 'var(--s4)' }}>
         {tasks.tasks.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            className={t.spends ? 'btn btn-ghost' : 'btn btn-secondary'}
-            style={{ flexDirection: 'column', alignItems: 'flex-start', height: 'auto', padding: 'var(--s3) var(--s4)', textAlign: 'left', maxWidth: '260px' }}
-            disabled={busy}
-            onClick={() => start(t)}
-            title={t.description}
-          >
-            <span style={{ fontWeight: 600 }}>{t.label}</span>
-            <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', fontWeight: 400 }}>
-              about {t.minutes} min{t.spends ? ' · spends ~₹1' : ' · free'}
-            </span>
-          </button>
+          <Tooltip key={t.id} content={t.description}>
+            <button
+              type="button"
+              className={t.spends ? 'btn btn-ghost' : 'btn btn-secondary'}
+              style={{ flexDirection: 'column', alignItems: 'flex-start', height: 'auto', padding: 'var(--s3) var(--s4)', textAlign: 'left', maxWidth: '260px' }}
+              disabled={busy}
+              onClick={() => start(t)}
+            >
+              <span style={{ fontWeight: 600 }}>{t.label}</span>
+              <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', fontWeight: 400 }}>
+                about {t.minutes} min{t.spends ? ' · spends ~₹1' : ' · free'}
+              </span>
+            </button>
+          </Tooltip>
         ))}
         {busy && (
           <button type="button" className="btn btn-ghost" onClick={stop} style={{ alignSelf: 'flex-start' }}>

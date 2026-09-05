@@ -5,6 +5,7 @@ import { useToast } from '../context/ToastContext';
 import { BrandLoader } from '../components/BrandLoader';
 import { ReportThemeStyles, ReportSheet, ThemeToggle } from '../components/ReportSheet';
 import { ProBadge } from '../components/Premium';
+import { Tooltip } from '../components/Tooltip';
 
 // The read-only view behind a "Get shareable link" URL (see BrandedReport.jsx
 // and jobs.routes.js POST /:id/share). No login, no session -- whoever holds
@@ -86,19 +87,20 @@ export function PublicReport() {
           navigating them away from it to sell to them would be both rude and
           a good way to lose the visit entirely.
         */}
-        <a
-          className="rl-report-brand"
-          href="/?from=shared-report"
-          target="_blank"
-          rel="noopener"
-          title="Reelytic: Instagram campaign reporting for agencies"
-          style={{ textDecoration: 'none', color: 'inherit' }}
-        >
-          <img src="/logo-mark-128.png" alt="" width="30" height="30" style={{ display: 'block', objectFit: 'contain', flexShrink: 0 }} />
-          <span className="rl-report-brand-name">
-            R<span style={{ fontFamily: 'var(--font-data)', color: 'var(--accent)' }}>e</span>elytic
-          </span>
-        </a>
+        <Tooltip content="Reelytic: Instagram campaign reporting for agencies">
+          <a
+            className="rl-report-brand"
+            href="/?from=shared-report"
+            target="_blank"
+            rel="noopener"
+            style={{ textDecoration: 'none', color: 'inherit' }}
+          >
+            <img src="/logo-mark-128.png" alt="" width="30" height="30" style={{ display: 'block', objectFit: 'contain', flexShrink: 0 }} />
+            <span className="rl-report-brand-name">
+              R<span style={{ fontFamily: 'var(--font-data)', color: 'var(--accent)' }}>e</span>elytic
+            </span>
+          </a>
+        </Tooltip>
         <div className="rl-report-topbar-actions">
           <ThemeToggle theme={theme} setTheme={setTheme} />
           {/* A plain link, not an apiFetch call: the browser handles the
@@ -113,10 +115,10 @@ export function PublicReport() {
             <span className="rl-label-full">Download Excel</span>
             <span className="rl-label-short">Excel</span> ↓
           </a>
+          <Tooltip content="PDF download is coming soon">
           <button
             className="btn btn-secondary"
             onClick={handlePdfLocked}
-            title="PDF download is coming soon"
             style={{ flexShrink: 0, gap: 'var(--s2)', color: 'var(--text-3)' }}
           >
             <span style={{ color: 'var(--text-2)' }}>
@@ -125,6 +127,7 @@ export function PublicReport() {
             </span>
             <ProBadge label="Soon" />
           </button>
+          </Tooltip>
         </div>
       </div>
 

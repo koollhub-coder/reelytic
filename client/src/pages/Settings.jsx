@@ -3,6 +3,7 @@ import { PasswordInput } from '../components/PasswordInput';
 import { Select } from '../components/Select';
 import { ProBadge, PREMIUM_FEATURES } from '../components/Premium';
 import { WelcomeTour } from '../components/WelcomeTour';
+import { Tooltip } from '../components/Tooltip';
 import {
   PencilIcon, ReplayIcon, ShieldIcon, TourIcon, PaletteIcon, ProfileIcon,
   FileIcon, DownloadIcon, ShareIcon, SuccessIcon, WarningIcon, ClockIcon,
@@ -228,27 +229,28 @@ export function Settings() {
                 <span className="rl-info-label">Username</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s3)', minWidth: 0 }}>
                   <span className="mono rl-info-value" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.username}</span>
-                  <button
-                    type="button"
-                    onClick={startEditUsername}
-                    title="Edit username"
-                    aria-label="Edit username"
-                    style={{
-                      // A rounded square, not a circle. A 26px circle around a
-                      // 14px glyph reads as an avatar or a status dot; every
-                      // toolbar-style edit affordance in this class of product
-                      // is a soft-cornered square, and it stops the control
-                      // competing with the username beside it.
-                      width: '28px', height: '28px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                      background: 'transparent', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)',
-                      color: 'var(--text-3)', cursor: 'pointer', lineHeight: 0, flexShrink: 0, padding: 0,
-                      transition: 'background var(--t-fast), color var(--t-fast), border-color var(--t-fast)',
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2)'; e.currentTarget.style.color = 'var(--text)'; e.currentTarget.style.borderColor = 'var(--border-strong)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-3)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
-                  >
-                    <PencilIcon size={14} />
-                  </button>
+                  <Tooltip content="Edit username">
+                    <button
+                      type="button"
+                      onClick={startEditUsername}
+                      aria-label="Edit username"
+                      style={{
+                        // A rounded square, not a circle. A 26px circle around a
+                        // 14px glyph reads as an avatar or a status dot; every
+                        // toolbar-style edit affordance in this class of product
+                        // is a soft-cornered square, and it stops the control
+                        // competing with the username beside it.
+                        width: '28px', height: '28px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        background: 'transparent', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)',
+                        color: 'var(--text-3)', cursor: 'pointer', lineHeight: 0, flexShrink: 0, padding: 0,
+                        transition: 'background var(--t-fast), color var(--t-fast), border-color var(--t-fast)',
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2)'; e.currentTarget.style.color = 'var(--text)'; e.currentTarget.style.borderColor = 'var(--border-strong)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-3)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
+                    >
+                      <PencilIcon size={14} />
+                    </button>
+                  </Tooltip>
                 </div>
               </div>
             )}

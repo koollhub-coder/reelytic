@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { formatDate, formatDateTime, formatDayKey } from '../utils/date';
 import { SunIcon, MoonIcon } from './Icon';
+import { Tooltip } from './Tooltip';
 
 // Big campaigns run into the hundreds of creators. Show a readable page at a
 // time on screen; the printed PDF and the Excel export always carry every row.
@@ -237,14 +238,18 @@ export function ThemeToggle({ theme, setTheme }) {
   });
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '2px', backgroundColor: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', padding: '3px', flexShrink: 0 }}>
-      <button type="button" onClick={() => setTheme('light')} style={btn(theme === 'light')} title="Light" aria-pressed={theme === 'light'}>
-        <SunIcon size={14} />
-        <span className="rl-label-full">Light</span>
-      </button>
-      <button type="button" onClick={() => setTheme('dark')} style={btn(theme === 'dark')} title="Dark" aria-pressed={theme === 'dark'}>
-        <MoonIcon size={14} />
-        <span className="rl-label-full">Dark</span>
-      </button>
+      <Tooltip content="Light">
+        <button type="button" onClick={() => setTheme('light')} style={btn(theme === 'light')} aria-pressed={theme === 'light'}>
+          <SunIcon size={14} />
+          <span className="rl-label-full">Light</span>
+        </button>
+      </Tooltip>
+      <Tooltip content="Dark">
+        <button type="button" onClick={() => setTheme('dark')} style={btn(theme === 'dark')} aria-pressed={theme === 'dark'}>
+          <MoonIcon size={14} />
+          <span className="rl-label-full">Dark</span>
+        </button>
+      </Tooltip>
     </div>
   );
 }

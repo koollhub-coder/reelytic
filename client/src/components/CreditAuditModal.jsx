@@ -3,6 +3,7 @@ import { Modal } from './Modal';
 import { apiFetch } from '../api/client';
 import { BrandLoader } from './BrandLoader';
 import { InfoIcon } from './Icon';
+import { Tooltip } from './Tooltip';
 import { formatDate, formatDateTime } from '../utils/date';
 
 /*
@@ -355,12 +356,24 @@ export function CreditAuditModal({ username, isOpen, onClose, currency, rate, fm
                 <th>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
                     Balances?
-                    <span
-                      title={'Does the arithmetic add up? We check Before minus Used against After.\n\nYes: the balance fell by exactly the credits counted, so the charge landed correctly.\n\n"Off by N": it did not. The account moved by a different amount than we counted, so either a charge failed to land or the balance was changed by something else while the report was running (a top-up, a plan reset, or another report running at the same time).\n\nNot recorded: this run finished before we started saving opening and closing balances, so there is nothing to check it against.'}
-                      style={{ display: 'inline-flex', color: 'var(--text-3)', cursor: 'help' }}
+                    <Tooltip
+                      maxWidth={320}
+                      content={(
+                        <>
+                          Does the arithmetic add up? We check Before minus Used against After.
+                          <br /><br />
+                          Yes: the balance fell by exactly the credits counted, so the charge landed correctly.
+                          <br /><br />
+                          "Off by N": it did not. The account moved by a different amount than we counted, so either a charge failed to land or the balance was changed by something else while the report was running (a top-up, a plan reset, or another report running at the same time).
+                          <br /><br />
+                          Not recorded: this run finished before we started saving opening and closing balances, so there is nothing to check it against.
+                        </>
+                      )}
                     >
-                      <InfoIcon size={13} />
-                    </span>
+                      <span style={{ display: 'inline-flex', color: 'var(--text-3)', cursor: 'help' }}>
+                        <InfoIcon size={13} />
+                      </span>
+                    </Tooltip>
                   </span>
                 </th>
                 <th className="numeric" style={groupEdge}>Cost to us</th>
@@ -418,15 +431,17 @@ export function CreditAuditModal({ username, isOpen, onClose, currency, rate, fm
                         */
                         const explained = r.driftExplained;
                         return (
-                          <span
-                            style={{ color: explained ? 'var(--text-2)' : 'var(--err)', fontWeight: 600 }}
-                            title={`Expected ${expected.toLocaleString()} after the run (${r.creditsBefore.toLocaleString()} before minus ${r.creditsSpent.toLocaleString()} used), but the account actually held ${r.creditsAfter.toLocaleString()}. ${under ? 'They kept credits we counted as spent, so this run was undercharged.' : 'More credits left the account than this run counted.'}${explained ? ' Traced to the credit-charging bug fixed on 14-aug-26, and signed off. Nothing further is outstanding on this run.' : ''}`}
+                          <Tooltip
+                            maxWidth={320}
+                            content={`Expected ${expected.toLocaleString()} after the run (${r.creditsBefore.toLocaleString()} before minus ${r.creditsSpent.toLocaleString()} used), but the account actually held ${r.creditsAfter.toLocaleString()}. ${under ? 'They kept credits we counted as spent, so this run was undercharged.' : 'More credits left the account than this run counted.'}${explained ? ' Traced to the credit-charging bug fixed on 14-aug-26, and signed off. Nothing further is outstanding on this run.' : ''}`}
                           >
-                            Off by {Math.abs(diff).toLocaleString()}
-                            <span style={{ display: 'block', fontWeight: 400, fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>
-                              {explained ? 'known issue, resolved' : (under ? 'undercharged' : 'overcharged')}
+                            <span style={{ color: explained ? 'var(--text-2)' : 'var(--err)', fontWeight: 600 }}>
+                              Off by {Math.abs(diff).toLocaleString()}
+                              <span style={{ display: 'block', fontWeight: 400, fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>
+                                {explained ? 'known issue, resolved' : (under ? 'undercharged' : 'overcharged')}
+                              </span>
                             </span>
-                          </span>
+                          </Tooltip>
                         );
                       })()
                     )}

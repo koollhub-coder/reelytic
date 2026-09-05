@@ -7,6 +7,7 @@ import { Modal } from '../../components/Modal';
 import { formatDate, formatDateTime, formatAge } from '../../utils/date';
 import { scanMethodLabel, scanMethodHelp, costSourceLabel, costSourceHelp } from '../../utils/labels';
 import { CreditAuditModal } from '../../components/CreditAuditModal';
+import { Tooltip } from '../../components/Tooltip';
 
 const REFRESH_MS = 30000;
 
@@ -96,15 +97,16 @@ export function UsageSpend() {
                 <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-2xl)', fontWeight: 700 }}>Usage & Spend</h1>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s3)' }}>
                     <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', overflow: 'hidden' }}>
+                        <Tooltip content={!rate ? 'Live rate unavailable right now' : undefined}>
                         <button
                             type="button"
                             onClick={() => setCurrency('INR')}
                             disabled={!rate}
-                            title={!rate ? 'Live rate unavailable right now' : ''}
                             style={{ padding: '4px 12px', border: 'none', background: currency === 'INR' ? 'var(--accent)' : 'transparent', color: currency === 'INR' ? '#fff' : 'var(--text)', cursor: rate ? 'pointer' : 'not-allowed', opacity: rate ? 1 : 0.5 }}
                         >
                             INR
                         </button>
+                        </Tooltip>
                         <button
                             type="button"
                             onClick={() => setCurrency('USD')}
@@ -187,15 +189,16 @@ export function UsageSpend() {
                                     <td className="numeric mono">{row.reelCount ? fmt(row.reelUsd, currency, rate) : '-'}</td>
                                     <td className="numeric mono" style={{ fontWeight: 700 }}>{fmt(row.totalUsd, currency, rate)}</td>
                                     <td style={{ textAlign: 'right' }}>
-                                        <button
-                                            type="button"
-                                            className="btn btn-secondary"
-                                            style={{ height: '28px', fontSize: 'var(--fs-xs)', padding: '0 var(--s3)', whiteSpace: 'nowrap' }}
-                                            title="Opening balance, credits charged and closing balance for every report this client has run"
-                                            onClick={(e) => { e.stopPropagation(); setAuditUser(row.username); }}
-                                        >
-                                            Credit audit
-                                        </button>
+                                        <Tooltip content="Opening balance, credits charged and closing balance for every report this client has run">
+                                            <button
+                                                type="button"
+                                                className="btn btn-secondary"
+                                                style={{ height: '28px', fontSize: 'var(--fs-xs)', padding: '0 var(--s3)', whiteSpace: 'nowrap' }}
+                                                onClick={(e) => { e.stopPropagation(); setAuditUser(row.username); }}
+                                            >
+                                                Credit audit
+                                            </button>
+                                        </Tooltip>
                                     </td>
                                 </tr>
                             ))}
@@ -282,11 +285,13 @@ export function UsageSpend() {
                         {daily.map((d, i) => {
                             const heightPct = (d.usd / maxUsd) * 160;
                             return (
-                                <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }} title={`${d.date}: ${fmt(d.usd, currency, rate)}`}>
+                                <Tooltip key={i} content={`${d.date}: ${fmt(d.usd, currency, rate)}`}>
+                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}>
                                     <div style={{ fontFamily: 'var(--font-data)', fontSize: '10px', color: 'var(--text-3)', marginBottom: '4px' }}>{fmt(d.usd, currency, rate)}</div>
                                     <div style={{ width: '100%', maxWidth: '36px', height: `${Math.max(heightPct, 4)}px`, backgroundColor: 'var(--accent)', borderRadius: '4px 4px 0 0', transition: 'height 300ms ease' }} />
                                     <div style={{ fontFamily: 'var(--font-data)', fontSize: '9px', color: 'var(--text-3)', transform: 'rotate(-45deg)', whiteSpace: 'nowrap', marginTop: '12px' }}>{d.date.slice(5)}</div>
                                 </div>
+                                </Tooltip>
                             );
                         })}
                     </div>
@@ -345,13 +350,14 @@ export function UsageSpend() {
                                         </td>
                                         <td style={{ textTransform: 'capitalize' }}>{it.type}</td>
                                         <td>
-                                            <span
-                                                className="chip"
-                                                style={{ padding: '2px 8px', fontSize: '10px', whiteSpace: 'nowrap' }}
-                                                title={scanMethodHelp(it.pipelineMode)}
-                                            >
-                                                {scanMethodLabel(it.pipelineMode)}
-                                            </span>
+                                            <Tooltip content={scanMethodHelp(it.pipelineMode)}>
+                                                <span
+                                                    className="chip"
+                                                    style={{ padding: '2px 8px', fontSize: '10px', whiteSpace: 'nowrap' }}
+                                                >
+                                                    {scanMethodLabel(it.pipelineMode)}
+                                                </span>
+                                            </Tooltip>
                                         </td>
                                         {/* A zero here is a fact, not a gap: say so in the cell rather
                                             than leaving an unexplained 0.0000 next to a real cost. */}

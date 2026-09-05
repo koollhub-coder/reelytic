@@ -3,6 +3,7 @@ import { apiFetch } from '../../api/client';
 import { useToast } from '../../context/ToastContext';
 import { BrandLoader } from '../../components/BrandLoader';
 import { PipelineModeBanner } from '../../components/PipelineModeBanner';
+import { Tooltip } from '../../components/Tooltip';
 
 const REFRESH_MS = 60000;
 
@@ -86,15 +87,16 @@ export function CostMonitor() {
                         >
                             INR
                         </button>
+                        <Tooltip content={!rate ? 'Live rate unavailable right now' : undefined}>
                         <button
                             type="button"
                             onClick={() => setCurrency('USD')}
                             disabled={!rate}
-                            title={!rate ? 'Live rate unavailable right now' : ''}
                             style={{ padding: '4px 12px', border: 'none', background: currency === 'USD' ? 'var(--accent)' : 'transparent', color: currency === 'USD' ? '#fff' : 'var(--text)', cursor: rate ? 'pointer' : 'not-allowed', opacity: rate ? 1 : 0.5 }}
                         >
                             USD
                         </button>
+                        </Tooltip>
                     </div>
                     <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>Refreshes every 60s · {rate ? `1 USD = ₹${rate.toFixed(2)}` : 'INR rate unavailable'}</span>
                 </div>

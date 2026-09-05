@@ -8,6 +8,7 @@ import { Select } from '../../components/Select';
 import { useToast } from '../../context/ToastContext';
 import { formatDate, formatDateTime, formatDayKey } from '../../utils/date';
 import { TableSkeleton } from '../../components/TableSkeleton';
+import { Tooltip } from '../../components/Tooltip';
 
 // override value ->Select value, and back. null/undefined (key never
 // touched) reads as "plan", matching hasFeature()'s fallback-to-plan rule.
@@ -217,31 +218,34 @@ export function Clients() {
                     <button className="btn btn-secondary" style={{ height: '28px', fontSize: 'var(--fs-xs)' }} onClick={() => handleResetPassword(c.username)}>Reset Pwd</button>
                     <button className="btn btn-secondary" style={{ height: '28px', fontSize: 'var(--fs-xs)' }} onClick={() => handleRevokeSessions(c.username)}>Revoke</button>
                     <button className="btn btn-secondary" style={{ height: '28px', fontSize: 'var(--fs-xs)' }} onClick={() => openFeatureModal(c)}>Features</button>
-                    <button
-                      className="btn btn-secondary"
-                      style={{ height: '28px', fontSize: 'var(--fs-xs)' }}
-                      onClick={() => handleResetTour(c.username)}
-                      disabled={c.hasSeenTour === false}
-                      title={c.hasSeenTour === false ? 'Already queued for their next login' : "Show the welcome tour again on this client's next login"}
-                    >
-                      {c.hasSeenTour === false ? 'Tour queued' : 'Replay tour'}
-                    </button>
-                    <a
-                      className="btn btn-secondary"
-                      style={{ height: '28px', fontSize: 'var(--fs-xs)', lineHeight: '28px', padding: '0 10px' }}
-                      href={`/api/admin/clients/${c.username}/export.xlsx`}
-                      title="Download this client's submitted links and metrics as Excel"
-                    >
-                      Download ↓ .xlsx
-                    </a>
-                    <a
-                      className="btn btn-secondary"
-                      style={{ height: '28px', fontSize: 'var(--fs-xs)', lineHeight: '28px', padding: '0 10px' }}
-                      href={`/api/admin/clients/${c.username}/export.csv`}
-                      title="Download this client's submitted links and metrics as CSV"
-                    >
-                      .csv
-                    </a>
+                    <Tooltip content={c.hasSeenTour === false ? 'Already queued for their next login' : "Show the welcome tour again on this client's next login"}>
+                      <button
+                        className="btn btn-secondary"
+                        style={{ height: '28px', fontSize: 'var(--fs-xs)' }}
+                        onClick={() => handleResetTour(c.username)}
+                        disabled={c.hasSeenTour === false}
+                      >
+                        {c.hasSeenTour === false ? 'Tour queued' : 'Replay tour'}
+                      </button>
+                    </Tooltip>
+                    <Tooltip content="Download this client's submitted links and metrics as Excel">
+                      <a
+                        className="btn btn-secondary"
+                        style={{ height: '28px', fontSize: 'var(--fs-xs)', lineHeight: '28px', padding: '0 10px' }}
+                        href={`/api/admin/clients/${c.username}/export.xlsx`}
+                      >
+                        Download ↓ .xlsx
+                      </a>
+                    </Tooltip>
+                    <Tooltip content="Download this client's submitted links and metrics as CSV">
+                      <a
+                        className="btn btn-secondary"
+                        style={{ height: '28px', fontSize: 'var(--fs-xs)', lineHeight: '28px', padding: '0 10px' }}
+                        href={`/api/admin/clients/${c.username}/export.csv`}
+                      >
+                        .csv
+                      </a>
+                    </Tooltip>
                     <button
                       className={`btn ${c.disabled ? 'btn-secondary' : 'btn-destructive'}`}
                       style={{ height: '28px', fontSize: 'var(--fs-xs)' }}

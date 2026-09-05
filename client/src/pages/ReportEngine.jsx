@@ -9,6 +9,7 @@ import { TableSkeleton } from '../components/TableSkeleton';
 import { CopyButton } from '../components/CopyButton';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { Modal } from '../components/Modal';
+import { Tooltip } from '../components/Tooltip';
 import { CampaignCombobox } from '../components/CampaignCombobox';
 import { Select } from '../components/Select';
 import {
@@ -196,9 +197,9 @@ function buildSummaryText(insights, type) {
 function statusChip(row) {
   switch (row.state) {
     case 'done': return <span className="chip ok">Success</span>;
-    case 'failed': return <span className="chip err" title={row.error}>Invalid link</span>;
-    case 'invalid': return <span className="chip err" title={row.error}>Invalid link</span>;
-    case 'duplicate': return <span className="chip warn" title="Duplicate link — won't be processed">Duplicate</span>;
+    case 'failed': return <Tooltip content={row.error}><span className="chip err">Invalid link</span></Tooltip>;
+    case 'invalid': return <Tooltip content={row.error}><span className="chip err">Invalid link</span></Tooltip>;
+    case 'duplicate': return <Tooltip content="Duplicate link — won't be processed"><span className="chip warn">Duplicate</span></Tooltip>;
     case 'processing': return <span className="chip accent">Processing...</span>;
     case 'skipped': return <span className="chip">Skipped</span>;
     default: return <span className="chip">Pending</span>;
@@ -210,21 +211,24 @@ function statusChip(row) {
 function UrlCell({ row }) {
   return (
     <span className="mono" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', maxWidth: '240px' }}>
-      <a
-        href={row.input.url}
-        target="_blank"
-        rel="noreferrer"
-        style={{ color: 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block', maxWidth: '190px', verticalAlign: 'bottom' }}
-        title={row.input.url}
-      >
-        {row.input.url}
-      </a>
+      <Tooltip content={row.input.url}>
+        <a
+          href={row.input.url}
+          target="_blank"
+          rel="noreferrer"
+          style={{ color: 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block', maxWidth: '190px', verticalAlign: 'bottom' }}
+        >
+          {row.input.url}
+        </a>
+      </Tooltip>
       {/* Same destination the text itself already links to -- an explicit
           icon next to a mono URL string reads as clickable more reliably
           than styled link-color text alone does. */}
-      <a href={row.input.url} target="_blank" rel="noreferrer" title="Open link" style={{ color: 'var(--text-3)', display: 'flex', flexShrink: 0 }}>
-        <ExternalLinkIcon size={13} />
-      </a>
+      <Tooltip content="Open link">
+        <a href={row.input.url} target="_blank" rel="noreferrer" style={{ color: 'var(--text-3)', display: 'flex', flexShrink: 0 }}>
+          <ExternalLinkIcon size={13} />
+        </a>
+      </Tooltip>
       <CopyButton text={row.input.url} />
     </span>
   );
@@ -265,15 +269,16 @@ function ReelsAnalyzedCell({ res, onViewReels }) {
   const hasData = (res.candidates && res.candidates.length) || (res.perReel && res.perReel.length);
   if (!hasData) return <>{res.reelsAnalyzed ?? '-'}</>;
   return (
-    <button
-      type="button"
-      onClick={() => onViewReels({ username: res.username, candidates: res.candidates, perReel: res.perReel })}
-      className="rl-text-link"
-      style={{ fontFamily: 'var(--font-data)', fontWeight: 700 }}
-      title="See which posts were considered and why"
-    >
-      {res.reelsAnalyzed}
-    </button>
+    <Tooltip content="See which posts were considered and why">
+      <button
+        type="button"
+        onClick={() => onViewReels({ username: res.username, candidates: res.candidates, perReel: res.perReel })}
+        className="rl-text-link"
+        style={{ fontFamily: 'var(--font-data)', fontWeight: 700 }}
+      >
+        {res.reelsAnalyzed}
+      </button>
+    </Tooltip>
   );
 }
 
@@ -314,15 +319,16 @@ function ReelsSkippedCell({ res, onViewReels }) {
   const hasData = (res.candidates && res.candidates.length) || (res.perReel && res.perReel.length);
   if (!hasData) return <>{n}</>;
   return (
-    <button
-      type="button"
-      onClick={() => onViewReels({ username: res.username, candidates: res.candidates, perReel: res.perReel })}
-      className="rl-text-link"
-      style={{ fontFamily: 'var(--font-data)', fontWeight: 700 }}
-      title={skippedBreakdownTitle(res)}
-    >
-      {n}
-    </button>
+    <Tooltip content={skippedBreakdownTitle(res)}>
+      <button
+        type="button"
+        onClick={() => onViewReels({ username: res.username, candidates: res.candidates, perReel: res.perReel })}
+        className="rl-text-link"
+        style={{ fontFamily: 'var(--font-data)', fontWeight: 700 }}
+      >
+        {n}
+      </button>
+    </Tooltip>
   );
 }
 
@@ -347,9 +353,11 @@ function LowSampleBadge({ res }) {
     ? `Only ${n} eligible ${post} for this creator, even after trying a wider fetch. Treat this average as directional, not precise.`
     : `Only ${n} eligible ${post} for this creator. This account has ${res.candidatesFetched ?? 'very few'} reel${res.candidatesFetched === 1 ? '' : 's'} in total -- Instagram had nothing more to fetch, so a wider search would not have found more.`;
   return (
-    <span className="chip warn" style={{ fontSize: 'var(--fs-xs)' }} title={title}>
-      Low sample
-    </span>
+    <Tooltip content={title}>
+      <span className="chip warn" style={{ fontSize: 'var(--fs-xs)' }}>
+        Low sample
+      </span>
+    </Tooltip>
   );
 }
 
@@ -403,18 +411,19 @@ function NoteCell({ row, onEditNote }) {
   if (row.state !== 'done' || !row.result) return <span style={{ color: 'var(--text-3)' }}>-</span>;
   const flagInfo = row.flag && FLAG_STYLE[row.flag];
   return (
-    <button
-      type="button"
-      onClick={() => onEditNote(row)}
-      title={row.note || 'Add a note'}
-      style={{
-        background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-        fontSize: 'var(--fs-xs)', fontWeight: 600, textDecoration: flagInfo ? 'none' : 'underline',
-        color: flagInfo ? flagInfo.color : 'var(--accent)', whiteSpace: 'nowrap',
-      }}
-    >
-      {flagInfo ? flagInfo.label : '+ Note'}
-    </button>
+    <Tooltip content={row.note || 'Add a note'}>
+      <button
+        type="button"
+        onClick={() => onEditNote(row)}
+        style={{
+          background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+          fontSize: 'var(--fs-xs)', fontWeight: 600, textDecoration: flagInfo ? 'none' : 'underline',
+          color: flagInfo ? flagInfo.color : 'var(--accent)', whiteSpace: 'nowrap',
+        }}
+      >
+        {flagInfo ? flagInfo.label : '+ Note'}
+      </button>
+    </Tooltip>
   );
 }
 
@@ -597,10 +606,14 @@ function ColumnsModal({ isOpen, onClose, columns, onRename, onDelete, onReorder 
               }}
             >
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flexShrink: 0 }}>
-                <button type="button" onClick={() => move(c.name, -1)} disabled={i === 0} title="Move up"
-                  style={{ background: 'none', border: 'none', cursor: i === 0 ? 'default' : 'pointer', color: i === 0 ? 'var(--text-3)' : 'var(--text-2)', padding: 0, lineHeight: 0.7, fontSize: '10px' }}>▲</button>
-                <button type="button" onClick={() => move(c.name, 1)} disabled={i === columns.length - 1} title="Move down"
-                  style={{ background: 'none', border: 'none', cursor: i === columns.length - 1 ? 'default' : 'pointer', color: i === columns.length - 1 ? 'var(--text-3)' : 'var(--text-2)', padding: 0, lineHeight: 0.7, fontSize: '10px' }}>▼</button>
+                <Tooltip content="Move up">
+                  <button type="button" onClick={() => move(c.name, -1)} disabled={i === 0}
+                    style={{ background: 'none', border: 'none', cursor: i === 0 ? 'default' : 'pointer', color: i === 0 ? 'var(--text-3)' : 'var(--text-2)', padding: 0, lineHeight: 0.7, fontSize: '10px' }}>▲</button>
+                </Tooltip>
+                <Tooltip content="Move down">
+                  <button type="button" onClick={() => move(c.name, 1)} disabled={i === columns.length - 1}
+                    style={{ background: 'none', border: 'none', cursor: i === columns.length - 1 ? 'default' : 'pointer', color: i === columns.length - 1 ? 'var(--text-3)' : 'var(--text-2)', padding: 0, lineHeight: 0.7, fontSize: '10px' }}>▼</button>
+                </Tooltip>
               </div>
               {isEditing ? (
                 <input
@@ -616,14 +629,18 @@ function ColumnsModal({ isOpen, onClose, columns, onRename, onDelete, onReorder 
               ) : (
                 <span style={{ flex: 1, fontSize: 'var(--fs-sm)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</span>
               )}
-              <button type="button" onClick={() => { setEditingName(c.name); setDraft(displayName); }} title="Rename"
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', display: 'flex', flexShrink: 0 }}>
-                <PencilIcon size={14} />
-              </button>
-              <button type="button" onClick={() => onDelete(c.name)} title="Remove this column"
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', display: 'flex', flexShrink: 0 }}>
-                <XIcon size={14} />
-              </button>
+              <Tooltip content="Rename">
+                <button type="button" onClick={() => { setEditingName(c.name); setDraft(displayName); }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', display: 'flex', flexShrink: 0 }}>
+                  <PencilIcon size={14} />
+                </button>
+              </Tooltip>
+              <Tooltip content="Remove this column">
+                <button type="button" onClick={() => onDelete(c.name)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', display: 'flex', flexShrink: 0 }}>
+                  <XIcon size={14} />
+                </button>
+              </Tooltip>
             </div>
           );
         })}
@@ -1426,25 +1443,27 @@ export function ReportEngine({ type = 'reel' }) {
               style={{ flex: '1 1 220px', minWidth: 0 }}
             />
             {previewData.creditsPerItem != null && (
+              <Tooltip content={`${previewData.creditsPerItem} credit${previewData.creditsPerItem === 1 ? '' : 's'} per link, charged only for links that actually succeed`}>
               <span
                 className="chip"
-                title={`${previewData.creditsPerItem} credit${previewData.creditsPerItem === 1 ? '' : 's'} per link, charged only for links that actually succeed`}
                 style={{ padding: '5px 10px', gap: '6px', flexShrink: 0 }}
               >
                 Uses {counts.valid * previewData.creditsPerItem} credit{counts.valid * previewData.creditsPerItem === 1 ? '' : 's'}
                 <InfoIcon size={12} style={{ color: 'var(--text-3)' }} />
               </span>
+              </Tooltip>
             )}
+            <Tooltip content={counts.valid === 0 ? 'There are no valid links in this sheet to run' : undefined}>
             <button
               className="btn btn-primary"
               onClick={() => handleStartJob(false)}
               disabled={counts.valid === 0}
-              title={counts.valid === 0 ? 'There are no valid links in this sheet to run' : undefined}
               style={{ gap: 'var(--s2)', flexShrink: 0 }}
             >
               <PlayIcon size={14} />
               {counts.valid === 0 ? 'No valid links to run' : 'Run report'}
             </button>
+            </Tooltip>
           </div>
 
           {/* Says what to do about it, rather than leaving a dead button with
@@ -1517,7 +1536,7 @@ export function ReportEngine({ type = 'reel' }) {
                         }}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ color: 'var(--text-3)', cursor: 'grab', display: 'flex' }} title="Drag to reorder"><GripIcon size={13} /></span>
+                          <Tooltip content="Drag to reorder"><span style={{ color: 'var(--text-3)', cursor: 'grab', display: 'flex' }}><GripIcon size={13} /></span></Tooltip>
                           {editingColName === c.name ? (
                             <input
                               type="text"
@@ -1529,24 +1548,26 @@ export function ReportEngine({ type = 'reel' }) {
                               style={{ background: 'var(--surface)', border: '1px solid var(--accent)', padding: '2px 4px', width: '100px', fontSize: 'var(--fs-xs)' }}
                             />
                           ) : (
+                            <Tooltip content="Click to rename">
                             <span
                               onClick={() => { setEditingColName(c.name); setTempColName(colName); }}
                               style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-                              title="Click to rename"
                             >
                               {colName}
                               <PencilIcon size={11} style={{ color: 'var(--text-3)' }} />
                             </span>
+                            </Tooltip>
                           )}
+                          <Tooltip content={`Remove "${colName}" from this report`}>
                           <button
                             type="button"
                             className="rl-col-remove"
                             onClick={() => handleDeleteColumn(c.name)}
-                            title={`Remove "${colName}" from this report`}
                             style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--text-3)', cursor: 'pointer', display: 'flex', padding: '0 2px', lineHeight: 1 }}
                           >
                             <XIcon size={13} />
                           </button>
+                          </Tooltip>
                         </div>
                       </th>
                     );
@@ -1575,21 +1596,22 @@ export function ReportEngine({ type = 'reel' }) {
                           whole cell clipped the button off-screen behind a
                           long URL instead of just shortening the text. */}
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', maxWidth: '280px' }}>
+                        <Tooltip content={r.input.url}>
                         <a
                           href={r.input.url}
                           target="_blank"
                           rel="noreferrer"
                           style={{ color: 'var(--accent)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block', maxWidth: '230px', verticalAlign: 'bottom' }}
-                          title={r.input.url}
                         >
                           {r.input.url}
                         </a>
+                        </Tooltip>
                         <CopyButton text={r.input.url} />
                       </span>
                     </td>
                     <td>
-                      {r.state === 'invalid' && <span className="chip err" title={r.error}>Invalid link</span>}
-                      {r.state === 'duplicate' && <span className="chip warn" title="Duplicate link — won't be processed">Duplicate</span>}
+                      {r.state === 'invalid' && <Tooltip content={r.error}><span className="chip err">Invalid link</span></Tooltip>}
+                      {r.state === 'duplicate' && <Tooltip content="Duplicate link — won't be processed"><span className="chip warn">Duplicate</span></Tooltip>}
                       {r.state === 'pending' && <span className="chip ok">Valid</span>}
                     </td>
                     {previewData.columns.map(c => (
@@ -1673,14 +1695,15 @@ export function ReportEngine({ type = 'reel' }) {
               </div>
               <div style={{ display: 'flex', gap: 'var(--s3)' }}>
                 <button className="btn btn-secondary" onClick={() => setConfirmDiscard(true)}>Discard</button>
+                <Tooltip content={counts.valid === 0 ? 'There are no valid links in this sheet to run' : undefined}>
                 <button
                   className="btn btn-primary"
                   onClick={() => handleStartJob(false)}
                   disabled={counts.valid === 0}
-                  title={counts.valid === 0 ? 'There are no valid links in this sheet to run' : undefined}
                 >
                   {counts.valid === 0 ? 'No valid links to run' : `Start report, ${counts.valid} links`}
                 </button>
+                </Tooltip>
               </div>
             </div>
           </div>
@@ -1734,9 +1757,11 @@ export function ReportEngine({ type = 'reel' }) {
                     Download partial ↓
                   </a>
                 ) : (
-                  <button className="btn btn-secondary" disabled title="Available once at least one link has finished">
-                    Download partial ↓
-                  </button>
+                  <Tooltip content="Available once at least one link has finished">
+                    <button className="btn btn-secondary" disabled>
+                      Download partial ↓
+                    </button>
+                  </Tooltip>
                 )}
               </div>
             </div>
@@ -1746,14 +1771,18 @@ export function ReportEngine({ type = 'reel' }) {
             <div style={{ padding: 'var(--s3) var(--s4)', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--surface-2)', flexWrap: 'wrap', gap: 'var(--s3)' }}>
               <span style={{ fontSize: 'var(--fs-xs)', textTransform: 'uppercase', fontWeight: 600, color: 'var(--text-2)' }}>Results, updating live</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s4)' }}>
-                <label style={{ fontSize: 'var(--fs-xs)', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }} title="Get a browser notification the moment this report finishes.">
-                  <input type="checkbox" checked={notifyOnDone} onChange={e => handleToggleNotify(e.target.checked)} />
-                  Notify me when done
-                </label>
-                <label style={{ fontSize: 'var(--fs-xs)', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }} title="Keep the newest result in view as the run streams.">
-                  <input type="checkbox" checked={autoScroll} onChange={e => setAutoScroll(e.target.checked)} />
-                  Auto-scroll to newest
-                </label>
+                <Tooltip content="Get a browser notification the moment this report finishes.">
+                  <label style={{ fontSize: 'var(--fs-xs)', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={notifyOnDone} onChange={e => handleToggleNotify(e.target.checked)} />
+                    Notify me when done
+                  </label>
+                </Tooltip>
+                <Tooltip content="Keep the newest result in view as the run streams.">
+                  <label style={{ fontSize: 'var(--fs-xs)', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={autoScroll} onChange={e => setAutoScroll(e.target.checked)} />
+                    Auto-scroll to newest
+                  </label>
+                </Tooltip>
               </div>
             </div>
 

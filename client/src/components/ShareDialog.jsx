@@ -1,6 +1,7 @@
 export { LinkIcon } from './Icon';
 import React, { useEffect, useState } from 'react';
 import { Modal } from './Modal';
+import { Tooltip } from './Tooltip';
 import { apiFetch } from '../api/client';
 import { useToast } from '../context/ToastContext';
 import { formatDate as fmtDate, formatDateTime as fmtDateTime } from '../utils/date';
@@ -198,16 +199,17 @@ export function ShareDialog({ isOpen, onClose, jobId, onStateChange }) {
                 backgroundColor: 'var(--surface-2)', border: '1px solid var(--border)',
                 borderRadius: 'var(--r-md)', padding: '6px 6px 6px var(--s3)',
               }}>
-                <span
-                  className="mono"
-                  title={shareUrl}
-                  style={{
-                    flex: 1, minWidth: 0, fontSize: 'var(--fs-xs)', color: 'var(--text-2)',
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                  }}
-                >
-                  {shareUrl}
-                </span>
+                <Tooltip content={shareUrl}>
+                  <span
+                    className="mono"
+                    style={{
+                      flex: 1, minWidth: 0, fontSize: 'var(--fs-xs)', color: 'var(--text-2)',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {shareUrl}
+                  </span>
+                </Tooltip>
                 <button type="button" className="btn btn-secondary" onClick={handleCopy} style={{ flexShrink: 0, height: '30px', padding: '0 var(--s3)' }}>
                   Copy
                 </button>

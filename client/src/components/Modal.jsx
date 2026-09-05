@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { XIcon } from './Icon';
+import { Tooltip } from './Tooltip';
 
 export function Modal({ isOpen, onClose, title, children, width = '480px' }) {
   useEffect(() => {
@@ -31,22 +32,23 @@ export function Modal({ isOpen, onClose, title, children, width = '480px' }) {
               because a text pass that stripped emoji from the codebase took
               the glyph with it, leaving every dialog in the app with an
               invisible close control. A component cannot be deleted that way. */}
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            title="Close"
-            className="rl-modal-close"
-            style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: '30px', height: '30px', flexShrink: 0, borderRadius: 'var(--r-sm)',
-              color: 'var(--text-3)', cursor: 'pointer', background: 'none', border: 'none',
-              transition: 'background var(--t-fast), color var(--t-fast)',
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2)'; e.currentTarget.style.color = 'var(--text)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--text-3)'; }}
-          >
-            <XIcon size={17} />
-          </button>
+          <Tooltip content="Close">
+            <button
+              onClick={onClose}
+              aria-label="Close"
+              className="rl-modal-close"
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: '30px', height: '30px', flexShrink: 0, borderRadius: 'var(--r-sm)',
+                color: 'var(--text-3)', cursor: 'pointer', background: 'none', border: 'none',
+                transition: 'background var(--t-fast), color var(--t-fast)',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2)'; e.currentTarget.style.color = 'var(--text)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--text-3)'; }}
+            >
+              <XIcon size={17} />
+            </button>
+          </Tooltip>
         </div>
         {children}
       </div>

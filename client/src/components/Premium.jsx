@@ -1,6 +1,7 @@
 import { LockIcon } from './Icon';
 import React, { useState } from 'react';
 import { Modal } from './Modal';
+import { Tooltip } from './Tooltip';
 
 /*
   Plan-gated feature presentation.
@@ -100,28 +101,29 @@ export function LockedFeatureButton({ label, feature, className = 'btn btn-secon
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button
-        type="button"
-        className={className}
-        // Locked buttons still need to be findable by the product tour. The
-        // share step pointed at a selector that only existed on the unlocked
-        // version, so on a free account the tour had nothing to point at and
-        // stopped dead. Showing someone a feature they do not have yet is the
-        // entire purpose of the tour.
-        data-tour={dataTour}
-        onClick={() => setOpen(true)}
-        title={`${feature.title} is available on Pro and Agency`}
-        style={{
-          color: 'var(--text-3)',
-          borderColor: 'var(--border)',
-          backgroundColor: 'transparent',
-          gap: 'var(--s2)',
-          ...style,
-        }}
-      >
-        <span style={{ color: 'var(--text-2)' }}>{label}</span>
-        <ProBadge />
-      </button>
+      <Tooltip content={`${feature.title} is available on Pro and Agency`}>
+        <button
+          type="button"
+          className={className}
+          // Locked buttons still need to be findable by the product tour. The
+          // share step pointed at a selector that only existed on the unlocked
+          // version, so on a free account the tour had nothing to point at and
+          // stopped dead. Showing someone a feature they do not have yet is the
+          // entire purpose of the tour.
+          data-tour={dataTour}
+          onClick={() => setOpen(true)}
+          style={{
+            color: 'var(--text-3)',
+            borderColor: 'var(--border)',
+            backgroundColor: 'transparent',
+            gap: 'var(--s2)',
+            ...style,
+          }}
+        >
+          <span style={{ color: 'var(--text-2)' }}>{label}</span>
+          <ProBadge />
+        </button>
+      </Tooltip>
       <UpgradeDialog isOpen={open} onClose={() => setOpen(false)} feature={feature} />
     </>
   );

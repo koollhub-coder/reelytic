@@ -7,6 +7,7 @@ import { ReportThemeStyles, ReportSheet, ThemeToggle } from '../components/Repor
 import { LockedFeatureButton, PREMIUM_FEATURES } from '../components/Premium';
 import { ShareDialog, LinkIcon } from '../components/ShareDialog';
 import { formatDate, formatDateTime, formatDayKey } from '../utils/date';
+import { Tooltip } from '../components/Tooltip';
 
 // The one-line summary next to "Manage shareable link". Expiry is stated as
 // a date rather than a countdown, so it stays true whether the page has been
@@ -107,9 +108,11 @@ export function BrandedReport() {
             clutter, not as branding. The shared public view is different, and
             keeps its mark: that page is seen by someone who has no
             relationship with us yet. */}
-        <button className="btn btn-ghost" onClick={() => navigate(-1)} title="Back to report" style={{ padding: '0 var(--s3)', flexShrink: 0 }}>
-          ← <span className="rl-label-full">Back to report</span>
-        </button>
+        <Tooltip content="Back to report">
+          <button className="btn btn-ghost" onClick={() => navigate(-1)} style={{ padding: '0 var(--s3)', flexShrink: 0 }}>
+            ← <span className="rl-label-full">Back to report</span>
+          </button>
+        </Tooltip>
 
         <div className="rl-report-topbar-actions">
           <ThemeToggle theme={theme} setTheme={setTheme} />
@@ -123,15 +126,16 @@ export function BrandedReport() {
             enable this for real, ahead of it being a sellable plan feature.
           */}
           {user?.features?.pdfExport ? (
+            <Tooltip content="Download a PDF of this branded report">
             <a
               className="btn btn-secondary"
               href={`/api/jobs/${jobId}/branded.pdf`}
-              title="Download a PDF of this branded report"
               style={{ flexShrink: 0, gap: 'var(--s2)' }}
             >
               <span className="rl-label-full">Download PDF</span>
               <span className="rl-label-short">PDF</span>
             </a>
+            </Tooltip>
           ) : (
             // Same locked-button + upgrade-dialog pattern as "Get shareable
             // link" below, not a standalone "coming soon" toast -- the
