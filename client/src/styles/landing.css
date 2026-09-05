@@ -639,6 +639,7 @@
    everywhere (the chevron rendered in JSX replaces it, mobile-only). */
 .landing-footer-col summary {
   list-style: none;
+  cursor: pointer;
 }
 .landing-footer-col summary::-webkit-details-marker {
   display: none;

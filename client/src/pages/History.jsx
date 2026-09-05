@@ -407,7 +407,7 @@ function ReportsTable({ jobs, campaigns, navigate, onReassign, loading = false, 
           into a horizontal scroll -- see ReportCardMobile's own note. */}
       <div className="rl-mobile-only" style={{ flexDirection: 'column', padding: 'var(--s3)' }}>
         {selectable && jobs.length > 0 && (
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: 'var(--fs-sm)', color: 'var(--text-2)', marginBottom: 'var(--s2)' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: 'var(--fs-sm)', color: 'var(--text-2)', marginBottom: 'var(--s2)', cursor: 'pointer' }}>
             <input type="checkbox" checked={allSelected} onChange={() => onToggleSelectAll(jobs)} />
             Select all
           </label>
