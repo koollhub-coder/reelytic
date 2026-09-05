@@ -700,7 +700,16 @@ export function History() {
   // in every job object the existing load() fetches, this just adds one more
   // filter over data already in memory rather than a new query.
   const [statusFilter, setStatusFilter] = useState('all'); // all, not-started, in-progress, done
-  const [creatorSearch, setCreatorSearch] = useState('');
+  // Filters the already-loaded jobs by file name, entirely client-side --
+  // this used to hit the server on a 350ms debounce (creatorSearch, joined
+  // against every report's individual rows to match a creator username),
+  // which meant every pause in typing flashed the whole table back to its
+  // loading skeleton. File name is a plain field already sitting on every
+  // job already in memory, so filtering it needs no request at all: no
+  // flash, no debounce, no server round trip. Creator search belongs on its
+  // own dedicated page instead (searching by creator across every report at
+  // once is a materially different feature, not a filter on this one).
+  const [fileSearch, setFileSearch] = useState('');
   // Mobile-only: whether the filter toolbar (desktop: always visible) is
   // currently expanded. Never read on desktop -- the toolbar's own CSS
   // only checks this class inside the mobile media query.
@@ -735,11 +744,10 @@ export function History() {
 
   const PAGE_SIZE = 100;
 
-  const load = useCallback((creator = '') => {
+  const load = useCallback(() => {
     const runId = ++loadRunId.current;
     const qs = (page) => {
       const params = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) });
-      if (creator) params.set('creator', creator);
       return `/jobs?${params.toString()}`;
     };
 
@@ -755,7 +763,7 @@ export function History() {
         // the page opened as one long wall of every report in every
         // campaign at once, which is what "doesn't look responsive at all"
         // on a phone actually was: nothing to scroll past, just everything.
-        if (!creator) setHasAnyReports(firstPage.length > 0);
+        setHasAnyReports(firstPage.length > 0);
         setLoading(false);
 
         // Page one is on screen and interactive at this point; the rest
@@ -801,25 +809,13 @@ export function History() {
     return () => { loadRunId.current += 1; };
   }, [load]);
 
-  // Debounced: search by creator hits the server (it has to join against
-  // every report's individual rows, not just job-level fields), so wait for
-  // a pause in typing rather than firing a request per keystroke. Skips its
-  // first run so it doesn't duplicate the immediate initial load() above.
-  const creatorSearchMounted = useRef(false);
-  useEffect(() => {
-    if (!creatorSearchMounted.current) { creatorSearchMounted.current = true; return; }
-    const handle = setTimeout(() => load(creatorSearch.trim()), 350);
-    return () => clearTimeout(handle);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [creatorSearch]);
-
   // A filter change can put page 3 out of range for the new, smaller result
   // set -- reset to page 1 rather than showing an empty page or clamping
   // silently.
   useEffect(() => {
     setFlatPage(1);
     setUnassignedPage(1);
-  }, [typeFilter, statusFilter, dateFilter, creatorSearch]);
+  }, [typeFilter, statusFilter, dateFilter, fileSearch]);
 
   /*
     This used to call load() on success, which re-fetches every report AND
@@ -865,7 +861,7 @@ export function History() {
       setNewCampaignName('');
       setNewCampaignAvatarUrl(null);
       setNewCampaignOpen(false);
-      load(creatorSearch.trim());
+      load();
     } catch (err) {
       addToast(err.message || "Couldn't create that campaign, try again", 'err');
     } finally {
@@ -929,7 +925,7 @@ export function History() {
       addToast(`${ids.length - failed.length} assigned, ${failed.length} failed -- try those again`, 'err');
     }
     setSelectedUnassignedIds(new Set(failed));
-    load(creatorSearch.trim());
+    load();
   };
 
   const handleDeleteCampaign = async () => {
@@ -938,7 +934,7 @@ export function History() {
       await apiFetch(`/campaigns/${deleteTarget.id}`, { method: 'DELETE' });
       addToast('Campaign deleted, its reports are now uncategorized', 'ok');
       setDeleteTarget(null);
-      load(creatorSearch.trim());
+      load();
     } catch (err) {
       addToast(err.message || "Couldn't delete that campaign, try again", 'err');
     }
@@ -958,9 +954,13 @@ export function History() {
     return new Date(j.createdAt).getTime() >= cutoff;
   });
   const typeFilteredJobs = typeFilter === 'all' ? dateFilteredJobs : dateFilteredJobs.filter((j) => j.type === typeFilter);
-  const filteredJobs = statusFilter === 'all'
+  const statusFilteredJobs = statusFilter === 'all'
     ? typeFilteredJobs
     : typeFilteredJobs.filter((j) => (STATUS_LABELS[j.status] || {}).filterGroup === statusFilter);
+  const trimmedFileSearch = fileSearch.trim().toLowerCase();
+  const filteredJobs = trimmedFileSearch
+    ? statusFilteredJobs.filter((j) => (j.fileName || '').toLowerCase().includes(trimmedFileSearch))
+    : statusFilteredJobs;
   const reelCount = dateFilteredJobs.filter((j) => j.type === 'reel').length;
   const profileCount = dateFilteredJobs.filter((j) => j.type === 'profile').length;
   // Summary-strip counts -- derived from data already loaded, not a new
@@ -1007,7 +1007,7 @@ export function History() {
     typeFilter !== 'all',
     statusFilter !== 'all',
     dateFilter !== 'all',
-    creatorSearch.trim() !== '',
+    fileSearch.trim() !== '',
   ].filter(Boolean).length;
 
   return (
@@ -1076,19 +1076,19 @@ export function History() {
           </div>
 
           {/* Mobile-only top row: search stays visible at all times (same
-              creatorSearch state/debounce as the toolbar's own search box
-              below, just surfaced up top per the reference layout) next to
-              a compact Filters trigger for the other three groups, instead
-              of four filter groups sitting on screen at once on a phone. */}
+              fileSearch state as the toolbar's own search box below, just
+              surfaced up top per the reference layout) next to a compact
+              Filters trigger for the other three groups, instead of four
+              filter groups sitting on screen at once on a phone. */}
           <div className="rl-mobile-only rl-history-searchbar" style={{ gap: 'var(--s2)', marginBottom: 'var(--s3)' }}>
             <span style={{ position: 'relative', flex: 1, minWidth: 0 }}>
               <SearchIcon size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)', pointerEvents: 'none' }} />
               <input
                 type="text"
                 className="input-field"
-                placeholder="Search by creator username"
-                value={creatorSearch}
-                onChange={(e) => setCreatorSearch(e.target.value)}
+                placeholder="Search by file name"
+                value={fileSearch}
+                onChange={(e) => setFileSearch(e.target.value)}
                 style={{ height: '40px', fontSize: 'var(--fs-sm)', width: '100%', paddingLeft: '34px' }}
               />
             </span>
@@ -1140,9 +1140,9 @@ export function History() {
                 <input
                   type="text"
                   className="input-field"
-                  placeholder="Search by creator username"
-                  value={creatorSearch}
-                  onChange={(e) => setCreatorSearch(e.target.value)}
+                  placeholder="Search by file name"
+                  value={fileSearch}
+                  onChange={(e) => setFileSearch(e.target.value)}
                   style={{ height: '32px', fontSize: 'var(--fs-sm)', width: '100%', paddingLeft: '30px' }}
                 />
               </span>
@@ -1176,10 +1176,10 @@ export function History() {
           description="Your finished and in-progress reports will live here across sessions."
           action={<button className="btn btn-primary" onClick={() => navigate('/reels')}>New reel report</button>}
         />
-      ) : creatorSearch.trim() && jobs.length === 0 ? (
+      ) : trimmedFileSearch && filteredJobs.length === 0 ? (
         <EmptyState
-          title="No reports match that creator"
-          description={`Nothing found for "${creatorSearch.trim()}". Check the spelling or try a shorter search.`}
+          title="No reports match that file name"
+          description={`Nothing found for "${fileSearch.trim()}". Check the spelling or try a shorter search.`}
         />
       ) : filteredJobs.length === 0 ? (
         <EmptyState
