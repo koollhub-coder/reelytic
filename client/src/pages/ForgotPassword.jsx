@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { useDocumentMeta } from '../hooks/useDocumentMeta';
 import { LockIcon, MailIcon, ArrowLeftIcon, ShieldIcon, ZapIcon, SuccessIcon } from '../components/Icon';
 import { AuthFooterLinks } from '../components/AuthFooterLinks';
+import { AuthAlert } from '../components/AuthAlert';
 
 const RESEND_COOLDOWN_SECONDS = 60;
 
@@ -138,11 +139,7 @@ export function ForgotPassword() {
                 </p>
               </div>
 
-              {error && (
-                <div className="chip err" style={{ width: '100%', padding: 'var(--s3)', marginBottom: 'var(--s4)', borderRadius: 'var(--r-md)' }}>
-                  {error}
-                </div>
-              )}
+              {error && <AuthAlert>{error}</AuthAlert>}
 
               <form onSubmit={submit} noValidate>
                 <div className="input-group">
@@ -196,11 +193,7 @@ export function ForgotPassword() {
                 </p>
               </div>
 
-              {error && (
-                <div className="chip err" style={{ width: '100%', padding: 'var(--s3)', marginBottom: 'var(--s4)', borderRadius: 'var(--r-md)' }}>
-                  {error}
-                </div>
-              )}
+              {error && <AuthAlert>{error}</AuthAlert>}
 
               <button
                 type="button"

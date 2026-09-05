@@ -4,6 +4,7 @@ import { PasswordInput } from '../components/PasswordInput';
 import { apiFetch } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { AuthAlert } from '../components/AuthAlert';
 
 export function ForceChangePassword() {
   const navigate = useNavigate();
@@ -52,11 +53,7 @@ export function ForceChangePassword() {
           You're using a temporary password. Choose your own to continue.
         </p>
 
-        {error && (
-          <div className="chip err" style={{ width: '100%', padding: 'var(--s3)', marginBottom: 'var(--s4)' }}>
-            {error}
-          </div>
-        )}
+        {error && <AuthAlert>{error}</AuthAlert>}
 
         <form onSubmit={handleSubmit}>
           <div className="input-group">

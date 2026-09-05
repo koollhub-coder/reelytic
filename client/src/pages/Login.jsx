@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { LedgerHero } from '../components/LedgerHero';
 import { useDocumentMeta } from '../hooks/useDocumentMeta';
 import { AuthFooterLinks } from '../components/AuthFooterLinks';
+import { AuthAlert } from '../components/AuthAlert';
 
 export function Login() {
   const navigate = useNavigate();
@@ -137,22 +138,14 @@ export function Login() {
           </div>
 
           {reason === 'revoked' && (
-            <div className="chip err" style={{ width: '100%', padding: 'var(--s3)', marginBottom: 'var(--s4)', borderRadius: 'var(--r-md)' }}>
-               You were signed out by an administrator.
-            </div>
+            <AuthAlert>You were signed out by an administrator.</AuthAlert>
           )}
 
           {reason === 'password-reset' && (
-            <div className="chip ok" style={{ width: '100%', padding: 'var(--s3)', marginBottom: 'var(--s4)', borderRadius: 'var(--r-md)' }}>
-              Your password has been reset. Log in with your new password.
-            </div>
+            <AuthAlert tone="ok">Your password has been reset. Log in with your new password.</AuthAlert>
           )}
 
-          {error && (
-            <div className="chip err" style={{ width: '100%', padding: 'var(--s3)', marginBottom: 'var(--s4)', borderRadius: 'var(--r-md)' }}>
-              {error}
-            </div>
-          )}
+          {error && <AuthAlert>{error}</AuthAlert>}
 
           <GoogleSignInButton onGoogle={handleGoogle} label="Continue with Google" />
 

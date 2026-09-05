@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { LedgerHero } from '../components/LedgerHero';
 import { useDocumentMeta } from '../hooks/useDocumentMeta';
 import { AuthFooterLinks } from '../components/AuthFooterLinks';
+import { AuthAlert } from '../components/AuthAlert';
 
 const RESEND_COOLDOWN_SECONDS = 60;
 
@@ -170,15 +171,11 @@ export function Signup() {
             <Logo />
           </div>
           {error && (
-            <div className="chip err" style={{ width: '100%', padding: 'var(--s3)', marginBottom: 'var(--s4)', borderRadius: 'var(--r-md)' }}>
+            <AuthAlert
+              action={errorCode === 'GOOGLE_ACCOUNT' ? { label: 'Log in instead', onClick: () => navigate('/login') } : null}
+            >
               {error}
-              {errorCode === 'GOOGLE_ACCOUNT' && (
-                <>
-                  {' '}
-                  <a href="/login" onClick={(e) => { e.preventDefault(); navigate('/login'); }} style={{ fontWeight: 700, textDecoration: 'underline' }}>Log in</a>
-                </>
-              )}
-            </div>
+            </AuthAlert>
           )}
 
           {step === 'form' ? (

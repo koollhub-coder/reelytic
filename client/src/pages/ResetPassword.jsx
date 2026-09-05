@@ -6,6 +6,7 @@ import { BrandLoader } from '../components/BrandLoader';
 import { useAuth } from '../context/AuthContext';
 import { useDocumentMeta } from '../hooks/useDocumentMeta';
 import { LockIcon } from '../components/Icon';
+import { AuthAlert } from '../components/AuthAlert';
 
 export function ResetPassword() {
   const navigate = useNavigate();
@@ -107,11 +108,7 @@ export function ResetPassword() {
               </p>
             </div>
 
-            {error && (
-              <div className="chip err" style={{ width: '100%', padding: 'var(--s3)', marginBottom: 'var(--s4)', borderRadius: 'var(--r-md)' }}>
-                {error}
-              </div>
-            )}
+            {error && <AuthAlert>{error}</AuthAlert>}
 
             <form onSubmit={submit} noValidate>
               <div className="input-group">
