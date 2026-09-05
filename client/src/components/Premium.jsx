@@ -79,7 +79,12 @@ export function UpgradeDialog({ isOpen, onClose, feature }) {
           fontSize: 'var(--fs-xs)', color: 'var(--text-3)',
           paddingTop: 'var(--s4)', borderTop: '1px solid var(--border)', marginBottom: 'var(--s4)',
         }}>
-          Included on <strong style={{ color: 'var(--text-2)' }}>Pro</strong> and <strong style={{ color: 'var(--text-2)' }}>Agency</strong>.
+          Included on {(feature.plans || ['Pro', 'Agency']).map((p, i, arr) => (
+            <React.Fragment key={p}>
+              <strong style={{ color: 'var(--text-2)' }}>{p}</strong>
+              {i < arr.length - 2 ? ', ' : i === arr.length - 2 ? ' and ' : ''}
+            </React.Fragment>
+          ))}.
         </div>
 
         <div style={{ display: 'flex', gap: 'var(--s2)', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
@@ -101,7 +106,7 @@ export function LockedFeatureButton({ label, feature, className = 'btn btn-secon
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Tooltip content={`${feature.title} is available on Pro and Agency`}>
+      <Tooltip content={`${feature.title} is available on ${(feature.plans || ['Pro', 'Agency']).join(' and ')}`}>
         <button
           type="button"
           className={className}
@@ -130,7 +135,10 @@ export function LockedFeatureButton({ label, feature, className = 'btn btn-secon
 }
 
 // Feature copy lives in one place so the dialog says the same thing wherever
-// a given feature happens to be locked.
+// a given feature happens to be locked. `plans` drives the dialog's "Included
+// on ..." line and the locked button's tooltip -- explicit per feature
+// rather than a hardcoded "Pro and Agency" because that stopped being true
+// the moment a feature (creatorDatabase) shipped starting at Starter instead.
 export const PREMIUM_FEATURES = {
   shareableLinks: {
     title: 'Shareable report links',
@@ -140,6 +148,7 @@ export const PREMIUM_FEATURES = {
       'Always shows your latest branding and numbers',
       'Turn any link off the moment a campaign wraps',
     ],
+    plans: ['Pro', 'Agency'],
   },
   reportBranding: {
     title: 'Custom report branding',
@@ -149,6 +158,7 @@ export const PREMIUM_FEATURES = {
       'Set it once, applied to everything you generate after',
       'Light and dark versions, both client-ready',
     ],
+    plans: ['Pro', 'Agency'],
   },
   pdfExport: {
     title: 'PDF report download',
@@ -158,5 +168,16 @@ export const PREMIUM_FEATURES = {
       'One click, and its downloaded',
       'The exact file to attach to a client email',
     ],
+    plans: ['Pro', 'Agency'],
+  },
+  creatorDatabase: {
+    title: 'Creator database',
+    description: 'Every creator you have ever analyzed, in one searchable place -- built automatically from your reel and profile reports.',
+    points: [
+      'One row per creator: followers, average views and engagement across every report',
+      'Tagged with which campaigns they showed up in',
+      'Search by handle or name as your history grows',
+    ],
+    plans: ['Starter', 'Pro', 'Agency'],
   },
 };

@@ -79,6 +79,7 @@ async function startServer() {
   app.use('/api/admin', adminRoutes);
   app.use('/api/billing', require('./routes/billing.routes'));
   app.use('/api/pricing', require('./routes/pricing.routes'));
+  app.use('/api/creators', require('./routes/creators.routes'));
   app.use('/api/me', require('./routes/me.routes'));
   app.use('/api/campaigns', require('./routes/campaigns.routes'));
   // Client-side error beacons. Intentionally not behind requireLogin --

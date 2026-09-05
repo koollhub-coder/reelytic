@@ -26,12 +26,12 @@ const PASSWORD = 'regression-test-pw-1';
   cannot detect a regression in that code.
 */
 const TIERS = [
-  { key: 'free', plan: 'free', credits: 10, role: 'client', expect: { reportBranding: false, shareableLinks: false } },
-  { key: 'starter', plan: 'starter', credits: 2000, role: 'client', expect: { reportBranding: false, shareableLinks: false } },
-  { key: 'pro', plan: 'pro', credits: 5000, role: 'client', expect: { reportBranding: true, shareableLinks: true } },
-  { key: 'agency', plan: 'agency', credits: 10000, role: 'client', expect: { reportBranding: true, shareableLinks: true } },
-  { key: 'unlimited', plan: 'unlimited', credits: 999999, role: 'client', expect: { reportBranding: false, shareableLinks: false } },
-  { key: 'admin', plan: 'unlimited', credits: 999999, role: 'admin', expect: { reportBranding: true, shareableLinks: true } },
+  { key: 'free', plan: 'free', credits: 10, role: 'client', expect: { reportBranding: false, shareableLinks: false, creatorDatabase: false } },
+  { key: 'starter', plan: 'starter', credits: 2000, role: 'client', expect: { reportBranding: false, shareableLinks: false, creatorDatabase: true } },
+  { key: 'pro', plan: 'pro', credits: 5000, role: 'client', expect: { reportBranding: true, shareableLinks: true, creatorDatabase: true } },
+  { key: 'agency', plan: 'agency', credits: 10000, role: 'client', expect: { reportBranding: true, shareableLinks: true, creatorDatabase: true } },
+  { key: 'unlimited', plan: 'unlimited', credits: 999999, role: 'client', expect: { reportBranding: false, shareableLinks: false, creatorDatabase: false } },
+  { key: 'admin', plan: 'unlimited', credits: 999999, role: 'admin', expect: { reportBranding: true, shareableLinks: true, creatorDatabase: true } },
 ];
 
 function usernameFor(tierKey) {
@@ -124,6 +124,11 @@ async function teardown({ keepConnection = false } = {}) {
     db.collection('campaigns').deleteMany({ ownerUsername: prefixed }),
     db.collection('submittedLinks').deleteMany({ username: prefixed }),
     db.collection('errorEvents').deleteMany({ message: prefixed }),
+    // Written by jobEngine as a side effect of any suite that actually
+    // processes a job through the stubbed pipeline (lifecycle.test.js), not
+    // just by tests that seed it directly -- must be cleaned up the same
+    // way, or a creator row from one run leaks into the next.
+    db.collection('analyzedCreators').deleteMany({ ownerUsername: prefixed }),
   ]);
 
   return true;

@@ -339,6 +339,21 @@ async function ensureIndexes() {
       { jobId: 1, url: 1 },
       { unique: true, partialFilterExpression: { result: 'success' } }
     );
+    /*
+      Creator database (creatorDb.service.js). _id is already the compound
+      (ownerUsername, username) key, so lookups/upserts by that pair need no
+      separate index -- these two exist for the two things a search actually
+      does: sort the default browse-all view by recency, and serve the
+      prefix regex a text search compiles into (see that service's own note
+      on why prefix, not substring). Admin's cross-account search omits
+      ownerUsername from its filter, which these two still serve fine --
+      Mongo can use the tail of a compound index perfectly well when the
+      leading field is absent from the query, it just can't use it to also
+      narrow by that field.
+    */
+    await db.collection('analyzedCreators').createIndex({ ownerUsername: 1, lastAnalyzedAt: -1, _id: -1 });
+    await db.collection('analyzedCreators').createIndex({ ownerUsername: 1, username: 1 });
+    await db.collection('analyzedCreators').createIndex({ ownerUsername: 1, name: 1 });
     await db.collection('cache').createIndex({ url: 1 }, { unique: true });
     await db.collection('loginHistory').createIndex({ at: -1 });
     await db.collection('loginHistory').createIndex({ username: 1, at: -1 });

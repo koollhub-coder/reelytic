@@ -36,6 +36,7 @@ const HowItsCalculated = lazy(() => import('./pages/HowItsCalculated').then(m =>
 const ReelReport = lazy(() => import('./pages/ReelReport').then(m => ({ default: m.ReelReport })));
 const ProfileReport = lazy(() => import('./pages/ProfileReport').then(m => ({ default: m.ProfileReport })));
 const History = lazy(() => import('./pages/History').then(m => ({ default: m.History })));
+const Creators = lazy(() => import('./pages/Creators').then(m => ({ default: m.Creators })));
 
 const DevUnlock = lazy(() => import('./pages/admin/DevUnlock').then(m => ({ default: m.DevUnlock })));
 const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
@@ -189,6 +190,7 @@ export function App() {
                   <Route path="/reels" element={<ReelReport />} />
                   <Route path="/profiles" element={<ProfileReport />} />
                   <Route path="/history" element={<History />} />
+                  <Route path="/creators" element={<Creators />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/how-it-works" element={<HowItsCalculated />} />
                   <Route path="/admin/dashboard" element={<AdminDashboard />} />

@@ -117,6 +117,14 @@ export function Shell() {
         { label: 'Reel Report', path: '/reels', icon: ReelIcon },
         { label: 'Profile Report', path: '/profiles', icon: ProfileIcon },
         { label: 'History', path: '/history', icon: HistoryIcon },
+        // Shown to everyone, including accounts without the plan for it --
+        // same "still visible, locked, upsell on click" rule as everywhere
+        // else premium (see Premium.jsx's own note), enforced by the page
+        // itself rather than by hiding the nav link. Admin always has it
+        // regardless of plan (hasFeature already treats role:'admin' as an
+        // automatic yes everywhere else) and sees every account's creators
+        // by default, not just their own.
+        { label: 'Creators', path: '/creators', icon: UsersIcon },
         ...(isAdmin ? [] : [{ label: 'How Is This Calculated?', path: '/how-it-works', icon: HelpIcon }]),
       ],
     },

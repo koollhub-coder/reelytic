@@ -3,6 +3,7 @@ const { scrapeReels, scrapeProfilesBatch, scrapeProfilesBatchV2, scrapeFollowers
 const { getCachedEntry, setCache } = require('./cache.service');
 const { computeReelMetrics, computeProfileMetrics, computeProfileMetricsV2 } = require('./metrics.service');
 const { recordLedgerEntry } = require('./ledger.service');
+const { recordAnalyzedCreator } = require('./creatorDb.service');
 const { estimateItemCostUsd, REEL_STANDARD_COST_USD, REEL_EXPRESS_COST_USD } = require('./costEstimate.service');
 const { chargeSuccess, costPerItem, getBalance } = require('./credits.service');
 const { getLearnedAvgMs, recordJobTiming, DEFAULT_AVG_MS } = require('./learnedTiming.service');
@@ -404,6 +405,14 @@ async function processJobLoop(jobId) {
           await chargeSuccess(job.ownerUsername, job.type)
             .catch((e) => console.warn(`[JobEngine] charge failed for ${row.input.url}:`, e.message));
           counts.creditsSpent = (counts.creditsSpent || 0) + costPerItem(job.type);
+          // Gated the same way charging is: only a genuinely new success
+          // updates the creator database. recordAnalyzedCreator increments
+          // running totals ($inc), so a crash-replay hitting this same row
+          // again (ledgerOutcome.duplicate below) must not run it a second
+          // time -- that would double-count this one row's metrics into
+          // the creator's averages.
+          await recordAnalyzedCreator({ ownerUsername: job.ownerUsername, type: job.type, jobId, result: res.result })
+            .catch((e) => console.warn(`[JobEngine] creator-db update failed for ${row.input.url}:`, e.message));
         } else if (ledgerOutcome.duplicate) {
           console.warn(`[JobEngine] Job ${jobId} row ${row.input.url} was already billed -- skipping duplicate charge on replay.`);
         }

@@ -81,6 +81,10 @@ describe('feature flags reported to the client', () => {
         features.reportBranding, tier.expect.reportBranding,
         `${tier.key} reportBranding should be ${tier.expect.reportBranding}`
       );
+      assert.equal(
+        features.creatorDatabase, tier.expect.creatorDatabase,
+        `${tier.key} creatorDatabase should be ${tier.expect.creatorDatabase}`
+      );
     });
   }
 });
@@ -249,5 +253,50 @@ describe('cross-account access', () => {
   test('a client cannot read another account via the admin client export', async () => {
     const res = await agents.pro.get(`/admin/clients/${usernameFor('free')}/export.csv`);
     assert.equal(res.status, 403);
+  });
+});
+
+describe('creator database', () => {
+  // Same enforce-at-the-endpoint reasoning as shareable links/report
+  // branding above: the flag drives what the UI draws, GET /creators is
+  // what actually protects it from a client that ignores the flag and
+  // hits the endpoint directly.
+  for (const tier of TIERS) {
+    const shouldAllow = tier.expect.creatorDatabase;
+
+    test(`${tier.key}: GET /creators is ${shouldAllow ? 'allowed' : 'refused'}`, async () => {
+      const res = await agents[tier.key].get('/creators');
+      if (shouldAllow) {
+        assert.equal(res.status, 200, `${tier.key} paid for this feature and must be able to reach it`);
+      } else {
+        assert.equal(res.status, 403);
+        assert.equal(res.data.code, 'FEATURE_LOCKED');
+      }
+    });
+  }
+
+  test('a non-admin only ever sees their own account\'s creators, whatever scope it asks for', async () => {
+    // pro is entitled to the feature but must never see another account's
+    // rows -- ?scope=all is an admin-only escape hatch. Seeds a row owned
+    // by a DIFFERENT account first: without that, an empty result set would
+    // make this assertion vacuously true whether or not the leak exists.
+    const { getDb } = require('../server/db');
+    await getDb().collection('analyzedCreators').insertOne({
+      _id: `${usernameFor('agency')}::rgr_creator_leak_check`,
+      ownerUsername: usernameFor('agency'),
+      username: 'rgr_creator_leak_check',
+      lastAnalyzedAt: new Date(),
+      firstAnalyzedAt: new Date(),
+    });
+
+    const res = await agents.pro.get('/creators?scope=all');
+    assert.equal(res.status, 200);
+    assert.ok(
+      !res.data.creators.some((c) => c.username === 'rgr_creator_leak_check'),
+      'a non-admin request with ?scope=all leaked another account\'s creator'
+    );
+    for (const creator of res.data.creators) {
+      assert.equal(creator.ownerUsername, usernameFor('pro'), 'a non-admin request leaked another account\'s creator');
+    }
   });
 });
