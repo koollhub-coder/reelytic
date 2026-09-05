@@ -243,6 +243,37 @@ function generateCsvExport(job) {
   return csv;
 }
 
+// Creator database export (server/routes/creators.routes.js GET
+// /export.csv). Operates on the RAW analyzedCreators documents
+// (exportAnalyzedCreators in creatorDb.service.js), not the enriched shape
+// searchAnalyzedCreators returns to the UI -- there's no campaign join here
+// (see that function's own comment on why), so every column below reads
+// straight off the stored totals, same math searchAnalyzedCreators uses.
+function generateCreatorsCsv(rows) {
+  const headers = ['Name', 'Username', 'Profile Link', 'Followers', 'Times Analyzed', 'Reel Avg Views', 'Reel Avg ER (%)', 'Profile Avg Views', 'Profile Avg ER (%)', 'First Analyzed', 'Last Analyzed'];
+  const csvRow = (vals) => vals.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',') + '\n';
+
+  let csv = csvRow(headers);
+  for (const row of rows) {
+    const reel = row.reel || {};
+    const profile = row.profile || {};
+    csv += csvRow([
+      row.name || '',
+      row.username || '',
+      row.profileLink || '',
+      row.followers ?? '',
+      row.timesAnalyzed ?? ((reel.count || 0) + (profile.count || 0)),
+      reel.count ? Math.round(reel.totalViews / reel.count) : '',
+      reel.count ? (reel.avgEr ?? '') : '',
+      profile.count ? Math.round(profile.totalViews / profile.count) : '',
+      profile.count ? (profile.avgEr ?? '') : '',
+      row.firstAnalyzedAt ? new Date(row.firstAnalyzedAt).toISOString().split('T')[0] : '',
+      row.lastAnalyzedAt ? new Date(row.lastAnalyzedAt).toISOString().split('T')[0] : '',
+    ]);
+  }
+  return csv;
+}
+
 // Admin per-client export: every link ever submitted by this client (across
 // all their jobs), from the submittedLinks ledger rather than a single job
 // doc -- ledger.service.js stamps resolvedUsername + a flattened metrics
@@ -434,4 +465,4 @@ function autoFitColumns(sheet) {
   });
 }
 
-module.exports = { generateExcelExport, generateCsvExport, generateClientLedgerExcel, generateClientLedgerCsv, generateSharedReportExcel };
+module.exports = { generateExcelExport, generateCsvExport, generateClientLedgerExcel, generateClientLedgerCsv, generateSharedReportExcel, generateCreatorsCsv };

@@ -1,4 +1,4 @@
-const { getDb } = require('../db');
+const { getDb, queryId } = require('../db');
 
 /*
   The creator database: every Instagram creator an account has ever run a
@@ -177,9 +177,24 @@ function decodeCursor(cursor, sortField) {
   }
 }
 
-async function searchAnalyzedCreators({ ownerUsername, isAdmin, search, cursor, limit = 30, sort, minFollowers, maxFollowers, minEr }) {
-  const db = getDb();
-  const sortField = SORT_FIELDS[sort] || SORT_FIELDS.recent;
+/*
+  Shared by searchAnalyzedCreators and exportAnalyzedCreators below, so the
+  two can never quietly disagree about which rows a given filter combination
+  matches -- an export that silently included a row the on-screen list
+  excluded (or vice versa) would be a much worse bug than either function
+  having a filter feature the other lacks.
+
+  WHY THE CAMPAIGN FILTER IS A TWO-STEP LOOKUP, NOT A STORED FIELD.
+  Same reasoning as the campaign TAG shown per row (see the module comment
+  up top): a report can be reassigned to a different campaign after the
+  fact, so "which campaign is this creator under" can only be answered
+  correctly by asking jobs.campaignId right now, not by trusting a value
+  written down earlier. Filtering by campaign is therefore: look up which
+  jobs currently belong to that campaign, then match creators whose jobIds
+  overlaps that set ($in) -- still a live answer, just computed once up
+  front instead of per row.
+*/
+async function buildFilter({ db, ownerUsername, isAdmin, search, minFollowers, maxFollowers, minEr, campaignId }) {
   const and = [];
   if (!isAdmin) and.push({ ownerUsername });
   const cleanSearch = (search || '').trim();
@@ -193,6 +208,28 @@ async function searchAnalyzedCreators({ ownerUsername, isAdmin, search, cursor, 
   if (minFollowers != null && minFollowers !== '') and.push({ followers: { $gte: Number(minFollowers) } });
   if (maxFollowers != null && maxFollowers !== '') and.push({ followers: { $lte: Number(maxFollowers) } });
   if (minEr != null && minEr !== '') and.push({ bestAvgEr: { $gte: Number(minEr) } });
+  if (campaignId) {
+    const jobFilter = { campaignId: queryId(campaignId) };
+    // A non-admin's own campaign list (client/src/pages/Creators.jsx only
+    // ever offers campaigns GET /campaigns already scoped to them) can only
+    // ever contain their own campaigns anyway, but scoping this lookup the
+    // same way the rest of the filter is scoped costs nothing and closes
+    // off a non-admin ever being able to probe another account's campaign
+    // by id.
+    if (!isAdmin) jobFilter.ownerUsername = ownerUsername;
+    const jobDocs = await db.collection('jobs').find(jobFilter, { projection: { _id: 1 } }).toArray();
+    // Empty on purpose when the campaign has no jobs: {$in: []} matches
+    // nothing, which is the correct answer (a real, valid, empty result),
+    // not an error.
+    and.push({ jobIds: { $in: jobDocs.map((j) => String(j._id)) } });
+  }
+  return and;
+}
+
+async function searchAnalyzedCreators({ ownerUsername, isAdmin, search, cursor, limit = 30, sort, minFollowers, maxFollowers, minEr, campaignId }) {
+  const db = getDb();
+  const sortField = SORT_FIELDS[sort] || SORT_FIELDS.recent;
+  const and = await buildFilter({ db, ownerUsername, isAdmin, search, minFollowers, maxFollowers, minEr, campaignId });
 
   const decoded = cursor ? decodeCursor(cursor, sortField) : null;
   if (decoded) {
@@ -225,7 +262,6 @@ async function searchAnalyzedCreators({ ownerUsername, isAdmin, search, cursor, 
   }
   let campaignByJobId = new Map();
   if (jobIdSet.size) {
-    const { queryId } = require('../db');
     const jobDocs = await db.collection('jobs')
       .find({ _id: { $in: Array.from(jobIdSet).map((id) => queryId(id)) } }, { projection: { campaignId: 1 } })
       .toArray();
@@ -234,7 +270,6 @@ async function searchAnalyzedCreators({ ownerUsername, isAdmin, search, cursor, 
   const campaignIdsNeeded = new Set(Array.from(campaignByJobId.values()).filter(Boolean));
   let campaignNameById = new Map();
   if (campaignIdsNeeded.size) {
-    const { queryId } = require('../db');
     const campaignDocs = await db.collection('campaigns')
       .find({ _id: { $in: Array.from(campaignIdsNeeded).map((id) => queryId(id)) } }, { projection: { name: 1 } })
       .toArray();
@@ -284,4 +319,31 @@ async function searchAnalyzedCreators({ ownerUsername, isAdmin, search, cursor, 
   return { creators, nextCursor };
 }
 
-module.exports = { recordAnalyzedCreator, searchAnalyzedCreators };
+// CSV export deliberately doesn't paginate or join campaign tags -- it's
+// one bulk read, capped rather than looped, because an export exists to
+// hand someone a finished file, not to stream results into a UI. The
+// campaign join in searchAnalyzedCreators above is bounded by page size (a
+// few dozen jobIds at a time); doing that same join for up to
+// EXPORT_ROW_CAP rows would mean an $in lookup against tens of thousands of
+// job ids, which is the wrong trade for a column the CSV doesn't need
+// anyway (a campaign filter narrows WHICH rows export; the campaign tag
+// text itself is already visible on screen in the app).
+const EXPORT_ROW_CAP = 20000;
+
+async function exportAnalyzedCreators({ ownerUsername, isAdmin, search, sort, minFollowers, maxFollowers, minEr, campaignId }) {
+  const db = getDb();
+  const sortField = SORT_FIELDS[sort] || SORT_FIELDS.recent;
+  const and = await buildFilter({ db, ownerUsername, isAdmin, search, minFollowers, maxFollowers, minEr, campaignId });
+  const filter = and.length ? { $and: and } : {};
+
+  const rows = await db.collection('analyzedCreators')
+    .find(filter)
+    .sort({ [sortField]: -1, _id: -1 })
+    .limit(EXPORT_ROW_CAP + 1)
+    .toArray();
+
+  const truncated = rows.length > EXPORT_ROW_CAP;
+  return { rows: truncated ? rows.slice(0, EXPORT_ROW_CAP) : rows, truncated };
+}
+
+module.exports = { recordAnalyzedCreator, searchAnalyzedCreators, exportAnalyzedCreators };

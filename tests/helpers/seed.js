@@ -129,6 +129,8 @@ async function teardown({ keepConnection = false } = {}) {
     // just by tests that seed it directly -- must be cleaned up the same
     // way, or a creator row from one run leaks into the next.
     db.collection('analyzedCreators').deleteMany({ ownerUsername: prefixed }),
+    // Saved creator-database filter segments (creators.routes.js /segments).
+    db.collection('creatorSegments').deleteMany({ ownerUsername: prefixed }),
   ]);
 
   return true;

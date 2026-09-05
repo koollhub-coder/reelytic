@@ -7,7 +7,9 @@ import { TableSkeleton } from '../components/TableSkeleton';
 import { Pagination } from '../components/Pagination';
 import { UpgradeDialog, PREMIUM_FEATURES } from '../components/Premium';
 import { Select } from '../components/Select';
-import { SearchIcon, UsersIcon } from '../components/Icon';
+import { Modal } from '../components/Modal';
+import { useToast } from '../context/ToastContext';
+import { SearchIcon, UsersIcon, DownloadIcon, PlusIcon, XIcon } from '../components/Icon';
 
 /*
   Every creator this account has ever run a reel or profile report on, in
@@ -144,6 +146,7 @@ const HEADERS = ['Creator', 'Followers', 'Times analyzed', 'Reel avg', 'Profile 
 
 export function Creators() {
   const { user } = useAuth();
+  const { addToast } = useToast();
   const locked = !user?.features?.creatorDatabase;
 
   const [search, setSearch] = useState('');
@@ -160,8 +163,24 @@ export function Creators() {
   const [followerTier, setFollowerTier] = useState('all');
   const [minEr, setMinEr] = useState(0);
   const [sortBy, setSortBy] = useState('recent');
+  const [campaignId, setCampaignId] = useState('');
+  const [campaigns, setCampaigns] = useState([]);
+  const [segments, setSegments] = useState([]);
+  const [saveViewOpen, setSaveViewOpen] = useState(false);
+  const [saveViewName, setSaveViewName] = useState('');
+  const [savingView, setSavingView] = useState(false);
 
   const runId = useRef(0);
+
+  // Reference lists for the filter bar -- campaigns to filter by, saved
+  // segments to reapply. Independent of the row query above: these don't
+  // change as search/filters change, so they load once and are simply read
+  // from while the query effect below re-fires on its own schedule.
+  useEffect(() => {
+    if (locked) return;
+    apiFetch('/campaigns').then((res) => setCampaigns(res.campaigns || [])).catch(() => {});
+    apiFetch('/creators/segments').then((res) => setSegments(res.segments || [])).catch(() => {});
+  }, [locked]);
 
   // Every filter knob (search, scope, follower tier, ER threshold, sort)
   // funnels through here -- one place building the query string means one
@@ -179,9 +198,10 @@ export function Creators() {
     if (tier?.min != null) params.set('minFollowers', String(tier.min));
     if (tier?.max != null) params.set('maxFollowers', String(tier.max));
     if (minEr) params.set('minEr', String(minEr));
+    if (campaignId) params.set('campaignId', campaignId);
     return apiFetch(`/creators?${params.toString()}`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, scope, sortBy, followerTier, minEr]);
+  }, [search, scope, sortBy, followerTier, minEr, campaignId]);
 
   // Fresh query: fires on mount and on any filter change (search, scope,
   // follower tier, ER threshold, sort). Renders the first page the moment
@@ -246,7 +266,7 @@ export function Creators() {
     const handle = setTimeout(() => runQuery(), 300);
     return () => clearTimeout(handle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [locked, search, scope, followerTier, minEr, sortBy]);
+  }, [locked, search, scope, followerTier, minEr, sortBy, campaignId]);
 
   const totalPages = Math.ceil(rows.length / PAGE_SIZE);
 
@@ -273,8 +293,73 @@ export function Creators() {
       .finally(() => { if (id === runId.current) setExtending(false); });
   };
 
-  const filtersActive = followerTier !== 'all' || minEr !== 0 || sortBy !== 'recent';
-  const resetFilters = () => { setFollowerTier('all'); setMinEr(0); setSortBy('recent'); };
+  const filtersActive = followerTier !== 'all' || minEr !== 0 || sortBy !== 'recent' || !!campaignId;
+  const resetFilters = () => { setFollowerTier('all'); setMinEr(0); setSortBy('recent'); setCampaignId(''); };
+
+  // A saved segment is search + every filter chip, bundled -- applying one
+  // sets all of it at once rather than making someone reconstruct a filter
+  // combination chip by chip. Deliberately excludes `scope`: which accounts
+  // to look across isn't "what I'm looking for," it's a separate toggle a
+  // saved view shouldn't silently override.
+  const applySegment = (segment) => {
+    const f = segment.filters || {};
+    setSearch(f.search || '');
+    setFollowerTier(f.followerTier || 'all');
+    setMinEr(Number(f.minEr) || 0);
+    setSortBy(f.sort || 'recent');
+    setCampaignId(f.campaignId || '');
+  };
+
+  const handleSaveView = async () => {
+    if (!saveViewName.trim()) return;
+    setSavingView(true);
+    try {
+      const res = await apiFetch('/creators/segments', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: saveViewName.trim(),
+          filters: { search, followerTier, minEr, sort: sortBy, campaignId },
+        }),
+      });
+      setSegments((prev) => [res.segment, ...prev]);
+      addToast('View saved', 'ok');
+      setSaveViewOpen(false);
+      setSaveViewName('');
+    } catch (err) {
+      addToast(err.message || "Couldn't save this view, try again.", 'error');
+    } finally {
+      setSavingView(false);
+    }
+  };
+
+  const handleDeleteSegment = async (id) => {
+    const prev = segments;
+    setSegments((s) => s.filter((seg) => seg.id !== id));
+    try {
+      await apiFetch(`/creators/segments/${id}`, { method: 'DELETE' });
+    } catch (err) {
+      setSegments(prev);
+      addToast(err.message || "Couldn't delete that view, try again.", 'error');
+    }
+  };
+
+  // The export mirrors whatever's currently filtered/searched/sorted -- a
+  // plain same-origin link, not a fetch, so the browser's own session
+  // cookie carries auth and the download just happens, the same way
+  // History's per-report .xlsx/.csv links already work.
+  const exportHref = () => {
+    const params = new URLSearchParams();
+    const term = search.trim();
+    if (term) params.set('search', term);
+    if (scope) params.set('scope', scope);
+    if (sortBy !== 'recent') params.set('sort', sortBy);
+    const tier = FOLLOWER_TIERS.find((t) => t.value === followerTier);
+    if (tier?.min != null) params.set('minFollowers', String(tier.min));
+    if (tier?.max != null) params.set('maxFollowers', String(tier.max));
+    if (minEr) params.set('minEr', String(minEr));
+    if (campaignId) params.set('campaignId', campaignId);
+    return `/api/creators/export.csv?${params.toString()}`;
+  };
 
   if (locked) {
     return (
@@ -354,6 +439,14 @@ export function Creators() {
             </button>
           </div>
         )}
+        <a
+          href={exportHref()}
+          className="btn btn-secondary"
+          style={{ gap: 'var(--s2)', textDecoration: 'none' }}
+          title="Export the currently filtered/searched list as CSV"
+        >
+          <DownloadIcon size={15} />Export CSV
+        </a>
       </div>
 
       {/* Follower tier and engagement threshold are the two facets an
@@ -391,6 +484,17 @@ export function Creators() {
             </button>
           ))}
         </div>
+        {campaigns.length > 0 && (
+          <>
+            <span className="rl-hide-mobile" style={{ width: '1px', alignSelf: 'stretch', backgroundColor: 'var(--border)' }} />
+            <Select
+              value={campaignId}
+              onChange={setCampaignId}
+              options={[{ value: '', label: 'All campaigns' }, ...campaigns.map((c) => ({ value: c.id, label: c.name }))]}
+              style={{ minWidth: '170px' }}
+            />
+          </>
+        )}
         <span className="rl-hide-mobile" style={{ width: '1px', alignSelf: 'stretch', backgroundColor: 'var(--border)' }} />
         <Select value={sortBy} onChange={setSortBy} options={SORT_OPTIONS} style={{ minWidth: '190px' }} />
         {filtersActive && (
@@ -398,7 +502,66 @@ export function Creators() {
             Reset filters
           </button>
         )}
+
+        {/* Saved segments: a personal bookmark for a filter combination
+            (server/routes/creators.routes.js /segments), so coming back to
+            "Micro creators, 5%+ ER, Puma campaign" is one click instead of
+            resetting every chip by hand. Wraps onto its own line inside
+            this same card rather than a whole separate bar -- it's a
+            secondary action, not a fourth row of primary controls. */}
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px', width: '100%', paddingTop: segments.length || (search.trim() || filtersActive) ? 'var(--s2)' : 0, marginTop: segments.length || (search.trim() || filtersActive) ? 'var(--s1)' : 0, borderTop: segments.length ? '1px solid var(--border)' : 'none' }}>
+          {segments.map((seg) => (
+            <span
+              key={seg.id}
+              className="chip"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', paddingRight: '6px', cursor: 'pointer' }}
+            >
+              <span onClick={() => applySegment(seg)}>{seg.name}</span>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); handleDeleteSegment(seg.id); }}
+                aria-label={`Delete saved view "${seg.name}"`}
+                style={{ display: 'inline-flex', background: 'none', border: 'none', padding: '2px', cursor: 'pointer', color: 'var(--text-3)' }}
+              >
+                <XIcon size={11} />
+              </button>
+            </span>
+          ))}
+          {(search.trim() || filtersActive) && (
+            <button
+              type="button"
+              onClick={() => setSaveViewOpen(true)}
+              className="rl-text-link"
+              style={{ fontSize: 'var(--fs-xs)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+            >
+              <PlusIcon size={12} />Save this view
+            </button>
+          )}
+        </div>
       </div>
+
+      <Modal isOpen={saveViewOpen} onClose={() => setSaveViewOpen(false)} title="Save this view" width="380px">
+        <div className="input-group" style={{ marginBottom: 'var(--s4)' }}>
+          <label className="input-label" htmlFor="segment-name">Name</label>
+          <input
+            id="segment-name"
+            type="text"
+            className="input-field"
+            style={{ width: '100%' }}
+            placeholder="e.g. Micro creators, 5%+ ER"
+            value={saveViewName}
+            onChange={(e) => setSaveViewName(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSaveView()}
+            autoFocus
+          />
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+          <button className="btn btn-secondary" onClick={() => setSaveViewOpen(false)}>Cancel</button>
+          <button className="btn btn-primary" disabled={savingView || !saveViewName.trim()} onClick={handleSaveView}>
+            {savingView ? 'Saving...' : 'Save view'}
+          </button>
+        </div>
+      </Modal>
 
       {error && <div style={{ color: 'var(--err)', fontSize: 'var(--fs-sm)', marginBottom: 'var(--s3)' }}>{error}</div>}
 

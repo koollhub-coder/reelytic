@@ -318,6 +318,11 @@ async function ensureIndexes() {
     await db.collection('settings').createIndex({ key: 1 }, { unique: true });
     await db.collection('jobs').createIndex({ ownerUsername: 1, createdAt: -1 });
     await db.collection('jobs').createIndex({ status: 1 });
+    // Backs the creator database's campaign filter (creatorDb.service.js
+    // buildFilter): "which jobs currently belong to campaign X" has to run
+    // fast since it's the first step of every campaign-filtered query, not
+    // a background computation.
+    await db.collection('jobs').createIndex({ ownerUsername: 1, campaignId: 1 });
     // Share links are looked up by token on every open of a /share/ URL, and
     // that route is the one strangers can reach. Sparse because only a small
     // fraction of jobs are ever shared.
@@ -370,6 +375,12 @@ async function ensureIndexes() {
     await db.collection('analyzedCreators').createIndex({ ownerUsername: 1, followers: -1, _id: -1 });
     await db.collection('analyzedCreators').createIndex({ ownerUsername: 1, bestAvgEr: -1, _id: -1 });
     await db.collection('analyzedCreators').createIndex({ ownerUsername: 1, timesAnalyzed: -1, _id: -1 });
+    // Multikey index on jobIds -- backs the campaign filter's {jobIds:
+    // {$in: [...]}} lookup (see buildFilter in creatorDb.service.js).
+    await db.collection('analyzedCreators').createIndex({ ownerUsername: 1, jobIds: 1 });
+    // Saved filter combos (creators.routes.js /segments) -- listed by
+    // owner, newest first, same shape as every other per-user list here.
+    await db.collection('creatorSegments').createIndex({ ownerUsername: 1, createdAt: -1 });
     await db.collection('cache').createIndex({ url: 1 }, { unique: true });
     await db.collection('loginHistory').createIndex({ at: -1 });
     await db.collection('loginHistory').createIndex({ username: 1, at: -1 });

@@ -299,4 +299,124 @@ describe('creator database', () => {
       assert.equal(creator.ownerUsername, usernameFor('pro'), 'a non-admin request leaked another account\'s creator');
     }
   });
+
+  test('campaignId filters to only creators whose recent jobs are tagged to that campaign', async () => {
+    // The campaign filter is a two-step lookup (buildFilter in
+    // creatorDb.service.js): find which jobs currently belong to the
+    // campaign, then match creators whose jobIds overlaps that set. Two
+    // creator fixtures -- one WITH a job in the campaign, one without --
+    // so the assertion actually proves separation rather than passing
+    // vacuously on an all-or-nothing result set.
+    const { getDb } = require('../server/db');
+    const db = getDb();
+
+    const campaignRes = await agents.pro.post('/campaigns', { name: 'rgr_filter_campaign', avatarUrl: null });
+    assert.ok(campaignRes.ok, `campaign creation should succeed, got ${campaignRes.status}`);
+    const campaignId = campaignRes.data.campaign.id;
+
+    const taggedJobId = 'rgr_job_campaign_filter';
+    await db.collection('jobs').insertOne({
+      _id: taggedJobId,
+      ownerUsername: usernameFor('pro'),
+      type: 'reel',
+      status: 'done',
+      fileName: 'fixture.xlsx',
+      campaignId,
+      counts: { total: 1, success: 1, failed: 0, creditsSpent: 1 },
+      createdAt: new Date(),
+      rows: [],
+    });
+
+    await db.collection('analyzedCreators').insertMany([
+      {
+        _id: `${usernameFor('pro')}::rgr_creator_in_campaign`,
+        ownerUsername: usernameFor('pro'),
+        username: 'rgr_creator_in_campaign',
+        lastAnalyzedAt: new Date(),
+        firstAnalyzedAt: new Date(),
+        jobIds: [taggedJobId],
+      },
+      {
+        _id: `${usernameFor('pro')}::rgr_creator_outside_campaign`,
+        ownerUsername: usernameFor('pro'),
+        username: 'rgr_creator_outside_campaign',
+        lastAnalyzedAt: new Date(),
+        firstAnalyzedAt: new Date(),
+        jobIds: [],
+      },
+    ]);
+
+    const res = await agents.pro.get(`/creators?campaignId=${campaignId}`);
+    assert.equal(res.status, 200);
+    const usernames = res.data.creators.map((c) => c.username);
+    assert.ok(usernames.includes('rgr_creator_in_campaign'), 'the creator tagged to this campaign should be included');
+    assert.ok(!usernames.includes('rgr_creator_outside_campaign'), 'a creator with no jobs in this campaign should be excluded');
+  });
+
+  describe('CSV export', () => {
+    test('free: GET /creators/export.csv is refused', async () => {
+      const res = await agents.free.get('/creators/export.csv');
+      assert.equal(res.status, 403);
+      assert.equal(res.data.code, 'FEATURE_LOCKED');
+    });
+
+    test('pro: GET /creators/export.csv returns a CSV with the expected header row', async () => {
+      const res = await agents.pro.get('/creators/export.csv');
+      assert.equal(res.status, 200);
+      assert.ok(res.headers.get('content-type').includes('text/csv'), `expected a text/csv response, got ${res.headers.get('content-type')}`);
+      // A CSV isn't JSON -- the test client's helper (tests/helpers/client.js)
+      // falls back to { raw: text } for a non-JSON body, so this is the CSV
+      // text itself, truncated.
+      const body = (res.data && res.data.raw) || '';
+      assert.ok(body.startsWith('"Name","Username"'), `CSV should start with the expected header row, got: ${body.slice(0, 80)}`);
+    });
+  });
+
+  describe('saved filter segments', () => {
+    test('create, list, and delete round-trip', async () => {
+      const createRes = await agents.pro.post('/creators/segments', {
+        name: 'rgr_test_segment',
+        filters: { search: 'abc', followerTier: 'micro', minEr: 5, sort: 'followers', campaignId: '' },
+      });
+      assert.ok(createRes.ok, `segment creation should succeed, got ${createRes.status}`);
+      const segmentId = createRes.data.segment.id;
+      assert.equal(createRes.data.segment.filters.followerTier, 'micro', 'the filter combination should be stored as sent');
+
+      const listRes = await agents.pro.get('/creators/segments');
+      assert.ok(listRes.data.segments.some((s) => s.id === segmentId), 'the created segment should appear in the list');
+
+      const deleteRes = await agents.pro.del(`/creators/segments/${segmentId}`);
+      assert.ok(deleteRes.ok, `segment deletion should succeed, got ${deleteRes.status}`);
+
+      const listAfter = await agents.pro.get('/creators/segments');
+      assert.ok(!listAfter.data.segments.some((s) => s.id === segmentId), 'the deleted segment should no longer appear');
+    });
+
+    test('a client cannot delete another account\'s saved segment', async () => {
+      const createRes = await agents.pro.post('/creators/segments', { name: 'rgr_pro_only_segment', filters: {} });
+      const segmentId = createRes.data.segment.id;
+
+      const res = await agents.agency.del(`/creators/segments/${segmentId}`);
+      assert.equal(res.status, 404, 'a segment owned by a different account must not be deletable by another account');
+
+      const stillThere = await agents.pro.get('/creators/segments');
+      assert.ok(stillThere.data.segments.some((s) => s.id === segmentId), 'the segment must survive another account\'s delete attempt');
+
+      await agents.pro.del(`/creators/segments/${segmentId}`);
+    });
+
+    test('an arbitrary filters object is not stored verbatim', async () => {
+      // The route only persists the specific keys it understands (see
+      // creators.routes.js POST /segments) -- proves an extra/unexpected key
+      // sent by a client doesn't get replayed straight into a future query.
+      const res = await agents.pro.post('/creators/segments', {
+        name: 'rgr_sanitized_segment',
+        filters: { search: 'x', unexpectedKey: 'should not persist', minEr: 'not-a-number' },
+      });
+      assert.ok(res.ok);
+      assert.equal(res.data.segment.filters.unexpectedKey, undefined, 'an unrecognized filter key must not be stored');
+      assert.equal(res.data.segment.filters.minEr, 0, 'a non-numeric minEr must not be stored as-is');
+      await agents.pro.del(`/creators/segments/${res.data.segment.id}`);
+    });
+  });
 });
