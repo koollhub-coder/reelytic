@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Logo } from './Logo';
 import { ErrorBoundary } from './ErrorBoundary';
 import { WelcomeTour } from './WelcomeTour';
 import { Tooltip } from './Tooltip';
+import { BrandLoader } from './BrandLoader';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { apiFetch } from '../api/client';
@@ -483,9 +484,25 @@ export function Shell() {
           {/* Wraps only the routed page, not the shell. A crash on one
               screen therefore leaves the sidebar, navigation and account
               menu intact, so the user can walk away from the broken page
-              instead of losing the whole app. */}
+              instead of losing the whole app.
+
+              Suspense is scoped the same way and for the same reason: the
+              app's single lazy-loaded route per page (see App.jsx) used to
+              suspend under one Suspense boundary that wrapped the ENTIRE
+              route tree, sidebar included -- so the first time anyone
+              clicked from Reels to Dashboard, Settings, anywhere they
+              hadn't already visited this session, the whole shell vanished
+              and a full-screen "Loading..." replaced it, then reappeared a
+              moment later. Nested here instead, only this content pane
+              suspends; the sidebar, topbar and account menu stay mounted
+              and clickable the entire time, the way switching sections in
+              any app with a persistent nav actually behaves. A page visited
+              once has its chunk cached by the browser, so this only shows
+              at all on that page's first visit in the tab's lifetime. */}
           <ErrorBoundary>
-            <Outlet />
+            <Suspense fallback={<BrandLoader variant="page" message="Loading..." />}>
+              <Outlet />
+            </Suspense>
           </ErrorBoundary>
         </div>
       </main>
