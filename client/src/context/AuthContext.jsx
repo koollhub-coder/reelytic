@@ -50,6 +50,20 @@ export function AuthProvider({ children }) {
     return data.user;
   };
 
+  // Same effect as verifyOtp above (flips emailVerified, starts the
+  // session), reached from the "Verify email" link in the OTP email instead
+  // of the typed code -- see VerifyEmailLink.jsx and auth.routes.js's
+  // POST /verify-otp-link for why this is a page making its own POST rather
+  // than the email link hitting a GET endpoint directly.
+  const verifyOtpLink = async (username, token) => {
+    const data = await apiFetch('/auth/verify-otp-link', {
+      method: 'POST',
+      body: JSON.stringify({ username, token })
+    });
+    setUser(data.user);
+    return data.user;
+  };
+
   const resendOtp = async (username) => {
     return apiFetch('/auth/resend-otp', {
       method: 'POST',
@@ -115,7 +129,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, signup, verifyOtp, resendOtp, forgotPassword, checkResetToken, resetPassword, googleLogin, logout, refreshUser, loading }}>
+    <AuthContext.Provider value={{ user, login, signup, verifyOtp, verifyOtpLink, resendOtp, forgotPassword, checkResetToken, resetPassword, googleLogin, logout, refreshUser, loading }}>
       {children}
     </AuthContext.Provider>
   );

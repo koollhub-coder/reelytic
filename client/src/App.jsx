@@ -29,6 +29,7 @@ const Login = lazy(() => import('./pages/Login').then(m => ({ default: m.Login }
 const Signup = lazy(() => import('./pages/Signup').then(m => ({ default: m.Signup })));
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword').then(m => ({ default: m.ForgotPassword })));
 const ResetPassword = lazy(() => import('./pages/ResetPassword').then(m => ({ default: m.ResetPassword })));
+const VerifyEmailLink = lazy(() => import('./pages/VerifyEmailLink').then(m => ({ default: m.VerifyEmailLink })));
 const ForceChangePassword = lazy(() => import('./pages/ForceChangePassword').then(m => ({ default: m.ForceChangePassword })));
 const Settings = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
 const HowItsCalculated = lazy(() => import('./pages/HowItsCalculated').then(m => ({ default: m.HowItsCalculated })));
@@ -170,6 +171,7 @@ export function App() {
                 <Route path="/signup" element={<PublicRoute><Signup /></PublicRoute>} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
+                <Route path="/verify-email" element={<VerifyEmailLink />} />
                 <Route path="/dev-unlock" element={<DevUnlock />} />
                 <Route path="/pricing" element={<Pricing />} />
                 <Route path="/terms" element={<Legal type="terms" />} />

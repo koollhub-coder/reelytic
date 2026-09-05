@@ -18,6 +18,32 @@
 
 const ENDPOINT = 'https://api.resend.com/emails';
 
+// Renamed on import (not `config`) -- this file already has its own local
+// config() below for the Resend API key/from-address; appConfig is only
+// ever used for appConfig.appUrl, to build an absolute, publicly-fetchable
+// logo URL. Email clients render the logo by having THEIR OWN servers fetch
+// it, same reasoning as the Razorpay checkout logo -- a relative path or a
+// localhost URL resolves against nothing they can reach.
+const appConfig = require('../config');
+const LOGO_URL = `${appConfig.appUrl}/logo-mark-128.png`;
+
+// Shared header row for every email template below -- was plain "Reelytic"
+// text with no image at all (the account's actual logo never rendered,
+// email clients showed nothing where a brand mark belongs). Table-based
+// layout, inline styles, explicit width/height on the <img> -- the same
+// constraints as everywhere else in this file, since this has to survive
+// Outlook/Gmail's HTML stripping, not just modern browsers.
+function logoHeader() {
+  return `<table role="presentation" cellpadding="0" cellspacing="0"><tr>
+    <td style="padding-right:8px;vertical-align:middle;">
+      <img src="${LOGO_URL}" width="22" height="22" alt="" style="display:block;border-radius:5px;" />
+    </td>
+    <td style="vertical-align:middle;">
+      <span style="font-size:18px;font-weight:700;color:#1A1C20;">Reel<span style="color:#E23E57;">ytic</span></span>
+    </td>
+  </tr></table>`;
+}
+
 function config() {
   return {
     apiKey: process.env.RESEND_API_KEY,
@@ -75,7 +101,15 @@ async function sendTransactionalEmail({ to, subject, html, text }) {
   a phone, by someone trying to finish signing up. The code is the only
   thing that matters, so it's the only thing rendered large.
 */
-function buildOtpEmailHtml({ code, minutes }) {
+/*
+  Two ways in, one record: the button/link uses verifyUrl (the long random
+  token from otp.service.js's issueOtp), the code block still works too --
+  whichever the person reaches for first. verifyUrl is optional so this
+  still renders correctly for any caller that hasn't been updated to pass
+  one (there is none right now, but the function degrades instead of
+  breaking rather than assuming every call site is current).
+*/
+function buildOtpEmailHtml({ code, minutes, verifyUrl }) {
   return `<!DOCTYPE html>
 <html>
   <body style="margin:0;padding:0;background-color:#F7F6F3;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
@@ -83,22 +117,30 @@ function buildOtpEmailHtml({ code, minutes }) {
       <tr><td align="center">
         <table role="presentation" width="100%" style="max-width:420px;background-color:#FFFFFF;border-radius:12px;overflow:hidden;border:1px solid #E4E1DA;">
           <tr><td style="padding:28px 32px 0 32px;">
-            <div style="font-size:18px;font-weight:700;color:#E23E57;">Reelytic</div>
+            ${logoHeader()}
           </td></tr>
           <tr><td style="padding:20px 32px 0 32px;">
             <div style="font-size:16px;font-weight:600;color:#1A1C20;">Verify your email</div>
             <p style="font-size:14px;color:#5D6169;line-height:1.6;margin:8px 0 0 0;">
-              Enter this code to finish setting up your Reelytic workspace.
+              ${verifyUrl ? 'Click the button below, or enter this code, to finish setting up your Reelytic workspace.' : 'Enter this code to finish setting up your Reelytic workspace.'}
             </p>
           </td></tr>
-          <tr><td style="padding:24px 32px;">
+          ${verifyUrl ? `<tr><td style="padding:24px 32px 0 32px;">
+            <a href="${verifyUrl}" style="display:block;background-color:#E23E57;color:#FFFFFF;text-decoration:none;text-align:center;font-size:15px;font-weight:600;padding:14px 20px;border-radius:8px;">
+              Verify email
+            </a>
+          </td></tr>
+          <tr><td style="padding:16px 32px 0 32px;" align="center">
+            <span style="font-size:12px;color:#8B8F98;">or enter this code</span>
+          </td></tr>` : ''}
+          <tr><td style="padding:${verifyUrl ? '12px' : '24px'} 32px 0 32px;">
             <div style="background-color:#F7F6F3;border-radius:8px;padding:20px;text-align:center;">
               <span style="font-family:'Courier New',monospace;font-size:32px;font-weight:700;letter-spacing:8px;color:#1A1C20;">${code}</span>
             </div>
           </td></tr>
-          <tr><td style="padding:0 32px 28px 32px;">
+          <tr><td style="padding:16px 32px 28px 32px;">
             <p style="font-size:12px;color:#8B8F98;line-height:1.6;margin:0;">
-              This code expires in ${minutes} minutes. If you didn't try to sign up for Reelytic, you can safely ignore this email -- no account will be created without it.
+              This ${verifyUrl ? 'code and link expire' : 'code expires'} in ${minutes} minutes. If you didn't try to sign up for Reelytic, you can safely ignore this email -- no account will be created without it.
             </p>
           </td></tr>
         </table>
@@ -108,8 +150,9 @@ function buildOtpEmailHtml({ code, minutes }) {
 </html>`;
 }
 
-function buildOtpEmailText({ code, minutes }) {
-  return `Verify your email for Reelytic\n\nYour code: ${code}\n\nEnter this code to finish setting up your Reelytic workspace. It expires in ${minutes} minutes.\n\nIf you didn't try to sign up for Reelytic, you can safely ignore this email -- no account will be created without it.`;
+function buildOtpEmailText({ code, minutes, verifyUrl }) {
+  const verifyLine = verifyUrl ? `Verify instantly: ${verifyUrl}\n\nOr enter this code: ${code}` : `Your code: ${code}`;
+  return `Verify your email for Reelytic\n\n${verifyLine}\n\nFinish setting up your Reelytic workspace. This expires in ${minutes} minutes.\n\nIf you didn't try to sign up for Reelytic, you can safely ignore this email -- no account will be created without it.`;
 }
 
 // Same card shell as the OTP email, with a button in place of the code
@@ -122,7 +165,7 @@ function buildPasswordResetEmailHtml({ resetUrl, minutes }) {
       <tr><td align="center">
         <table role="presentation" width="100%" style="max-width:420px;background-color:#FFFFFF;border-radius:12px;overflow:hidden;border:1px solid #E4E1DA;">
           <tr><td style="padding:28px 32px 0 32px;">
-            <div style="font-size:18px;font-weight:700;color:#E23E57;">Reelytic</div>
+            ${logoHeader()}
           </td></tr>
           <tr><td style="padding:20px 32px 0 32px;">
             <div style="font-size:16px;font-weight:600;color:#1A1C20;">Reset your password</div>
@@ -172,7 +215,7 @@ function buildGoogleAccountNoticeHtml() {
       <tr><td align="center">
         <table role="presentation" width="100%" style="max-width:420px;background-color:#FFFFFF;border-radius:12px;overflow:hidden;border:1px solid #E4E1DA;">
           <tr><td style="padding:28px 32px 0 32px;">
-            <div style="font-size:18px;font-weight:700;color:#E23E57;">Reelytic</div>
+            ${logoHeader()}
           </td></tr>
           <tr><td style="padding:20px 32px 28px 32px;">
             <div style="font-size:16px;font-weight:600;color:#1A1C20;">No password to reset</div>

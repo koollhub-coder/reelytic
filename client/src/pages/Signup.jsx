@@ -95,16 +95,15 @@ export function Signup() {
     }
   };
 
-  const handleVerify = async (e) => {
-    e.preventDefault();
+  const submitCode = async (value) => {
     setError('');
-    if (!/^\d{6}$/.test(code)) {
+    if (!/^\d{6}$/.test(value)) {
       setError('Enter the 6-digit code.');
       return;
     }
     setOtpLoading(true);
     try {
-      await verifyOtp(pendingUsername, code);
+      await verifyOtp(pendingUsername, value);
       navigate('/reels');
     } catch (err) {
       setError(err.message || 'Could not verify that code.');
@@ -112,6 +111,24 @@ export function Signup() {
       setOtpLoading(false);
     }
   };
+
+  const handleVerify = (e) => {
+    e.preventDefault();
+    submitCode(code);
+  };
+
+  // Auto-submit the instant the 6th digit lands -- typed by hand, pasted, or
+  // filled by the OS's one-time-code suggestion (autoComplete="one-time-code"
+  // on the input below). The manual button stays as a fallback for anyone
+  // who edits the code after it's already full. Only step === 'otp' has this
+  // wired, and it only ever fires on a genuine 0->6 or 5->6 transition since
+  // effects re-run on value change, not on every render.
+  useEffect(() => {
+    if (step === 'otp' && code.length === 6 && !otpLoading) {
+      submitCode(code);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code, step]);
 
   const handleResend = async () => {
     if (resendCooldown > 0) return;
@@ -257,7 +274,7 @@ export function Signup() {
               <div style={{ marginBottom: 'var(--s6)' }}>
                 <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-xl)', fontWeight: 700, marginBottom: 'var(--s1)' }}>Check your email</h2>
                 <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-base)' }}>
-                  We sent a 6-digit code to <strong style={{ color: 'var(--text)' }}>{email}</strong>. Enter it below to finish creating your workspace.
+                  We sent a code to <strong style={{ color: 'var(--text)' }}>{email}</strong>. Enter it below, or just click "Verify email" in that message to skip typing it.
                 </p>
               </div>
 

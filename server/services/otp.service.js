@@ -37,8 +37,15 @@ function generateCode() {
 
 /*
   Creates (or replaces) the pending code for `username`. Returns the raw
-  code so the caller can email it -- this is the only place the plaintext
-  code ever exists outside the user's inbox.
+  code AND a raw link token so the caller can email both -- this is the only
+  place either plaintext value ever exists outside the user's inbox. The
+  link token is the "click to verify instead of typing" alternative: same
+  record, same expiry, same one-shot deletion-on-success, just a second way
+  in. It's long and random (32 random bytes) rather than 6 digits precisely
+  because it's meant to be unguessable on its own -- the OTP's real defense
+  is the attempt cap, not the codespace, but a URL token has no attempt cap
+  to lean on (a single request that has the right token IS success), so it
+  needs to be the thing that's actually hard to find.
 
   Throws if a code was already issued inside the resend cooldown, so a
   caller (the /signup and /resend-otp routes) can turn that into a 429
@@ -57,6 +64,7 @@ async function issueOtp(username, email) {
   }
 
   const code = generateCode();
+  const linkToken = crypto.randomBytes(32).toString('hex');
   const now = new Date();
   await db.collection('otps').updateOne(
     { username },
@@ -65,6 +73,7 @@ async function issueOtp(username, email) {
         username,
         email,
         codeHash: hashCode(code),
+        linkTokenHash: hashCode(linkToken),
         expiresAt: new Date(now.getTime() + EXPIRY_MS),
         attempts: 0,
         lastSentAt: now,
@@ -72,7 +81,7 @@ async function issueOtp(username, email) {
     },
     { upsert: true }
   );
-  return code;
+  return { code, linkToken };
 }
 
 /*
@@ -111,9 +120,42 @@ async function verifyOtp(username, submittedCode) {
   return { ok: true };
 }
 
+/*
+  Same contract as verifyOtp above (ok/reason shape, one-shot, expiry and
+  attempt-cap checks first), just matched against linkTokenHash instead of
+  codeHash. A wrong/missing token still counts toward the same attempts
+  cap as a wrong code -- there is exactly one pending-verification budget
+  per issued OTP, not one for the code and a separate one for the link,
+  which would otherwise double how many guesses an attacker actually gets.
+*/
+async function verifyOtpLink(username, submittedToken) {
+  const db = getDb();
+  const record = await db.collection('otps').findOne({ username });
+  if (!record) return { ok: false, reason: 'no-pending' };
+
+  if (new Date(record.expiresAt).getTime() < Date.now()) {
+    await db.collection('otps').deleteOne({ username });
+    return { ok: false, reason: 'expired' };
+  }
+
+  if (record.attempts >= MAX_ATTEMPTS) {
+    await db.collection('otps').deleteOne({ username });
+    return { ok: false, reason: 'too-many-attempts' };
+  }
+
+  const submittedHash = hashCode(String(submittedToken || '').trim());
+  if (!record.linkTokenHash || submittedHash !== record.linkTokenHash) {
+    await db.collection('otps').updateOne({ username }, { $inc: { attempts: 1 } });
+    return { ok: false, reason: 'incorrect' };
+  }
+
+  await db.collection('otps').deleteOne({ username });
+  return { ok: true };
+}
+
 async function clearOtp(username) {
   const db = getDb();
   await db.collection('otps').deleteOne({ username });
 }
 
-module.exports = { issueOtp, verifyOtp, clearOtp, EXPIRY_MS, MAX_ATTEMPTS };
+module.exports = { issueOtp, verifyOtp, verifyOtpLink, clearOtp, EXPIRY_MS, MAX_ATTEMPTS };

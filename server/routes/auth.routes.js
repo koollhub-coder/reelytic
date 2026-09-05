@@ -388,13 +388,14 @@ router.post('/signup', async (req, res, next) => {
     };
     await db.collection('users').insertOne(doc);
 
-    const code = await otpService.issueOtp(doc.username, cleanEmail);
+    const { code, linkToken } = await otpService.issueOtp(doc.username, cleanEmail);
+    const verifyUrl = `${APP_URL}/verify-email?u=${encodeURIComponent(doc.username)}&t=${linkToken}`;
     try {
       await sendTransactionalEmail({
         to: cleanEmail,
         subject: `${code} is your Reelytic verification code`,
-        html: buildOtpEmailHtml({ code, minutes: 10 }),
-        text: buildOtpEmailText({ code, minutes: 10 }),
+        html: buildOtpEmailHtml({ code, minutes: 10, verifyUrl }),
+        text: buildOtpEmailText({ code, minutes: 10, verifyUrl }),
       });
     } catch (mailErr) {
       // The account row already exists at this point, but with no session
@@ -480,6 +481,72 @@ router.post('/verify-otp', async (req, res, next) => {
   }
 });
 
+/*
+  Same account-verification action as POST /verify-otp above, reached by
+  clicking the "Verify email" button in the OTP email instead of typing the
+  code -- same session-start on success, same rate-limit map/key shape
+  (verify-scoped, so a link attempt and a code attempt against the same
+  account share one budget rather than doubling how many guesses either
+  path gets). Deliberately POST, not the GET the email link itself lands
+  on: the client page at /verify-email reads the token out of the URL and
+  makes THIS call itself, so an email-security scanner that prefetches the
+  GET link (a real, common occurrence) can't silently burn a real user's
+  one-shot token before they ever open the message.
+*/
+router.post('/verify-otp-link', async (req, res, next) => {
+  try {
+    const { username, token } = req.body || {};
+    const cleanUser = (username || '').trim().toLowerCase();
+    if (!cleanUser || !token) {
+      return res.status(400).json({ error: 'Username and token are required.' });
+    }
+
+    const ip = req.ip || req.connection.remoteAddress || 'unknown';
+    const rateKey = `verify_${ip}_${cleanUser}`;
+    const now = Date.now();
+    const attemptRecord = otpAttempts.get(rateKey);
+    if (attemptRecord && attemptRecord.resetAt > now && attemptRecord.count >= 10) {
+      return res.status(429).json({ error: 'Too many attempts. Try again in a few minutes.' });
+    }
+
+    const db = getDb();
+    const user = await db.collection('users').findOne({ username: cleanUser });
+    if (!user) {
+      return res.status(404).json({ error: 'No pending signup found for that account.' });
+    }
+    if (user.emailVerified !== false) {
+      return res.status(400).json({ error: 'This account is already verified. Try logging in.' });
+    }
+
+    const result = await otpService.verifyOtpLink(cleanUser, token);
+    if (!result.ok) {
+      if (!attemptRecord || attemptRecord.resetAt < now) {
+        otpAttempts.set(rateKey, { count: 1, resetAt: now + 10 * 60 * 1000 });
+      } else {
+        attemptRecord.count++;
+      }
+      const messages = {
+        'no-pending': 'That link has expired. Request a new one.',
+        expired: 'That link has expired. Request a new one.',
+        'too-many-attempts': 'Too many attempts. Request a new code.',
+        incorrect: 'That link is invalid.',
+      };
+      return res.status(400).json({ error: messages[result.reason] || 'That link is invalid.' });
+    }
+
+    await db.collection('users').updateOne({ username: cleanUser }, { $set: { emailVerified: true } });
+    const updated = { ...user, emailVerified: true };
+
+    req.session.username = updated.username;
+    req.session.role = updated.role;
+    req.session.createdAt = new Date().toISOString();
+
+    res.json({ user: await publicUser(updated) });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ---- Resend the signup OTP -------------------------------------------------
 router.post('/resend-otp', async (req, res, next) => {
   try {
@@ -513,12 +580,13 @@ router.post('/resend-otp', async (req, res, next) => {
     }
 
     try {
-      const code = await otpService.issueOtp(cleanUser, user.email);
+      const { code, linkToken } = await otpService.issueOtp(cleanUser, user.email);
+      const verifyUrl = `${APP_URL}/verify-email?u=${encodeURIComponent(cleanUser)}&t=${linkToken}`;
       await sendTransactionalEmail({
         to: user.email,
         subject: `${code} is your Reelytic verification code`,
-        html: buildOtpEmailHtml({ code, minutes: 10 }),
-        text: buildOtpEmailText({ code, minutes: 10 }),
+        html: buildOtpEmailHtml({ code, minutes: 10, verifyUrl }),
+        text: buildOtpEmailText({ code, minutes: 10, verifyUrl }),
       });
     } catch (mailErr) {
       if (mailErr.code === 'COOLDOWN') {
