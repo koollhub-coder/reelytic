@@ -22,7 +22,7 @@ import '../styles/landing.css';
 // (aggregateRating, price) rather than invented: schema.org validators don't
 // require them, and a fabricated rating is worse for trust than no rich
 // result at all.
-const LANDING_STRUCTURED_DATA = {
+const LANDING_SOFTWARE_SCHEMA = {
   '@context': 'https://schema.org',
   '@type': 'SoftwareApplication',
   name: 'Reelytic',
@@ -33,6 +33,51 @@ const LANDING_STRUCTURED_DATA = {
   // Matches Pricing.jsx, which bills in INR -- see its ₹ formatting.
   offers: { '@type': 'Offer', price: '0', priceCurrency: 'INR' },
 };
+
+// Real questions a prospect searching "instagram reel analytics tool" or
+// "influencer marketing report software" is already asking, answered with
+// the actual product behaviour -- not filler. Doubles as FAQPage rich-result
+// content and as on-page copy that naturally covers search terms the rest of
+// the page (deliberately written in plain client-facing language) doesn't
+// spell out verbatim.
+const LANDING_FAQ_ITEMS = [
+  {
+    q: 'What is Reelytic?',
+    a: 'Reelytic is an Instagram Reel and profile analytics tool built for influencer-marketing agencies. Upload a spreadsheet of Instagram links and get back views, likes, comments, shares, saves and engagement rate for every one, laid out in a client-ready report.',
+  },
+  {
+    q: 'How do I track engagement across many Instagram Reels at once?',
+    a: 'Paste or upload up to 2,000 Instagram Reel links in one batch. Reelytic pulls the metrics for every link and lines them up side by side, so you get one report instead of checking each Reel by hand.',
+  },
+  {
+    q: 'Does Reelytic calculate Instagram engagement rate automatically?',
+    a: 'Yes. Every report includes engagement rate alongside views, likes, comments, shares and saves, calculated the same way for every link so campaigns and creators can be compared fairly.',
+  },
+  {
+    q: 'Can I send white-labeled Instagram reports to my clients?',
+    a: 'Yes. Add your own logo, colors and layout once, and every report you generate carries your branding, not ours -- your name is the only one your client sees.',
+  },
+  {
+    q: 'What is the difference between a Reel Report and a Profile Report?',
+    a: 'A Reel Report analyzes a list of individual Instagram Reel links. A Profile Report looks at a creator’s account as a whole and gives a fair average of how they normally perform, leaving out one-off viral posts that would otherwise skew the number.',
+  },
+  {
+    q: 'Is there a free plan for Instagram analytics?',
+    a: 'Yes -- Reelytic’s free plan includes 10 credits to start, no credit card required, so you can run a real report before deciding to upgrade.',
+  },
+];
+
+const LANDING_FAQ_SCHEMA = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: LANDING_FAQ_ITEMS.map(({ q, a }) => ({
+    '@type': 'Question',
+    name: q,
+    acceptedAnswer: { '@type': 'Answer', text: a },
+  })),
+};
+
+const LANDING_STRUCTURED_DATA = [LANDING_SOFTWARE_SCHEMA, LANDING_FAQ_SCHEMA];
 
 // Every item here is a real in-page section (#how-it-works, #what-comes-back,
 // #report-types all already exist further down this same page) -- there's no
@@ -58,6 +103,7 @@ function ResourcesMenu() {
     { href: '#how-it-works', label: 'How it works' },
     { href: '#what-comes-back', label: 'What comes back' },
     { href: '#report-types', label: 'Report types' },
+    { href: '#faq', label: 'FAQ' },
   ];
 
   return (
@@ -462,6 +508,21 @@ export function Landing() {
               See how it works
             </a>
           )}
+        </div>
+      </div>
+
+      <div id="faq" className="landing-section">
+        <h2 className="section-title">Questions agencies ask before switching</h2>
+        <div className="landing-faq-list">
+          {LANDING_FAQ_ITEMS.map((item) => (
+            <details key={item.q} className="landing-faq-item">
+              <summary>
+                {item.q}
+                <ChevronDownIcon size={16} className="landing-faq-chevron" />
+              </summary>
+              <p className="landing-faq-answer">{item.a}</p>
+            </details>
+          ))}
         </div>
       </div>
 

@@ -324,6 +324,47 @@
   font-size: var(--fs-sm);
 }
 
+/* ---- FAQ (search-intent content, see LANDING_FAQ_ITEMS in Landing.jsx) --
+   A plain accordion, collapsed by default at every width -- unlike the
+   footer's <details> above, which is forced open on desktop, an FAQ reads
+   naturally collapsed everywhere. */
+.landing-faq-list {
+  max-width: 760px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+.landing-faq-item {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: var(--s4) var(--s5);
+}
+.landing-faq-item summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: var(--fs-md);
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+.landing-faq-item summary::-webkit-details-marker { display: none; }
+.landing-faq-item summary .landing-faq-chevron {
+  flex-shrink: 0;
+  transition: transform var(--t-fast);
+  color: var(--text-3);
+}
+.landing-faq-item[open] summary .landing-faq-chevron { transform: rotate(180deg); }
+.landing-faq-answer {
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  line-height: 1.65;
+  margin-top: var(--s3);
+}
+
 .whats-new-badge {
   display: flex;
   justify-content: center;
