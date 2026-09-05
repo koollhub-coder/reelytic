@@ -58,7 +58,13 @@ async function startServer() {
     saveUninitialized: false,
     store: sessionStore,
     cookie: {
-      secure: false,
+      // Render terminates TLS at its proxy and forwards plain HTTP internally,
+      // which is exactly what `trust proxy` above is for: Express reads
+      // X-Forwarded-Proto from that trusted hop, so req.secure (what this
+      // flag checks) still reports true correctly in production. Locked to
+      // NODE_ENV rather than always-on because a `secure` cookie is dropped
+      // by the browser entirely on the plain-http localhost dev server.
+      secure: process.env.NODE_ENV === 'production',
       httpOnly: true,
       maxAge: 7 * 24 * 60 * 60 * 1000
     }
