@@ -14,6 +14,7 @@ import {
 } from '../components/Icon';
 import { CampaignAvatar, CampaignAvatarPicker } from '../components/CampaignAvatar';
 import { Tooltip } from '../components/Tooltip';
+import { Pagination } from '../components/Pagination';
 
 // chip: matches the same semantic language as everywhere else in the app --
 // green = done, amber = not started, and running/paused share one "in
@@ -121,68 +122,6 @@ function RowMenu({ items }) {
           ))}
         </div>
       )}
-    </div>
-  );
-}
-
-// Page numbers with a single "..." for gaps -- always shows first, last, and
-// current +/-1, so a long list doesn't render 71 page buttons in a row.
-function paginationRange(current, total) {
-  const range = [];
-  const add = (n) => { if (!range.includes(n)) range.push(n); };
-  add(1);
-  for (let n = current - 1; n <= current + 1; n++) { if (n > 1 && n < total) add(n); }
-  add(total);
-  const out = [];
-  let prev = 0;
-  for (const n of range.sort((a, b) => a - b)) {
-    if (n - prev > 1) out.push('...');
-    out.push(n);
-    prev = n;
-  }
-  return out;
-}
-
-// Purely a display slice over data already loaded in memory -- load() below
-// still fetches (and background-streams) the FULL matching set exactly as
-// before; this only changes how many of those already-fetched rows render
-// on screen at once, and where the reader can jump in that list.
-function Pagination({ page, totalPages, pageSize, totalItems, onPageChange, onPageSizeChange }) {
-  if (totalItems === 0) return null;
-  const start = (page - 1) * pageSize + 1;
-  const end = Math.min(page * pageSize, totalItems);
-  return (
-    <div className="rl-history-pagination" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 'var(--s3)', padding: 'var(--s3) var(--s4)' }}>
-      <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>Showing {start}-{end} of {totalItems}</span>
-      <div className="rl-history-pagination-controls" style={{ display: 'flex', alignItems: 'center', gap: 'var(--s3)' }}>
-        <Select
-          value={String(pageSize)}
-          onChange={(v) => onPageSizeChange(Number(v))}
-          options={[10, 25, 50].map((n) => ({ value: String(n), label: `${n} per page` }))}
-          style={{ minWidth: '110px' }}
-        />
-        {totalPages > 1 && (
-          <div className="rl-history-pagination-pages" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <button type="button" className="btn btn-secondary" disabled={page <= 1} onClick={() => onPageChange(page - 1)} style={{ height: '28px', width: '28px', padding: 0, fontSize: 'var(--fs-sm)' }}>‹</button>
-            {paginationRange(page, totalPages).map((p, i) => (
-              p === '...'
-                ? <span key={`gap-${i}`} style={{ padding: '0 4px', color: 'var(--text-3)' }}>...</span>
-                : (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => onPageChange(p)}
-                    className={p === page ? 'btn btn-primary' : 'btn btn-secondary'}
-                    style={{ height: '28px', minWidth: '28px', padding: '0 8px', fontSize: 'var(--fs-sm)' }}
-                  >
-                    {p}
-                  </button>
-                )
-            ))}
-            <button type="button" className="btn btn-secondary" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)} style={{ height: '28px', width: '28px', padding: 0, fontSize: 'var(--fs-sm)' }}>›</button>
-          </div>
-        )}
-      </div>
     </div>
   );
 }
@@ -1197,6 +1136,7 @@ export function History() {
               totalItems={filteredJobs.length}
               onPageChange={setFlatPage}
               onPageSizeChange={(n) => { setFlatPageSize(n); setFlatPage(1); }}
+              pageSizeOptions={[10, 25, 50]}
             />
           </div>
         </div>
@@ -1284,6 +1224,7 @@ export function History() {
                   totalItems={uncategorizedJobs.length}
                   onPageChange={setUnassignedPage}
                   onPageSizeChange={(n) => { setUnassignedPageSize(n); setUnassignedPage(1); }}
+                  pageSizeOptions={[10, 25, 50]}
                 />
               </div>
             </div>

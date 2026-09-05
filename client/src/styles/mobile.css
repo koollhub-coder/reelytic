@@ -497,11 +497,13 @@
   /* Pagination: "Showing X-Y", the per-page Select, and the page-number
      buttons were one row that overflowed past the card's right edge on a
      narrow screen. Stacked, centered, and the page-number row gets its own
-     scroll as a safety net for a report list with many pages. */
-  .rl-history-pagination { flex-direction: column; align-items: stretch; text-align: center; }
-  .rl-history-pagination-controls { flex-direction: column; width: 100%; }
-  .rl-history-pagination-controls > div:first-child { width: 100%; }
-  .rl-history-pagination-pages { overflow-x: auto; max-width: 100%; padding-bottom: 2px; justify-content: center; }
+     scroll as a safety net for a report list with many pages. Shared by
+     History and the Creator database (components/Pagination.jsx), not just
+     History despite the rl- prefix on the rest of this file's classes. */
+  .rl-pagination { flex-direction: column; align-items: stretch; text-align: center; }
+  .rl-pagination-controls { flex-direction: column; width: 100%; }
+  .rl-pagination-controls > div:first-child { width: 100%; }
+  .rl-pagination-pages { overflow-x: auto; max-width: 100%; padding-bottom: 2px; justify-content: center; }
 
   /* Dashboard's Report-type-split donut: at the desktop 160px size, the SVG
      plus its legend needed more width than a phone-width card had left
