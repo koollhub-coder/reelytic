@@ -5,6 +5,7 @@ import { apiFetch } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Modal } from '../components/Modal';
 import { useToast } from '../context/ToastContext';
+import { SITE_URL } from '../hooks/useDocumentMeta';
 
 /*
   Checkout. Whether this opens a real Razorpay payment form or routes to the
@@ -115,6 +116,12 @@ export function Checkout() {
             currency: 'INR',
             name: 'Reelytic',
             description: `${order.plan} plan, ${order.billing}`,
+            // Must be an absolute, publicly-reachable URL -- the widget
+            // itself renders inside Razorpay's own hosted iframe, so a
+            // relative path resolves against their origin, not ours, and
+            // silently shows nothing (the "R" fallback avatar you'd get
+            // for a logo Razorpay could never fetch).
+            image: `${SITE_URL}/logo-mark-512.png`,
             order_id: createdOrder.id,
             handler: function (response) {
                 grantAndSucceed(response);
