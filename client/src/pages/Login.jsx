@@ -14,11 +14,13 @@ export function Login() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { login, googleLogin } = useAuth();
+  // Same fix as Signup.jsx: this was noindexed despite being listed in
+  // sitemap.xml. Left indexable on purpose -- someone searching a branded
+  // query like "reelytic login" should land here directly.
   useDocumentMeta({
     title: 'Log in',
     description: 'Log in to your Reelytic workspace to view and share Instagram Reel and profile engagement reports.',
     path: '/login',
-    noindex: true,
   });
 
   const [username, setUsername] = useState('');

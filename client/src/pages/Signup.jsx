@@ -15,11 +15,18 @@ const RESEND_COOLDOWN_SECONDS = 60;
 export function Signup() {
   const navigate = useNavigate();
   const { signup, verifyOtp, resendOtp, googleLogin } = useAuth();
+  // Deliberately indexable, unlike the token-gated auth pages below it in
+  // this same file group (ForgotPassword/ResetPassword both correctly stay
+  // noindex) -- this is the actual self-serve conversion page, already
+  // listed in sitemap.xml at priority 0.5. It had noindex:true copy-pasted
+  // in from those pages, which silently blocked it from ever being indexed
+  // despite the sitemap asking Google to crawl it -- found via Search
+  // Console's URL Inspection reporting "Excluded by noindex tag" the day
+  // this page went looking for real traffic.
   useDocumentMeta({
     title: 'Create your free workspace',
     description: 'Sign up free and turn a sheet of Instagram Reel or profile links into a client-ready engagement report. 10 credits included, no card required.',
     path: '/signup',
-    noindex: true,
   });
 
   const [name, setName] = useState('');
