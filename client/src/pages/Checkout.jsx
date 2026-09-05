@@ -7,20 +7,19 @@ import { Modal } from '../components/Modal';
 import { useToast } from '../context/ToastContext';
 
 /*
-  Checkout, with online payment switched off.
-
-  Razorpay is not configured yet, so rather than hand someone a payment form
-  that cannot take a payment, this routes them to a person. The previous
-  build showed a fake Razorpay card form in test mode: it looked like a real
-  checkout, asked for a card number, and was wired to a simulated success
-  that granted nothing. Anyone who reached it either thought they had paid,
-  or concluded the product was broken. A dead-end that says who to contact is
-  strictly better than a working-looking form that leads nowhere.
-
-  Everything needed for the real gateway is still here and still correct.
-  When the keys land, flip PAYMENTS_ENABLED to true.
+  Checkout. Whether this opens a real Razorpay payment form or routes to the
+  "contact us to activate" fallback is decided server-side, not by this flag
+  -- POST /billing/create-order returns a dummy order (keyId containing
+  "YOUR_KEY") when RAZORPAY_KEY_ID/RAZORPAY_KEY_SECRET aren't set on the
+  server, and handlePay below already checks for that shape. So this stays
+  safe to leave true even before real keys exist anywhere: no server keys
+  means every checkout attempt still degrades to the human fallback, the
+  same one that replaced the old fake-card-form build (which looked like a
+  real checkout, asked for a card number, and was wired to a simulated
+  success that granted nothing -- a dead-end that says who to contact is
+  strictly better than a working-looking form that leads nowhere).
 */
-const PAYMENTS_ENABLED = false;
+const PAYMENTS_ENABLED = true;
 
 const BILLING_EMAIL = 'reelyticalert@gmail.com';
 const RAZORPAY_SCRIPT_SRC = 'https://checkout.razorpay.com/v1/checkout.js';
@@ -53,13 +52,20 @@ export function Checkout() {
 
     if (!order) return null;
 
-    // Grant the plan's credits on the backend, refresh balance, then show success.
-    // Only reachable through a real, completed Razorpay payment.
-    const grantAndSucceed = async () => {
+    // Grant the plan's credits on the backend, refresh balance, then show
+    // success. The server independently verifies razorpay_signature against
+    // its own key secret before granting anything -- these three fields
+    // prove nothing on their own, they're just what lets the server look up
+    // and check the real payment Razorpay recorded.
+    const grantAndSucceed = async (razorpayResponse) => {
         try {
-            await apiFetch('/billing/confirm', {
+            await apiFetch('/billing/verify-payment', {
                 method: 'POST',
-                body: JSON.stringify({ planId: order.planId }),
+                body: JSON.stringify({
+                    razorpay_order_id: razorpayResponse.razorpay_order_id,
+                    razorpay_payment_id: razorpayResponse.razorpay_payment_id,
+                    razorpay_signature: razorpayResponse.razorpay_signature,
+                }),
             });
             await refreshUser();
         } catch (e) {
@@ -110,8 +116,8 @@ export function Checkout() {
             name: 'Reelytic',
             description: `${order.plan} plan, ${order.billing}`,
             order_id: createdOrder.id,
-            handler: function () {
-                grantAndSucceed();
+            handler: function (response) {
+                grantAndSucceed(response);
             },
             prefill: {},
             theme: { color: '#E23E57' },

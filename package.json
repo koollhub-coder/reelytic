@@ -25,7 +25,8 @@
     "express-session": "^1.18.0",
     "google-auth-library": "^10.9.0",
     "mongodb": "^6.5.0",
-    "multer": "^1.4.5-lts.1"
+    "multer": "^1.4.5-lts.1",
+    "razorpay": "^2.9.8"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",

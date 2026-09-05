@@ -356,6 +356,20 @@ async function ensureIndexes() {
     await db.collection('passwordResets').createIndex({ tokenHash: 1 }, { unique: true });
 
     await db.collection('newsletterSubscribers').createIndex({ email: 1 }, { unique: true });
+
+    /*
+      Billing orders: one row per Razorpay order created, planId locked in at
+      creation time. /billing/verify-payment looks the order up by this id
+      rather than trusting whatever planId the client posts back -- a client
+      could otherwise create an order for the cheapest plan, pay for it, then
+      call verify-payment claiming a pricier planId and get its credits for
+      the wrong price. unique on razorpayOrderId also makes fulfillment
+      idempotent: a retried verify call for an already-paid order is a no-op,
+      not a second credit grant (same crash-safe shape as submittedLinks'
+      own unique index for report billing).
+    */
+    await db.collection('billingOrders').createIndex({ razorpayOrderId: 1 }, { unique: true });
+    await db.collection('billingOrders').createIndex({ username: 1, createdAt: -1 });
   } catch (e) {
     console.warn('[DB Indexes]', e.message);
   }

@@ -38,7 +38,12 @@ async function startServer() {
     next();
   });
 
-  app.use(express.json({ limit: '2mb' }));
+  // verify captures the raw request bytes into req.rawBody alongside the
+  // normal parsed req.body -- Razorpay's webhook signature is computed over
+  // the exact raw payload, and by the time a route handler runs those bytes
+  // are otherwise gone (express.json() only keeps the parsed object). Every
+  // other route is unaffected: req.body still parses exactly as before.
+  app.use(express.json({ limit: '2mb', verify: (req, res, buf) => { req.rawBody = buf; } }));
   app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 
   // Session configuration with bulletproof store fallback
