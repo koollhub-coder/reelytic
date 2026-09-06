@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../../api/client';
 import { StatCard } from '../../components/StatCard';
 import { BrandLoader } from '../../components/BrandLoader';
+import { MiniBrandSpinner } from '../../components/MiniBrandSpinner';
 import { Select } from '../../components/Select';
 import { ActivityChart } from '../../components/ActivityChart';
 import { CalendarIcon, UsersIcon, ActivityIcon, ClockIcon } from '../../components/Icon';
@@ -52,7 +53,7 @@ export function AdminDashboard() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <CalendarIcon size={14} style={{ color: 'var(--text-3)', flexShrink: 0 }} />
           <Select value={String(days)} onChange={(v) => setDays(Number(v))} options={RANGE_OPTIONS} disabled={refreshing} style={{ minWidth: '150px' }} />
-          {refreshing && <span className="rl-inline-spinner" aria-label="Updating" />}
+          {refreshing && <MiniBrandSpinner />}
         </div>
       </div>
 

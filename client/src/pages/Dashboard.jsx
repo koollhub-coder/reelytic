@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { BrandLoader } from '../components/BrandLoader';
+import { MiniBrandSpinner } from '../components/MiniBrandSpinner';
 import { Select } from '../components/Select';
 import { ActivityChart } from '../components/ActivityChart';
 import { Tooltip, TooltipRows } from '../components/Tooltip';
@@ -314,7 +315,7 @@ export function Dashboard() {
               disabled={refreshing}
               style={{ height: '48px', minWidth: '150px', fontSize: '13px' }}
             />
-            {refreshing && <span className="rl-inline-spinner" aria-label="Updating" />}
+            {refreshing && <MiniBrandSpinner />}
             {dateRangeLabel && (
               <span className="rl-hide-mobile" style={{ fontSize: '12px', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>({dateRangeLabel})</span>
             )}

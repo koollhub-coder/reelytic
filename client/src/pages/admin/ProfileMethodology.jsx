@@ -3,6 +3,7 @@ import { apiFetch } from '../../api/client';
 import { BrandLoader } from '../../components/BrandLoader';
 import { PROFILE_METHODOLOGY } from '../../content/profileMethodology';
 import { REEL_METHODOLOGY } from '../../content/reelMethodology';
+import { ReelErCalculator } from '../../components/ReelErCalculator';
 
 // Admin-facing "how is this calculated" view -- internal only (requireAdmin
 // on the routes it reads), covering BOTH report types under the one "How
@@ -94,6 +95,12 @@ export function ProfileMethodology() {
           <div key={s.heading} style={cardStyle}>
             <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 'var(--fs-lg)', marginBottom: 'var(--s2)' }}>{s.heading}</div>
             <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-base)', margin: 0, lineHeight: 1.6 }}>{s.body}</p>
+            {/* Same calculator as the client-facing page's Reel reports
+                section (see ReelErCalculator) -- this admin view exists to
+                mirror what a client sees plus internal context, and a
+                feature present on one side but missing on the other reads
+                as an oversight, not a deliberate difference. */}
+            {s === REEL_METHODOLOGY.erFormula && <ReelErCalculator />}
           </div>
         ))}
       </div>

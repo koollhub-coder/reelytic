@@ -176,6 +176,20 @@
   box-shadow: 0 0 0 3px var(--accent-soft);
   outline: none;
 }
+/* A number input's native up/down spinner is unthemeable -- it's the OS's
+   own control, drawn in the OS's own light-mode colors regardless of our
+   --surface/--text tokens, which is exactly why it reads as broken in dark
+   mode specifically. Every type="number" field in the app (this one
+   included) drops it in favor of a plain, always-themed input; ArrowUp/Down
+   still increment natively without the widget. */
+.input-field[type="number"] {
+  -moz-appearance: textfield;
+}
+.input-field[type="number"]::-webkit-inner-spin-button,
+.input-field[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
 .input-error {
   font-size: var(--fs-xs);
   color: var(--err);
@@ -345,19 +359,6 @@
   border-top-color: #fff;
   animation: rlSpin 700ms linear infinite;
 }
-/* Same rlSpin keyframe, neutral border for use on a light/dark card
-   background instead of btn-spinner's white-on-color variant -- e.g. a
-   range-filter refetch, where the surrounding content is still visible. */
-.rl-inline-spinner {
-  display: inline-block;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  border: 2px solid var(--border-strong);
-  border-top-color: var(--accent);
-  animation: rlSpin 700ms linear infinite;
-}
-
 /* Badges & Chips */
 .chip {
   display: inline-flex;
