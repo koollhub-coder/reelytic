@@ -249,9 +249,17 @@ test.describe('the guided tour completes', () => {
       settings / Finish). The failure this guards against is the guide going
       dead mid-run on a free account, which is what happened when the share
       step pointed at an anchor that only existed on a paid plan.
+
+      The iteration cap has to stay well above DemoGuide's own STEPS.length:
+      a step that lives on a different page costs TWO clicks here (one to
+      dismiss its "we'll take you there" travel card, one for the real
+      Next/Finish on the page it lands on), not one, so the cap is roughly
+      double the step count rather than equal to it. This test broke the
+      moment a 7th step was added with the cap still at 10 -- not flaky,
+      just arithmetic that fell one step short.
     */
     let reachedFinish = false;
-    for (let step = 1; step <= 10; step += 1) {
+    for (let step = 1; step <= 20; step += 1) {
       if (await card.count() === 0) break;
       const primary = card.locator('button').first();
       await expect(primary).toBeVisible({ timeout: 10000 });

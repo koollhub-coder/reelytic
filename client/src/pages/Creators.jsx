@@ -227,7 +227,7 @@ export function Creators() {
   const [saveViewOpen, setSaveViewOpen] = useState(false);
   const [saveViewName, setSaveViewName] = useState('');
   const [savingView, setSavingView] = useState(false);
-  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false); // mobile only -- see .rl-filters in mobile.css
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false); // mobile only: opens the filter sheet Modal below
 
   const runId = useRef(0);
 
@@ -435,15 +435,24 @@ export function Creators() {
         <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)', marginBottom: 'var(--s6)' }}>
           Every creator you have analyzed, in one searchable place.
         </p>
-        <EmptyState
-          title="Available on Starter, Pro and Agency"
-          description="Every reel and profile report you run automatically builds this out -- followers, average views and engagement per creator, tagged with which campaigns they showed up in."
-          action={
-            <button type="button" className="btn btn-primary" onClick={() => setUpgradeOpen(true)}>
-              See plans
-            </button>
-          }
-        />
+        {/* Same data-tour anchor as the unlocked page's heading below --
+            the product tour (DemoGuide.jsx) visits this page for every new
+            account regardless of plan, and a free/unlimited account only
+            ever renders THIS branch. Without an anchor here the tour would
+            have nothing to point at for exactly the accounts most worth
+            showing this feature to (see DemoGuide's own note on the
+            locked share button, which hit the same gap). */}
+        <div data-tour="creators-page">
+          <EmptyState
+            title="Available on Starter, Pro and Agency"
+            description="Every reel and profile report you run automatically builds this out: followers, average views and engagement per creator, tagged with which campaigns they showed up in."
+            action={
+              <button type="button" className="btn btn-primary" onClick={() => setUpgradeOpen(true)}>
+                See plans
+              </button>
+            }
+          />
+        </div>
         <UpgradeDialog isOpen={upgradeOpen} onClose={() => setUpgradeOpen(false)} feature={PREMIUM_FEATURES.creatorDatabase} />
       </div>
     );
@@ -453,7 +462,7 @@ export function Creators() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 'var(--s3)', marginBottom: 'var(--s4)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 'var(--s3)', marginBottom: 'var(--s4)' }} data-tour="creators-page">
         <div>
           <h1 className="rl-page-heading" style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-xl)', fontWeight: 700, marginBottom: 'var(--s1)' }}>
             Creator database
@@ -476,9 +485,8 @@ export function Creators() {
             style={{ height: '36px', fontSize: 'var(--fs-sm)', width: '100%', paddingLeft: '30px' }}
           />
         </span>
-        {/* Everything else in the filter card below is hidden behind this
-            on a phone (see .rl-filters in mobile.css) -- search stays
-            reachable right here regardless, same as History. */}
+        {/* Opens the mobile filter sheet below. Search stays reachable
+            right here regardless of whether that sheet is open. */}
         <span className="rl-mobile-only">
           <button
             type="button"
@@ -539,61 +547,55 @@ export function Creators() {
           not just big." Both are real server-side range queries (see
           creatorDb.service.js's bestAvgEr/followers indexes), not a filter
           over whatever's already loaded, so they narrow the FULL dataset
-          the same way search does, not just the warmed first 500. */}
-      <div className={`card rl-filters${mobileFiltersOpen ? ' rl-filters-open' : ''}`} style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--s3)', padding: 'var(--s3) var(--s4)', marginBottom: 'var(--s4)' }}>
-        <div className="rl-filter-row">
-          <span className="rl-filter-label rl-mobile-only">Followers</span>
-          <div className="rl-filter-group" style={{ display: 'flex', gap: '4px' }}>
-            {FOLLOWER_TIERS.map((t) => (
-              <button
-                key={t.value}
-                type="button"
-                onClick={() => setFollowerTier(t.value)}
-                className={`chip ${followerTier === t.value ? 'accent' : ''}`}
-                style={{ cursor: 'pointer', padding: '6px 12px', whiteSpace: 'nowrap' }}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
+          the same way search does, not just the warmed first 500.
+
+          Desktop only (rl-hide-mobile): this inline horizontal bar is what
+          "every chip and dropdown visible at once" actually looks like, and
+          that reads fine when there's a full-width row to lay them out in.
+          On a phone the same row had five long follower-tier labels alone
+          with nowhere to wrap to and ran off the edge of the screen -- the
+          mobile equivalent is the sheet below, not a squeezed copy of this. */}
+      <div className="card rl-hide-mobile" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--s3)', padding: 'var(--s3) var(--s4)', marginBottom: 'var(--s4)' }}>
+        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+          {FOLLOWER_TIERS.map((t) => (
+            <button
+              key={t.value}
+              type="button"
+              onClick={() => setFollowerTier(t.value)}
+              className={`chip ${followerTier === t.value ? 'accent' : ''}`}
+              style={{ cursor: 'pointer', padding: '6px 12px', whiteSpace: 'nowrap' }}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
-        <span className="rl-hide-mobile" style={{ width: '1px', alignSelf: 'stretch', backgroundColor: 'var(--border)' }} />
-        <div className="rl-filter-row">
-          <span className="rl-filter-label rl-mobile-only">Engagement</span>
-          <div className="rl-filter-group" style={{ display: 'flex', gap: '4px' }}>
-            {ER_THRESHOLDS.map((t) => (
-              <button
-                key={t.value}
-                type="button"
-                onClick={() => setMinEr(t.value)}
-                className={`chip ${minEr === t.value ? 'accent' : ''}`}
-                style={{ cursor: 'pointer', padding: '6px 12px', whiteSpace: 'nowrap' }}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
+        <span style={{ width: '1px', alignSelf: 'stretch', backgroundColor: 'var(--border)' }} />
+        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+          {ER_THRESHOLDS.map((t) => (
+            <button
+              key={t.value}
+              type="button"
+              onClick={() => setMinEr(t.value)}
+              className={`chip ${minEr === t.value ? 'accent' : ''}`}
+              style={{ cursor: 'pointer', padding: '6px 12px', whiteSpace: 'nowrap' }}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
         {campaigns.length > 0 && (
           <>
-            <span className="rl-hide-mobile" style={{ width: '1px', alignSelf: 'stretch', backgroundColor: 'var(--border)' }} />
-            <div className="rl-filter-row">
-              <span className="rl-filter-label rl-mobile-only">Campaign</span>
-              <Select
-                value={campaignId}
-                onChange={setCampaignId}
-                options={[{ value: '', label: 'All campaigns' }, ...campaigns.map((c) => ({ value: c.id, label: c.name }))]}
-                style={{ minWidth: '170px' }}
-                className="rl-filter-select"
-              />
-            </div>
+            <span style={{ width: '1px', alignSelf: 'stretch', backgroundColor: 'var(--border)' }} />
+            <Select
+              value={campaignId}
+              onChange={setCampaignId}
+              options={[{ value: '', label: 'All campaigns' }, ...campaigns.map((c) => ({ value: c.id, label: c.name }))]}
+              style={{ minWidth: '170px' }}
+            />
           </>
         )}
-        <span className="rl-hide-mobile" style={{ width: '1px', alignSelf: 'stretch', backgroundColor: 'var(--border)' }} />
-        <div className="rl-filter-row">
-          <span className="rl-filter-label rl-mobile-only">Sort by</span>
-          <Select value={sortBy} onChange={setSortBy} options={SORT_OPTIONS} style={{ minWidth: '190px' }} className="rl-filter-select" />
-        </div>
+        <span style={{ width: '1px', alignSelf: 'stretch', backgroundColor: 'var(--border)' }} />
+        <Select value={sortBy} onChange={setSortBy} options={SORT_OPTIONS} style={{ minWidth: '190px' }} />
         {filtersActive && (
           <button type="button" onClick={resetFilters} className="rl-text-link" style={{ fontSize: 'var(--fs-xs)' }}>
             Reset filters
@@ -636,6 +638,105 @@ export function Creators() {
           )}
         </div>
       </div>
+
+      {/* Mobile: a bottom sheet, not a squeezed inline row -- the same
+          Modal component every other dialog in the app uses, which
+          mobile.css already turns into a full-width slide-up sheet with
+          rounded top corners (Stripe/Linear/Notion's own pattern for a
+          phone-width dialog). Each filter gets its own labeled, stacked,
+          full-width section instead of everything competing for one row
+          that has nowhere to wrap to. */}
+      <Modal isOpen={mobileFiltersOpen} onClose={() => setMobileFiltersOpen(false)} title="Filters" width="420px">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--s5)' }}>
+          <div>
+            <div style={{ fontSize: '10px', fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: 'var(--s2)' }}>Followers</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+              {FOLLOWER_TIERS.map((t) => (
+                <button
+                  key={t.value}
+                  type="button"
+                  onClick={() => setFollowerTier(t.value)}
+                  className={`chip ${followerTier === t.value ? 'accent' : ''}`}
+                  style={{ cursor: 'pointer', padding: '8px 12px' }}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: '10px', fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: 'var(--s2)' }}>Engagement</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+              {ER_THRESHOLDS.map((t) => (
+                <button
+                  key={t.value}
+                  type="button"
+                  onClick={() => setMinEr(t.value)}
+                  className={`chip ${minEr === t.value ? 'accent' : ''}`}
+                  style={{ cursor: 'pointer', padding: '8px 12px' }}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {campaigns.length > 0 && (
+            <div>
+              <div style={{ fontSize: '10px', fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: 'var(--s2)' }}>Campaign</div>
+              <Select
+                value={campaignId}
+                onChange={setCampaignId}
+                options={[{ value: '', label: 'All campaigns' }, ...campaigns.map((c) => ({ value: c.id, label: c.name }))]}
+                style={{ width: '100%' }}
+              />
+            </div>
+          )}
+          <div>
+            <div style={{ fontSize: '10px', fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: 'var(--s2)' }}>Sort by</div>
+            <Select value={sortBy} onChange={setSortBy} options={SORT_OPTIONS} style={{ width: '100%' }} />
+          </div>
+          {(segments.length > 0 || search.trim() || filtersActive) && (
+            <div>
+              <div style={{ fontSize: '10px', fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: 'var(--s2)' }}>Saved views</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: segments.length ? 'var(--s2)' : 0 }}>
+                {segments.map((seg) => (
+                  <span key={seg.id} className="chip" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', paddingRight: '6px', cursor: 'pointer' }}>
+                    <span onClick={() => applySegment(seg)}>{seg.name}</span>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); handleDeleteSegment(seg.id); }}
+                      aria-label={`Delete saved view "${seg.name}"`}
+                      style={{ display: 'inline-flex', background: 'none', border: 'none', padding: '2px', cursor: 'pointer', color: 'var(--text-3)' }}
+                    >
+                      <XIcon size={11} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+              {(search.trim() || filtersActive) && (
+                <button
+                  type="button"
+                  onClick={() => setSaveViewOpen(true)}
+                  className="rl-text-link"
+                  style={{ fontSize: 'var(--fs-xs)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                >
+                  <PlusIcon size={12} />Save this view
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+        <div style={{ display: 'flex', gap: '8px', marginTop: 'var(--s5)', paddingTop: 'var(--s4)', borderTop: '1px solid var(--border)' }}>
+          {filtersActive && (
+            <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={resetFilters}>
+              Reset
+            </button>
+          )}
+          <button type="button" className="btn btn-primary" style={{ flex: 2 }} onClick={() => setMobileFiltersOpen(false)}>
+            Show results
+          </button>
+        </div>
+      </Modal>
 
       <Modal isOpen={saveViewOpen} onClose={() => setSaveViewOpen(false)} title="Save this view" width="380px">
         <div className="input-group" style={{ marginBottom: 'var(--s4)' }}>

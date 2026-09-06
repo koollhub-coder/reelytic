@@ -861,7 +861,7 @@ export function History() {
     if (failed.length === 0) {
       addToast(`${ids.length} report${ids.length === 1 ? '' : 's'} assigned`, 'ok');
     } else {
-      addToast(`${ids.length - failed.length} assigned, ${failed.length} failed -- try those again`, 'err');
+      addToast(`${ids.length - failed.length} assigned, ${failed.length} failed. Try those again.`, 'err');
     }
     setSelectedUnassignedIds(new Set(failed));
     load();

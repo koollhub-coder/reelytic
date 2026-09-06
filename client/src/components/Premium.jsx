@@ -172,7 +172,7 @@ export const PREMIUM_FEATURES = {
   },
   creatorDatabase: {
     title: 'Creator database',
-    description: 'Every creator you have ever analyzed, in one searchable place -- built automatically from your reel and profile reports.',
+    description: 'Every creator you have ever analyzed, in one searchable place, built automatically from your reel and profile reports.',
     points: [
       'One row per creator: followers, average views and engagement across every report',
       'Tagged with which campaigns they showed up in',

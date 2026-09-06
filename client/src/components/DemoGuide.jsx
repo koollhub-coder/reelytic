@@ -4,8 +4,9 @@ import { useLocation, useNavigate } from 'react-router-dom';
 /*
   The guided product tour.
 
-  Six stops that follow the order an agency actually works in: read the
-  report, take the numbers, brand it, send it, set your logo once, done.
+  Seven stops that follow the order an agency actually works in: read the
+  report, take the numbers, brand it, send it, set your logo once, see
+  where every creator you analyze ends up automatically, done.
 
   Rules, each one written because a previous version broke it:
 
@@ -42,7 +43,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
   half-finished tour and float a tooltip over the login form.
 */
 
-const CHAPTERS = ['Your report', 'Your report', 'The client version', 'The client version', 'Your branding', 'Done'];
+const CHAPTERS = ['Your report', 'Your report', 'The client version', 'The client version', 'Your branding', 'Your creators', 'Done'];
 
 const STEPS = [
   {
@@ -95,6 +96,26 @@ const STEPS = [
     target: '[data-tour="branding-card"]',
     title: 'Your logo, your colours',
     body: 'Add your logo and accent colour here and every report you produce from now on uses them automatically.',
+  },
+  {
+    /*
+      Shown to EVERY new account, whatever plan they land on -- unlike every
+      step above (which lives on the sample report the account already has),
+      this is the one paid feature in the whole tour a free/unlimited signup
+      cannot actually use yet. That is deliberate, not an oversight: someone
+      who never sees a feature never wants it, and the locked view (see
+      Creators.jsx's data-tour="creators-page" on BOTH its locked and
+      unlocked render branches) makes exactly the same "here's what you'd
+      get" case Premium.jsx's LockedFeatureButton already makes everywhere
+      else in the app. An entitled account sees the real page instead.
+    */
+    id: 'creators',
+    route: '/creators',
+    announce: 'One more thing: every creator you have ever analyzed lives in one place, automatically.',
+    announceCta: 'Show me the creator database',
+    target: '[data-tour="creators-page"]',
+    title: 'Your creator database',
+    body: 'Every creator from every report you run, deduped and searchable: follower size, engagement, and which campaigns they showed up in, all filled in automatically as reports finish. Available on Starter, Pro and Agency.',
   },
   {
     id: 'done',
