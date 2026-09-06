@@ -31,7 +31,7 @@ export function Clients() {
   const [creditMode, setCreditMode] = useState('add'); // 'add' | 'set'
   const [creditAmount, setCreditAmount] = useState('');
   const [featureModal, setFeatureModal] = useState(null); // the client being adjusted
-  const [featureDraft, setFeatureDraft] = useState({ reportBranding: 'plan', shareableLinks: 'plan', pdfExport: 'plan' });
+  const [featureDraft, setFeatureDraft] = useState({ reportBranding: 'plan', shareableLinks: 'plan', pdfExport: 'plan', creatorDatabase: 'plan' });
   const [featureSaving, setFeatureSaving] = useState(false);
 
   const fetchClients = () => {
@@ -149,6 +149,7 @@ export function Clients() {
       reportBranding: overrideToSelect(overrides.reportBranding),
       shareableLinks: overrideToSelect(overrides.shareableLinks),
       pdfExport: overrideToSelect(overrides.pdfExport),
+      creatorDatabase: overrideToSelect(overrides.creatorDatabase),
     });
   };
 
@@ -162,6 +163,7 @@ export function Clients() {
             reportBranding: selectToOverride(featureDraft.reportBranding),
             shareableLinks: selectToOverride(featureDraft.shareableLinks),
             pdfExport: selectToOverride(featureDraft.pdfExport),
+            creatorDatabase: selectToOverride(featureDraft.creatorDatabase),
           },
         }),
       });
@@ -188,6 +190,7 @@ export function Clients() {
           <thead>
             <tr>
               <th>Username</th>
+              <th>Email</th>
               <th>Role</th>
               <th className="numeric">Credits</th>
               <th>Plan</th>
@@ -197,11 +200,12 @@ export function Clients() {
               <th style={{ textAlign: 'right' }}>Actions</th>
             </tr>
           </thead>
-          {loading ? <TableSkeleton rows={10} columns={8} label="Loading clients" /> : (
+          {loading ? <TableSkeleton rows={10} columns={9} label="Loading clients" /> : (
           <tbody>
             {clients.map(c => (
               <tr key={c._id}>
                 <td style={{ fontWeight: 600, fontFamily: 'var(--font-data)' }}>{c.username}</td>
+                <td className="mono" style={{ color: 'var(--text-2)' }}>{c.email || '-'}</td>
                 <td><span className="chip" style={{ textTransform: 'uppercase' }}>{c.role}</span></td>
                 <td className="numeric mono" style={{ fontWeight: 700 }}>{c.plan === 'unlimited' ? '∞' : (c.credits ?? 0).toLocaleString()}</td>
                 <td><span className="chip accent" style={{ textTransform: 'capitalize' }}>{c.plan || 'free'}</span></td>
@@ -332,13 +336,21 @@ export function Clients() {
             options={OVERRIDE_OPTIONS}
           />
         </div>
-        {/* Not on any plan yet -- this is the only way to grant it while it's
+        {/* Not on any plan yet, this is the only way to grant it while it's
             being tried out ahead of being a sellable tier. */}
         <div className="input-group">
           <label className="input-label">PDF report download</label>
           <Select
             value={featureDraft.pdfExport}
             onChange={(v) => setFeatureDraft((d) => ({ ...d, pdfExport: v }))}
+            options={OVERRIDE_OPTIONS}
+          />
+        </div>
+        <div className="input-group">
+          <label className="input-label">Creator database</label>
+          <Select
+            value={featureDraft.creatorDatabase}
+            onChange={(v) => setFeatureDraft((d) => ({ ...d, creatorDatabase: v }))}
             options={OVERRIDE_OPTIONS}
           />
         </div>
