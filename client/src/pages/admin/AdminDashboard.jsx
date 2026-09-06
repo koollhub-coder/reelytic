@@ -3,9 +3,9 @@ import { apiFetch } from '../../api/client';
 import { StatCard } from '../../components/StatCard';
 import { BrandLoader } from '../../components/BrandLoader';
 import { Select } from '../../components/Select';
-import { Tooltip, TooltipRows } from '../../components/Tooltip';
+import { ActivityChart } from '../../components/ActivityChart';
 import { CalendarIcon } from '../../components/Icon';
-import { formatDate, formatDateTime, formatDayKey } from '../../utils/date';
+import { formatDayKey } from '../../utils/date';
 
 // Matches server/routes/admin.routes.js's OVERVIEW_RANGE_DAYS, which is
 // itself the same whitelist the personal dashboard uses -- one picker, same
@@ -37,15 +37,9 @@ export function AdminDashboard() {
 
   const stats = data?.stats || { reelJobs: 0, profileJobs: 0, linksProcessed: 0, successRate: 100 };
   const activity = data?.activityByDay || [];
-  const maxCount = Math.max(...activity.map(a => a.count), 1);
   const periodTotal = activity.reduce((sum, a) => sum + a.count, 0);
   const activeDays = activity.filter((a) => a.count > 0).length;
   const busiestDay = activity.reduce((best, a) => (a.count > (best?.count || 0) ? a : best), null);
-  // Same collision-avoidance the personal dashboard's chart uses: at 90
-  // daily bars, a rotated label under every one would overlap its
-  // neighbors, so only roughly 14 are ever shown regardless of how many
-  // bars are on screen.
-  const labelEvery = Math.max(1, Math.ceil(activity.length / 14));
 
   return (
     <div>
@@ -92,39 +86,7 @@ export function AdminDashboard() {
                 <span style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: 'var(--ok)', display: 'inline-block' }} />Profile reports
               </span>
             </div>
-            <div className="rl-chart-track" style={{ width: '100%', height: '220px', display: 'flex', alignItems: 'flex-end', gap: '12px', paddingBottom: '24px', borderBottom: '1px solid var(--border)' }}>
-              {activity.map((a, i) => {
-                const reelPct = (a.reels / maxCount) * 160;
-                const profilePct = (a.profiles / maxCount) * 160;
-                const dateLabel = formatDayKey(a.date);
-                const bar = (
-                  <div style={{ width: '100%', maxWidth: '36px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-                    {a.profiles > 0 && <div style={{ width: '100%', height: `${Math.max(profilePct, 3)}px`, backgroundColor: 'var(--ok)', borderRadius: '4px 4px 0 0', transition: 'height 300ms ease' }} />}
-                    {a.reels > 0 && <div style={{ width: '100%', height: `${Math.max(reelPct, 3)}px`, backgroundColor: 'var(--accent)', borderRadius: a.profiles > 0 ? 0 : '4px 4px 0 0', transition: 'height 300ms ease' }} />}
-                    {a.count === 0 && <div style={{ width: '100%', height: '2px', backgroundColor: 'var(--border)' }} />}
-                  </div>
-                );
-                return (
-                  <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}>
-                    <div style={{ fontFamily: 'var(--font-data)', fontSize: '10px', color: 'var(--text-3)', marginBottom: '4px' }}>{a.count || ''}</div>
-                    {a.count > 0 ? (
-                      <Tooltip
-                        content={<TooltipRows heading={dateLabel} rows={[
-                          { color: 'var(--accent)', label: 'Reel reports', value: a.reels },
-                          { color: 'var(--ok)', label: 'Profile reports', value: a.profiles },
-                        ]} />}
-                        style={{ width: '100%' }}
-                      >
-                        {bar}
-                      </Tooltip>
-                    ) : bar}
-                    {(i % labelEvery === 0 || i === activity.length - 1) && (
-                      <div style={{ fontFamily: 'var(--font-data)', fontSize: '9px', color: 'var(--text-3)', transform: 'rotate(-45deg)', whiteSpace: 'nowrap', marginTop: '12px' }}>{a.date.slice(5)}</div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+            <ActivityChart data={activity} height={260} />
           </>
         )}
       </div>

@@ -4,21 +4,14 @@ import { apiFetch } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { BrandLoader } from '../components/BrandLoader';
 import { Select } from '../components/Select';
+import { ActivityChart } from '../components/ActivityChart';
 import { Tooltip, TooltipRows } from '../components/Tooltip';
+import { usePlanCreditsTotal } from '../hooks/usePlanCreditsTotal';
 import { formatDate, formatDayKey } from '../utils/date';
 import {
   ReelIcon, ProfileIcon, LayersIcon, TrendingUpIcon, PlusIcon, CalendarIcon,
   EyeIcon, DownloadIcon, ArrowUpRightIcon, SuccessIcon, ClockIcon, StarIcon,
 } from '../components/Icon';
-
-// The user doc only ever stores the CURRENT balance -- there is no
-// "credits granted" field anywhere (see credits.service.js), so a progress
-// bar has nothing to measure against unless it borrows one. The free tier's
-// one-time grant is the same 10 used in Signup/Landing's own copy; paid
-// tiers borrow their plan's monthly credits figure from the live pricing
-// API (the same one Pricing.jsx renders), so if pricing ever changes this
-// stays correct with zero code changes here.
-const FREE_TIER_CREDITS = 10;
 
 // Matches server/routes/me.routes.js's ALLOWED_RANGE_DAYS exactly -- an
 // option here that the server would reject is worse than not offering it.
@@ -28,19 +21,6 @@ const RANGE_OPTIONS = [
   { value: '30', label: 'Last 30 days' },
   { value: '90', label: 'Last 90 days' },
 ];
-
-// Rounds a chart's real max value up to a clean axis ceiling (1/2/5 x a
-// power of ten) -- "the busiest day was 37" should label its axis 0/20/40,
-// not 0/12.3/24.7. Used for both the y-axis tick labels AND the bar-height
-// percentage math below, so a bar's height and the gridline it appears to
-// touch always agree with each other.
-function niceAxisMax(n) {
-  if (n <= 0) return 4;
-  const magnitude = Math.pow(10, Math.floor(Math.log10(n)));
-  const normalized = n / magnitude;
-  const step = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
-  return step * magnitude;
-}
 
 const STATUS_LABELS = {
   preview: { label: 'Not started', chip: 'warn' },
@@ -225,7 +205,7 @@ export function Dashboard() {
   const { user } = useAuth();
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
-  const [planCreditsTotal, setPlanCreditsTotal] = useState(null);
+  const planCreditsTotal = usePlanCreditsTotal(user);
   // 14 is still what a visitor lands on -- only the ceiling on how far back
   // they can pull it changed. See RANGE_OPTIONS below for the other choices
   // and server/routes/me.routes.js's ALLOWED_RANGE_DAYS for why these four.
@@ -236,20 +216,6 @@ export function Dashboard() {
       .then((res) => { setData(res); setError(''); })
       .catch((err) => setError(err.message));
   }, [days]);
-
-  // Public endpoint, same one Pricing.jsx reads -- no admin route, no
-  // separate source of truth to drift out of sync with what a client
-  // actually sees when they go to upgrade.
-  useEffect(() => {
-    if (user?.plan === 'unlimited') return;
-    if (user?.plan === 'free' || !user?.plan) { setPlanCreditsTotal(FREE_TIER_CREDITS); return; }
-    apiFetch('/pricing/plans')
-      .then((res) => {
-        const plan = (res.plans || []).find((p) => p.id === user.plan);
-        setPlanCreditsTotal(plan ? plan.credits : FREE_TIER_CREDITS);
-      })
-      .catch(() => setPlanCreditsTotal(null));
-  }, [user?.plan]);
 
   if (error) {
     return (
@@ -280,9 +246,6 @@ export function Dashboard() {
         : `${String(start.d).padStart(2, '0')} ${MONTHS_SHORT[start.m - 1]} - ${String(end.d).padStart(2, '0')} ${MONTHS_SHORT[end.m - 1]}`;
     })()
     : null;
-  const maxTotal = Math.max(...daily.map((d) => d.total), 1);
-  const axisMax = niceAxisMax(maxTotal);
-  const axisTicks = [axisMax, Math.round(axisMax * 2 / 3), Math.round(axisMax / 3), 0];
   const periodTotal = daily.reduce((sum, d) => sum + d.total, 0);
   const activeDays = daily.filter((d) => d.total > 0).length;
   const busiestDay = daily.reduce((best, d) => (d.total > (best?.total || 0) ? d : best), null);
@@ -444,7 +407,7 @@ export function Dashboard() {
                     <div className="rl-activity-stat">
                       <span className="rl-activity-stat-icon" style={{ background: 'var(--ok-soft)', color: 'var(--ok)' }}><SuccessIcon size={14} /></span>
                       <span>
-                        <span className="rl-activity-stat-value">{activeDays}/14</span>
+                        <span className="rl-activity-stat-value">{activeDays}/{days}</span>
                         <span className="rl-activity-stat-label">Active days</span>
                       </span>
                     </div>
@@ -468,79 +431,8 @@ export function Dashboard() {
                     </span>
                   </div>
 
-                  {/* Y-axis: axisMax is a clean rounded ceiling (niceAxisMax),
-                      and every bar below scales against that SAME number --
-                      so a bar that visually reaches the "40" gridline really
-                      does represent 40, not an approximation. */}
-                  <div className="rl-dashboard-chart-row" style={{ display: 'flex', flex: 1, minWidth: 0, minHeight: 0, gap: '8px' }}>
-                    <div className="rl-dashboard-chart-yaxis" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', paddingBottom: '24px', flexShrink: 0 }}>
-                      {axisTicks.map((t, i) => (
-                        <span key={i} className="mono" style={{ fontSize: '9px', color: 'var(--text-3)', lineHeight: 1 }}>{t}</span>
-                      ))}
-                    </div>
-                    <div style={{ position: 'relative', flex: 1, minWidth: 0, minHeight: 0 }}>
-                      {/* Gridlines, positioned to land exactly on the same
-                          0/33/66/100% marks the y-axis labels use, within the
-                          bar area only (excludes the 24px reserved for the
-                          rotated date labels below the baseline). */}
-                      <div aria-hidden="true" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: '24px', pointerEvents: 'none' }}>
-                        {[0, 1, 2, 3].map((i) => (
-                          <div key={i} style={{ position: 'absolute', left: 0, right: 0, top: `${(i / 3) * 100}%`, borderTop: '1px solid var(--border)', opacity: i === 3 ? 0.6 : 0.35 }} />
-                        ))}
-                      </div>
-                      {/* Bar height is a PERCENTAGE of its own flex:1 sub-container,
-                          not a hardcoded pixel cap against a guessed track height --
-                          a fixed pixel cap here is exactly what overflowed the card
-                          (the value label got pushed up into the legend row above)
-                          whenever the actual available track height came out
-                          shorter than that guess. A percentage of a flex-computed
-                          container can never exceed the space that's really there. */}
-                      {/* Own class, not the shared .rl-chart-track -- that class's
-                          mobile rule (mobile.css) forces a fixed per-column width
-                          and horizontal scroll, meant for a chart with too many
-                          bars to compress. This one's bars are flex:1/minWidth:0,
-                          so it shrinks to fit any card width cleanly with nothing
-                          clipped, at 7 bars or the picker's widest option (90). */}
-                      <div className="rl-dashboard-chart-track" style={{ width: '100%', height: '100%', display: 'flex', gap: daily.length > 30 ? '2px' : '8px', paddingBottom: '24px', borderBottom: '1px solid var(--border)' }}>
-                        {/* At 90 daily bars a rotated label under every single one
-                            would overlap its neighbors into an unreadable smear --
-                            thinned to roughly 14 visible labels regardless of how
-                            many bars are actually on screen, same idea a real chart
-                            library's own axis-label collision avoidance uses. The
-                            bars themselves, and their tooltips, are never thinned. */}
-                        {(() => { const labelEvery = Math.max(1, Math.ceil(daily.length / 14)); return daily.map((d, i) => {
-                          const reelPct = (d.reels / axisMax) * 100;
-                          const profilePct = (d.profiles / axisMax) * 100;
-                          const dateLabel = formatDayKey(d.date);
-                          const showLabel = i % labelEvery === 0 || i === daily.length - 1;
-                          const bar = (
-                            <div className="rl-dashboard-chart-bar" style={{ width: '100%', maxWidth: '28px', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-                              {d.profiles > 0 && <div style={{ width: '100%', height: `${Math.max(profilePct, 3)}%`, backgroundColor: 'var(--ok)', borderRadius: '3px 3px 0 0', transition: 'height 300ms ease' }} />}
-                              {d.reels > 0 && <div style={{ width: '100%', height: `${Math.max(reelPct, 3)}%`, backgroundColor: 'var(--accent)', borderRadius: d.profiles > 0 ? 0 : '3px 3px 0 0', transition: 'height 300ms ease' }} />}
-                              {d.total === 0 && <div style={{ width: '100%', height: '2px', backgroundColor: 'var(--border)', flexShrink: 0 }} />}
-                            </div>
-                          );
-                          return (
-                            <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0 }}>
-                              {d.total > 0 ? (
-                                <Tooltip
-                                  content={<TooltipRows heading={`${dateLabel} · ${d.total} total`} rows={[
-                                    { color: 'var(--accent)', label: 'Reel reports', value: d.reels },
-                                    { color: 'var(--ok)', label: 'Profile reports', value: d.profiles },
-                                  ]} />}
-                                  style={{ width: '100%', flex: 1, minHeight: 0 }}
-                                >
-                                  {bar}
-                                </Tooltip>
-                              ) : bar}
-                              {showLabel && (
-                                <div className="rl-dashboard-chart-datelabel mono" style={{ fontSize: '9px', color: 'var(--text-3)', transform: 'rotate(-45deg)', whiteSpace: 'nowrap', marginTop: '10px', flexShrink: 0 }}>{d.date.slice(5)}</div>
-                              )}
-                            </div>
-                          );
-                        }); })()}
-                      </div>
-                    </div>
+                  <div style={{ flex: 1, minHeight: 0 }}>
+                    <ActivityChart data={daily} height={ANALYTICS_CARD_H - 130} />
                   </div>
                 </>
               )}

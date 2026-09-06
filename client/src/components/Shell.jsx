@@ -8,6 +8,7 @@ import { BrandLoader } from './BrandLoader';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { apiFetch } from '../api/client';
+import { usePlanCreditsTotal } from '../hooks/usePlanCreditsTotal';
 import {
   SunIcon, MoonIcon, MenuIcon, ReelIcon, ProfileIcon, DashboardIcon, HistoryIcon,
   HelpIcon, SettingsIcon, CreditCardIcon, ActivityIcon, UsersIcon, ListIcon,
@@ -34,6 +35,7 @@ export function Shell() {
   const location = useLocation();
   const { user, logout, refreshUser } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const planCreditsTotal = usePlanCreditsTotal(user);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   // Desktop-only preference, persisted across sessions like theme already
@@ -112,8 +114,17 @@ export function Shell() {
   const navGroups = [
     {
       heading: 'Navigation',
+      // Report creation leads, not Dashboard -- this product's whole value
+      // proposition is "give us a sheet, get a report" (see WelcomeTour's
+      // own copy), and the guided tour that teaches a brand-new account how
+      // to use the app never visits Dashboard at all (see DemoGuide.jsx's
+      // stops: report, export, branded, share, branding, creators, done).
+      // Leading the nav with a page the product's own onboarding treats as
+      // optional, rather than the two pages every single new account is
+      // walked through first, was the unpredictable ordering -- Dashboard
+      // now sits where a returning user actually reaches for it: after
+      // there is a report to summarize, not before.
       items: [
-        ...(isAdmin ? [] : [{ label: 'Dashboard', path: '/dashboard', icon: DashboardIcon }]),
         { label: 'Reel Report', path: '/reels', icon: ReelIcon },
         { label: 'Profile Report', path: '/profiles', icon: ProfileIcon },
         { label: 'History', path: '/history', icon: HistoryIcon },
@@ -125,6 +136,7 @@ export function Shell() {
         // automatic yes everywhere else) and sees every account's creators
         // by default, not just their own.
         { label: 'Creators', path: '/creators', icon: UsersIcon },
+        ...(isAdmin ? [] : [{ label: 'Dashboard', path: '/dashboard', icon: DashboardIcon }]),
         ...(isAdmin ? [] : [{ label: 'How Is This Calculated?', path: '/how-it-works', icon: HelpIcon }]),
       ],
     },
@@ -418,6 +430,19 @@ export function Shell() {
                   <span className="chip accent" style={{ textTransform: 'capitalize', flexShrink: 0 }}>{user?.plan || 'free'}</span>
                 )}
               </div>
+              {/* Same borrowed-total logic as Dashboard's Quick Insights bar
+                  (see usePlanCreditsTotal) -- null while unlimited or still
+                  loading, so there's nothing to divide against yet. */}
+              {user?.role !== 'admin' && planCreditsTotal ? (
+                <div style={{ height: '4px', borderRadius: 'var(--r-full)', backgroundColor: 'var(--surface)', overflow: 'hidden', marginTop: '8px' }}>
+                  <div style={{
+                    width: `${Math.max(0, Math.min(100, Math.round(((user?.credits ?? 0) / planCreditsTotal) * 100)))}%`,
+                    height: '100%',
+                    backgroundColor: 'var(--accent)',
+                    borderRadius: 'var(--r-full)',
+                  }} />
+                </div>
+              ) : null}
             </div>
             </Tooltip>
           )}
