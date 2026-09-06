@@ -26,6 +26,14 @@ export function ProfileMethodologyModal({ isOpen, onClose, calcVariant }) {
           <div key={s.heading}>
             <div style={{ fontWeight: 700, fontSize: 'var(--fs-sm)', marginBottom: '4px' }}>{s.heading}</div>
             <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)', margin: 0 }}>{s.body}</p>
+            {/* Only the ER formula carries a note (the ÷followers-vs-÷views
+                distinction) -- called out separately from the formula line
+                itself so it isn't skimmed past. */}
+            {s === PROFILE_METHODOLOGY.erFormula && (
+              <p style={{ color: 'var(--text-3)', fontSize: 'var(--fs-xs)', margin: '6px 0 0', lineHeight: 1.5 }}>
+                {PROFILE_METHODOLOGY.erNote}
+              </p>
+            )}
           </div>
         ))}
       </div>

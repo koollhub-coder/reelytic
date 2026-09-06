@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { PROFILE_METHODOLOGY } from '../content/profileMethodology';
 import { REEL_METHODOLOGY } from '../content/reelMethodology';
 
@@ -23,11 +23,10 @@ function formatViews(n) {
 
 // The single most important fact about a report type, given the emphasis it
 // deserves instead of being buried in a box the same size as everything else.
-function FormulaCallout({ formula }) {
+function FormulaCallout({ formula, note }) {
   return (
     <div
       style={{
-        display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: 'var(--s3)',
         padding: 'var(--s4) var(--s5)',
         background: 'var(--surface-2)',
         borderLeft: '3px solid var(--accent)',
@@ -35,12 +34,24 @@ function FormulaCallout({ formula }) {
         marginBottom: 'var(--s5)',
       }}
     >
-      <span className="mono" style={{ fontSize: 10, letterSpacing: '0.14em', color: 'var(--text-3)', textTransform: 'uppercase' }}>
-        Engagement rate
-      </span>
-      <span className="mono" style={{ fontSize: 'var(--fs-md)', fontWeight: 700, color: 'var(--text)' }}>
-        {formula}
-      </span>
+      <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: 'var(--s3)' }}>
+        <span className="mono" style={{ fontSize: 10, letterSpacing: '0.14em', color: 'var(--text-3)', textTransform: 'uppercase' }}>
+          Engagement rate
+        </span>
+        <span className="mono" style={{ fontSize: 'var(--fs-md)', fontWeight: 700, color: 'var(--text)' }}>
+          {formula}
+        </span>
+      </div>
+      {/* Called out separately from the formula itself, not folded into the
+          same line -- this is specifically the fact worth a reader's
+          attention (a Profile report's ER is per-follower, a Reel report's
+          is per-view), and it's the exact thing an identically-worded
+          formula line used to let people skim past. */}
+      {note && (
+        <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)', margin: 'var(--s3) 0 0', lineHeight: 1.6, maxWidth: '68ch' }}>
+          {note}
+        </p>
+      )}
     </div>
   );
 }
@@ -75,9 +86,25 @@ function DefinitionRows({ items }) {
   );
 }
 
-function Section({ eyebrow, title, blurb, children }) {
+// A plain CSS @keyframes fade-and-lift on mount, staggered per section by
+// index -- deliberately NOT an IntersectionObserver-driven scroll reveal.
+// That version shipped first and had a real bug: observed directly in this
+// same browser pane, a backgrounded/not-yet-focused tab's observer callback
+// can simply never fire (confirmed with a fresh observer on an
+// already-visible element -- zero callbacks after a full second), which
+// left entire sections stuck at opacity:0 with no content visible at all.
+// A declarative CSS animation has no callback to fail to fire; worst case
+// under throttling it just plays late, never "stuck invisible forever."
+// This is reference documentation -- always-readable beats scroll-triggered.
+function Section({ eyebrow, title, blurb, children, index = 0 }) {
   return (
-    <section style={{ marginBottom: 'var(--s7)' }}>
+    <section
+      className="rl-howcalc-section"
+      style={{
+        marginBottom: 'var(--s7)',
+        animationDelay: `${Math.min(index, 4) * 90}ms`,
+      }}
+    >
       <div style={{ marginBottom: 'var(--s4)' }}>
         <div className="mono" style={{ fontSize: 10, letterSpacing: '0.14em', color: 'var(--accent)', marginBottom: 6 }}>
           {eyebrow}
@@ -95,6 +122,53 @@ function Section({ eyebrow, title, blurb, children }) {
         {children}
       </div>
     </section>
+  );
+}
+
+// Turns the formula from something you read into something you can poke at.
+// Same ER = (Likes + Comments) / Views * 100 the FormulaCallout above states,
+// live-computed from three plain number inputs -- "check the maths yourself"
+// is the page's own stated promise; this is what actually lets someone do
+// that without opening a spreadsheet.
+function TryItYourself() {
+  const [views, setViews] = useState(10000);
+  const [likes, setLikes] = useState(450);
+  const [comments, setComments] = useState(30);
+
+  const v = Number(views) || 0;
+  const er = v > 0 ? (((Number(likes) || 0) + (Number(comments) || 0)) / v) * 100 : null;
+
+  const field = (label, value, setValue) => (
+    <div style={{ flex: '1 1 120px', minWidth: 0 }}>
+      <label className="input-label" style={{ fontSize: 'var(--fs-xs)' }}>{label}</label>
+      <input
+        type="number"
+        min="0"
+        className="input-field mono"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        style={{ width: '100%' }}
+      />
+    </div>
+  );
+
+  return (
+    <div style={{ padding: 'var(--s4) var(--s5)', background: 'var(--surface-2)', borderRadius: 'var(--r-sm)', marginTop: 'var(--s5)' }}>
+      <div className="mono" style={{ fontSize: 10, letterSpacing: '0.14em', color: 'var(--text-3)', textTransform: 'uppercase', marginBottom: 'var(--s3)' }}>
+        Try it yourself
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--s3)', alignItems: 'flex-end' }}>
+        {field('Views', views, setViews)}
+        {field('Likes', likes, setLikes)}
+        {field('Comments', comments, setComments)}
+        <div style={{ flex: '1 1 140px', textAlign: 'right' }}>
+          <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>Engagement rate</div>
+          <div className="mono" style={{ fontSize: 'var(--fs-lg)', fontWeight: 700, color: 'var(--accent)' }}>
+            {er == null ? '-' : `${er.toFixed(2)}%`}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -122,30 +196,35 @@ export function HowItsCalculated() {
       </p>
 
       <Section
+        index={0}
         eyebrow="ONE ROW PER LINK"
         title="Reel reports"
         blurb="You give us Reel links. Each one comes back as its own row, with nothing added and nothing averaged."
       >
         <FormulaCallout formula={REEL_METHODOLOGY.erFormula.body} />
+        <TryItYourself />
         <DefinitionRows items={reelRows} />
       </Section>
 
       <Section
+        index={1}
         eyebrow="ONE ROW PER CREATOR"
         title="Profile reports"
         blurb="You give us profile links. Each creator comes back as a single row averaged across their recent Reels, with the freak results handled for you."
       >
-        <FormulaCallout formula={PROFILE_METHODOLOGY.erFormula.body} />
+        <FormulaCallout formula={PROFILE_METHODOLOGY.erFormula.body} note={PROFILE_METHODOLOGY.erNote} />
         <DefinitionRows items={profileRows} />
       </Section>
 
-      <Section eyebrow="WORKED EXAMPLE" title={example.heading} blurb={example.intro}>
+      <Section index={2} eyebrow="WORKED EXAMPLE" title={example.heading} blurb={example.intro}>
         <div className="data-table-container">
           <table className="data-table">
             <thead>
               <tr>
                 <th>Post</th>
                 <th className="numeric">Views</th>
+                <th className="numeric">Likes</th>
+                <th className="numeric">Comments</th>
                 <th>In the average?</th>
               </tr>
             </thead>
@@ -154,6 +233,8 @@ export function HowItsCalculated() {
                 <tr key={i}>
                   <td>{p.label}</td>
                   <td className="numeric mono">{formatViews(p.views)}</td>
+                  <td className="numeric mono">{formatViews(p.likes)}</td>
+                  <td className="numeric mono">{formatViews(p.comments)}</td>
                   <td>
                     {p.reason ? (
                       <span className="chip warn">{p.reason}</span>
@@ -169,6 +250,15 @@ export function HowItsCalculated() {
         <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)', marginTop: 'var(--s4)', marginBottom: 0, lineHeight: 1.65, maxWidth: '68ch' }}>
           {example.outcome}
         </p>
+        {/* The ER walkthrough, kept as its own paragraph -- see the module
+            comment on why this is separate from the views-only outcome
+            above. This is the part that makes "check the maths yourself"
+            actually true again for Profile reports. */}
+        {example.erOutcome && (
+          <p style={{ color: 'var(--text)', fontSize: 'var(--fs-sm)', marginTop: 'var(--s3)', marginBottom: 0, lineHeight: 1.65, maxWidth: '68ch', fontWeight: 600 }}>
+            {example.erOutcome}
+          </p>
+        )}
       </Section>
     </div>
   );

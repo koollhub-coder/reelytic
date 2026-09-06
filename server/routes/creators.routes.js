@@ -4,7 +4,7 @@ const { ObjectId } = require('mongodb');
 const { requireLogin } = require('../middleware/auth');
 const { hasFeature } = require('../services/features.service');
 const { getDb, queryId } = require('../db');
-const { searchAnalyzedCreators, exportAnalyzedCreators } = require('../services/creatorDb.service');
+const { searchAnalyzedCreators, exportAnalyzedCreators, getCreatorSummary, getCreatorReports } = require('../services/creatorDb.service');
 const { generateCreatorsCsv } = require('../services/export.service');
 
 /*
@@ -93,6 +93,36 @@ router.get('/export.csv', requireLogin, requireCreatorDbAccess, async (req, res,
     // than silently handing over a partial file with no sign it's short.
     if (truncated) res.setHeader('X-Reelytic-Export-Truncated', '1');
     res.send(csv);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// The header line above the list ("1,248 creators · 184 analyzed this
+// month · 73 with 5%+ ER") -- a stable orientation cue, deliberately
+// unaffected by search/follower/campaign filters (see getCreatorSummary).
+router.get('/summary', requireLogin, requireCreatorDbAccess, async (req, res, next) => {
+  try {
+    const wantsAll = req.isAdmin && req.query.scope !== 'mine';
+    const summary = await getCreatorSummary({ ownerUsername: req.currentUser.username, isAdmin: wantsAll });
+    res.json(summary);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// The reports one creator has appeared in -- fetched only when a card is
+// expanded (see getCreatorReports for why this is its own on-demand route
+// rather than joined into the list above).
+router.get('/:id/reports', requireLogin, requireCreatorDbAccess, async (req, res, next) => {
+  try {
+    const result = await getCreatorReports({
+      ownerUsername: req.currentUser.username,
+      isAdmin: req.isAdmin,
+      creatorId: req.params.id,
+    });
+    if (!result) return res.status(404).json({ error: 'Creator not found' });
+    res.json(result);
   } catch (err) {
     next(err);
   }

@@ -346,4 +346,104 @@ async function exportAnalyzedCreators({ ownerUsername, isAdmin, search, sort, mi
   return { rows: truncated ? rows.slice(0, EXPORT_ROW_CAP) : rows, truncated };
 }
 
-module.exports = { recordAnalyzedCreator, searchAnalyzedCreators, exportAnalyzedCreators };
+// The Creators page's own header line ("1,248 creators · 184 analyzed this
+// month · 73 with 5%+ ER") -- three plain counts, not a filtered "matches
+// your current search" number, so it stays a stable orientation cue while
+// someone is actively narrowing the list below it. Scoped by admin/mine
+// the same way the list itself is, but deliberately ignores every other
+// filter (search, follower tier, campaign) -- this is "what's in the
+// database," not "what's on screen right now."
+//
+// Each count is its own countDocuments rather than one aggregation
+// pipeline: at the scale this collection is built for, three simple
+// (mostly indexed) counts running in parallel is cheaper and easier to
+// reason about than a $facet, and this runs once per page load, not once
+// per row.
+async function getCreatorSummary({ ownerUsername, isAdmin }) {
+  const db = getDb();
+  const base = isAdmin ? {} : { ownerUsername };
+  const startOfMonth = new Date();
+  startOfMonth.setUTCDate(1);
+  startOfMonth.setUTCHours(0, 0, 0, 0);
+
+  const [total, analyzedThisMonth, highPerformers] = await Promise.all([
+    db.collection('analyzedCreators').countDocuments(base),
+    db.collection('analyzedCreators').countDocuments({ ...base, lastAnalyzedAt: { $gte: startOfMonth } }),
+    // Same 5% threshold as the "5%+ ER" filter chip -- this line is meant
+    // to read as a preview of that filter, not a different number.
+    db.collection('analyzedCreators').countDocuments({ ...base, bestAvgEr: { $gte: 5 } }),
+  ]);
+
+  return { total, analyzedThisMonth, highPerformers };
+}
+
+/*
+  The reports a single creator has actually appeared in -- what makes an
+  expanded creator card an "entity view" instead of just a wider row. This
+  is deliberately its OWN on-demand call (creators.routes.js GET
+  /:id/reports), fetched only when a card is expanded, not folded into
+  searchAnalyzedCreators above: doing this join for every row on the list
+  (up to WARM_CAP rows client-side, each with up to 20 jobIds) would mean
+  thousands of job lookups on a page load nobody asked to see that detail
+  for yet. One creator, expanded on click, is at most 20 lookups.
+
+  Ownership is checked against the creator DOCUMENT's own ownerUsername,
+  not by parsing the `ownerUsername::username` id string apart -- the doc
+  is the source of truth, and this fails closed (returns null, which the
+  route turns into a 404) exactly like an unowned resource would look, so
+  a non-admin can't use this to fingerprint whether some id belongs to
+  another account.
+*/
+async function getCreatorReports({ ownerUsername, isAdmin, creatorId }) {
+  const db = getDb();
+  const creator = await db.collection('analyzedCreators').findOne(
+    { _id: creatorId },
+    { projection: { ownerUsername: 1, jobIds: 1 } }
+  );
+  if (!creator) return null;
+  if (!isAdmin && creator.ownerUsername !== ownerUsername) return null;
+
+  // jobIds is oldest-first (each new appearance is $concat'd onto the end,
+  // then the last 20 kept) -- reversed here so the newest appearance is
+  // what a reader sees first, matching every other "recent" list in this
+  // feature.
+  const orderedJobIds = (creator.jobIds || []).slice().reverse();
+  if (!orderedJobIds.length) return { reports: [] };
+
+  const jobDocs = await db.collection('jobs')
+    .find(
+      { _id: { $in: orderedJobIds.map((id) => queryId(id)) } },
+      { projection: { fileName: 1, type: 1, createdAt: 1, campaignId: 1, status: 1 } }
+    )
+    .toArray();
+  const jobById = new Map(jobDocs.map((j) => [String(j._id), j]));
+
+  const campaignIds = new Set(jobDocs.map((j) => j.campaignId).filter(Boolean));
+  let campaignNameById = new Map();
+  if (campaignIds.size) {
+    const campaignDocs = await db.collection('campaigns')
+      .find({ _id: { $in: Array.from(campaignIds).map((id) => queryId(id)) } }, { projection: { name: 1 } })
+      .toArray();
+    campaignNameById = new Map(campaignDocs.map((c) => [String(c._id), c.name]));
+  }
+
+  const reports = orderedJobIds
+    .map((id) => jobById.get(String(id)))
+    // A job in jobIds can be missing here if it was deleted independently
+    // of the creator row (never happens today, jobs are never deleted --
+    // but this stays correct if that ever changes) -- silently skipped
+    // rather than shown as a broken row.
+    .filter(Boolean)
+    .map((j) => ({
+      jobId: String(j._id),
+      fileName: j.fileName || null,
+      type: j.type,
+      status: j.status,
+      createdAt: j.createdAt,
+      campaign: j.campaignId ? { id: String(j.campaignId), name: campaignNameById.get(String(j.campaignId)) || null } : null,
+    }));
+
+  return { reports };
+}
+
+module.exports = { recordAnalyzedCreator, searchAnalyzedCreators, exportAnalyzedCreators, getCreatorSummary, getCreatorReports };

@@ -78,6 +78,11 @@ export function ProfileMethodology() {
           <div key={s.heading} style={cardStyle}>
             <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 'var(--fs-lg)', marginBottom: 'var(--s2)' }}>{s.heading}</div>
             <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-base)', margin: 0, lineHeight: 1.6 }}>{s.body}</p>
+            {s === PROFILE_METHODOLOGY.erFormula && (
+              <p style={{ color: 'var(--text-3)', fontSize: 'var(--fs-sm)', margin: '10px 0 0', lineHeight: 1.6 }}>
+                {PROFILE_METHODOLOGY.erNote}
+              </p>
+            )}
           </div>
         ))}
       </div>
