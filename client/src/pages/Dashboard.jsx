@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { BrandLoader } from '../components/BrandLoader';
+import { Select } from '../components/Select';
 import { Tooltip, TooltipRows } from '../components/Tooltip';
 import { formatDate, formatDayKey } from '../utils/date';
 import {
@@ -18,6 +19,15 @@ import {
 // API (the same one Pricing.jsx renders), so if pricing ever changes this
 // stays correct with zero code changes here.
 const FREE_TIER_CREDITS = 10;
+
+// Matches server/routes/me.routes.js's ALLOWED_RANGE_DAYS exactly -- an
+// option here that the server would reject is worse than not offering it.
+const RANGE_OPTIONS = [
+  { value: '7', label: 'Last 7 days' },
+  { value: '14', label: 'Last 14 days' },
+  { value: '30', label: 'Last 30 days' },
+  { value: '90', label: 'Last 90 days' },
+];
 
 // Rounds a chart's real max value up to a clean axis ceiling (1/2/5 x a
 // power of ten) -- "the busiest day was 37" should label its axis 0/20/40,
@@ -66,7 +76,7 @@ const LOWER_CARD_H = 400;
   the previous one), or null when there's no previous-period data to compare
   against (division by zero has no percentage) -- never a placeholder value.
 */
-function MetricCard({ icon, tone, label, value, trend, tooltip }) {
+function MetricCard({ icon, tone, label, value, trend, tooltip, periodDays }) {
   const toneColor = tone === 'ok' ? 'var(--ok)' : tone === 'warn' ? 'var(--warn)' : tone === 'info' ? 'var(--info)' : 'var(--accent)';
   const toneSoft = tone === 'ok' ? 'var(--ok-soft)' : tone === 'warn' ? 'var(--warn-soft)' : tone === 'info' ? 'var(--info-soft)' : 'var(--accent-soft)';
   return (
@@ -84,9 +94,9 @@ function MetricCard({ icon, tone, label, value, trend, tooltip }) {
       <div className="rl-metric-card-value" style={{ fontFamily: 'var(--font-data)', fontSize: '32px', fontWeight: 700, marginTop: '2px', lineHeight: 1.1 }}>{value}</div>
       <div style={{ marginTop: 'auto', paddingTop: '8px' }}>
         {trend !== null && trend !== undefined && (
-          <Tooltip content="Compared with the previous 14-day period">
+          <Tooltip content={`Compared with the previous ${periodDays}-day period`}>
             <div className="rl-metric-card-trend" style={{ fontSize: '12px', fontWeight: 600, color: trend >= 0 ? 'var(--ok)' : 'var(--err)', width: 'fit-content', cursor: 'help' }}>
-              {trend >= 0 ? '↑' : '↓'} {Math.abs(trend)}% <span className="rl-hide-mobile" style={{ color: 'var(--text-3)', fontWeight: 400 }}>vs previous 14 days</span>
+              {trend >= 0 ? '↑' : '↓'} {Math.abs(trend)}% <span className="rl-hide-mobile" style={{ color: 'var(--text-3)', fontWeight: 400 }}>vs previous {periodDays} days</span>
             </div>
           </Tooltip>
         )}
@@ -216,12 +226,16 @@ export function Dashboard() {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [planCreditsTotal, setPlanCreditsTotal] = useState(null);
+  // 14 is still what a visitor lands on -- only the ceiling on how far back
+  // they can pull it changed. See RANGE_OPTIONS below for the other choices
+  // and server/routes/me.routes.js's ALLOWED_RANGE_DAYS for why these four.
+  const [days, setDays] = useState(14);
 
   useEffect(() => {
-    apiFetch('/me/stats')
+    apiFetch(`/me/stats?days=${days}`)
       .then((res) => { setData(res); setError(''); })
       .catch((err) => setError(err.message));
-  }, []);
+  }, [days]);
 
   // Public endpoint, same one Pricing.jsx reads -- no admin route, no
   // separate source of truth to drift out of sync with what a client
@@ -252,8 +266,8 @@ export function Dashboard() {
     );
   }
 
-  const daily = data.activity14Days || [];
-  // Display only, reusing the same 14 dates the chart already has -- no new
+  const daily = data.activityByDay || [];
+  // Display only, reusing the same dates the chart already has -- no new
   // fetch, no new calculation of what the window actually is.
   const dateRangeLabel = daily.length > 0
     ? (() => {
@@ -275,7 +289,16 @@ export function Dashboard() {
   const hasActivity = periodTotal > 0;
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-  const hasReports = (data.totalCount || 0) > 0;
+  // Whether this account has EVER submitted anything, not whether it's
+  // done anything in the last 14 days -- those are different questions,
+  // and answering "No reports yet, run your first report" with the
+  // windowed count was telling an account with hundreds of historical
+  // reports that it had none, just because its most recent activity
+  // happened to fall outside the trailing 14-day window. recentJobs is
+  // fetched unscoped by date (see server/routes/me.routes.js), so any
+  // account with real history has at least one entry here regardless of
+  // when it last ran something.
+  const hasReports = !!(data.recentJobs && data.recentJobs.length > 0);
   const trends = data.trends || {};
 
   // Report-mix insight: which type this workspace mostly runs. Only a
@@ -290,11 +313,12 @@ export function Dashboard() {
 
   return (
     <div>
-      {/* Header: greeting + subtitle left, fixed-window date badge and the
-          two report actions right. The date badge is a plain label, not a
-          working dropdown -- /me/stats has no query-param range to select
-          from, so a clickable selector here would promise a filter that
-          does not exist. All three controls share the same 48px height. */}
+      {/* Header: greeting + subtitle left, a real range picker and the two
+          report actions right. The picker drives /me/stats?days= (see
+          RANGE_OPTIONS above and the server's ALLOWED_RANGE_DAYS) -- 14 is
+          still what a visitor lands on, but it's an actual filter now, not
+          a label promising one. All three controls share the same 48px
+          height. */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--s4)', marginBottom: 'var(--s5)' }}>
         <div>
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 600 }}>
@@ -303,9 +327,18 @@ export function Dashboard() {
           <p style={{ color: 'var(--text-2)', fontSize: '14px' }}>Here's what's happening in your Reelytic workspace.</p>
         </div>
         <div className="rl-dashboard-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-          <span className="chip" style={{ height: '48px', padding: '0 16px', gap: '8px', fontSize: '13px' }}>
-            <CalendarIcon size={14} />Last 14 days{dateRangeLabel ? ` (${dateRangeLabel})` : ''}
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <CalendarIcon size={14} style={{ color: 'var(--text-3)', flexShrink: 0 }} />
+            <Select
+              value={String(days)}
+              onChange={(v) => setDays(Number(v))}
+              options={RANGE_OPTIONS}
+              style={{ height: '48px', minWidth: '150px', fontSize: '13px' }}
+            />
+            {dateRangeLabel && (
+              <span className="rl-hide-mobile" style={{ fontSize: '12px', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>({dateRangeLabel})</span>
+            )}
+          </div>
           <button type="button" className="btn btn-primary" onClick={() => navigate('/reels')} style={{ gap: '8px', height: '48px', padding: '0 20px' }}>
             <PlusIcon size={16} />New Reel Report
           </button>
@@ -327,7 +360,7 @@ export function Dashboard() {
         <div className="rl-mobile-only card" style={{ padding: 'var(--s4)', marginBottom: '16px', flexDirection: 'column' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
             <span style={{ fontSize: '13px', fontWeight: 600, color: trends.totalCount >= 0 ? 'var(--ok)' : 'var(--err)' }}>
-              {trends.totalCount >= 0 ? '↑' : '↓'} {Math.abs(trends.totalCount)}% <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>vs previous 14 days</span>
+              {trends.totalCount >= 0 ? '↑' : '↓'} {Math.abs(trends.totalCount)}% <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>vs previous {days} days</span>
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginTop: '4px' }}>
@@ -341,22 +374,22 @@ export function Dashboard() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '16px' }} className="rl-dashboard-metrics">
         <MetricCard
           icon={<ReelIcon size={20} />} tone="accent" label="Reel Reports"
-          value={data.reelCount.toLocaleString()} trend={trends.reelCount}
-          tooltip="Reel links processed in the last 14 days"
+          value={data.reelCount.toLocaleString()} trend={trends.reelCount} periodDays={days}
+          tooltip={`Reel links processed in the last ${days} days`}
         />
         <MetricCard
           icon={<ProfileIcon size={20} />} tone="ok" label="Profile Reports"
-          value={data.profileCount.toLocaleString()} trend={trends.profileCount}
-          tooltip="Profile links processed in the last 14 days"
+          value={data.profileCount.toLocaleString()} trend={trends.profileCount} periodDays={days}
+          tooltip={`Profile links processed in the last ${days} days`}
         />
         <MetricCard
           icon={<LayersIcon size={20} />} tone="info" label="Total Processed"
-          value={data.totalCount.toLocaleString()} trend={trends.totalCount}
+          value={data.totalCount.toLocaleString()} trend={trends.totalCount} periodDays={days}
           tooltip="Total reel and profile links processed during the selected period"
         />
         <MetricCard
           icon={<TrendingUpIcon size={20} />} tone="warn" label="Success Rate"
-          value={`${data.successRate}%`} trend={trends.successRate}
+          value={`${data.successRate}%`} trend={trends.successRate} periodDays={days}
           tooltip="Percentage of submitted links successfully processed"
         />
       </div>
@@ -366,8 +399,18 @@ export function Dashboard() {
           <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 700, marginBottom: 'var(--s2)' }}>No reports yet</div>
           <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)', marginBottom: 'var(--s4)' }}>Run your first Reel or Profile report to start seeing workspace activity.</p>
           <div style={{ display: 'flex', gap: 'var(--s3)', justifyContent: 'center', flexWrap: 'wrap' }}>
-            <button type="button" className="btn btn-primary" onClick={() => navigate('/reels')}>+ New Reel Report</button>
-            <button type="button" className="btn btn-secondary" onClick={() => navigate('/profiles')}>+ New Profile Report</button>
+            {/* A drawn PlusIcon, not a literal "+" character -- same reason
+                the header's two report buttons above already use it: a
+                plain glyph renders at whatever weight the visitor's font
+                happens to pick, which is exactly why it read as a
+                different, less-finished button than its header twin doing
+                the identical action. */}
+            <button type="button" className="btn btn-primary" onClick={() => navigate('/reels')} style={{ gap: 'var(--s2)' }}>
+              <PlusIcon size={15} />New Reel Report
+            </button>
+            <button type="button" className="btn btn-secondary" onClick={() => navigate('/profiles')} style={{ gap: 'var(--s2)' }}>
+              <PlusIcon size={15} />New Profile Report
+            </button>
           </div>
         </div>
       ) : (
@@ -379,7 +422,7 @@ export function Dashboard() {
           <div style={{ display: 'grid', gridTemplateColumns: '7fr 5fr', gap: '16px', marginBottom: '16px' }} className="rl-dashboard-analytics">
             <div className="card" style={{ height: `${ANALYTICS_CARD_H}px`, display: 'flex', flexDirection: 'column' }}>
               <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 600, marginBottom: 'var(--s3)' }}>
-                Activity (last 14 days)
+                Activity (last {days} days)
               </h3>
               {!hasActivity ? (
                 <div style={{ color: 'var(--text-3)', textAlign: 'center', padding: 'var(--s6)' }}>No activity in this window yet.</div>
@@ -455,14 +498,21 @@ export function Dashboard() {
                       {/* Own class, not the shared .rl-chart-track -- that class's
                           mobile rule (mobile.css) forces a fixed per-column width
                           and horizontal scroll, meant for a chart with too many
-                          bars to compress. This one only ever has 14 slim bars,
-                          each already flex:1/minWidth:0 below, so it can shrink
-                          to fit any card width cleanly with nothing clipped. */}
-                      <div className="rl-dashboard-chart-track" style={{ width: '100%', height: '100%', display: 'flex', gap: '8px', paddingBottom: '24px', borderBottom: '1px solid var(--border)' }}>
-                        {daily.map((d, i) => {
+                          bars to compress. This one's bars are flex:1/minWidth:0,
+                          so it shrinks to fit any card width cleanly with nothing
+                          clipped, at 7 bars or the picker's widest option (90). */}
+                      <div className="rl-dashboard-chart-track" style={{ width: '100%', height: '100%', display: 'flex', gap: daily.length > 30 ? '2px' : '8px', paddingBottom: '24px', borderBottom: '1px solid var(--border)' }}>
+                        {/* At 90 daily bars a rotated label under every single one
+                            would overlap its neighbors into an unreadable smear --
+                            thinned to roughly 14 visible labels regardless of how
+                            many bars are actually on screen, same idea a real chart
+                            library's own axis-label collision avoidance uses. The
+                            bars themselves, and their tooltips, are never thinned. */}
+                        {(() => { const labelEvery = Math.max(1, Math.ceil(daily.length / 14)); return daily.map((d, i) => {
                           const reelPct = (d.reels / axisMax) * 100;
                           const profilePct = (d.profiles / axisMax) * 100;
                           const dateLabel = formatDayKey(d.date);
+                          const showLabel = i % labelEvery === 0 || i === daily.length - 1;
                           const bar = (
                             <div className="rl-dashboard-chart-bar" style={{ width: '100%', maxWidth: '28px', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
                               {d.profiles > 0 && <div style={{ width: '100%', height: `${Math.max(profilePct, 3)}%`, backgroundColor: 'var(--ok)', borderRadius: '3px 3px 0 0', transition: 'height 300ms ease' }} />}
@@ -483,10 +533,12 @@ export function Dashboard() {
                                   {bar}
                                 </Tooltip>
                               ) : bar}
-                              <div className="rl-dashboard-chart-datelabel mono" style={{ fontSize: '9px', color: 'var(--text-3)', transform: 'rotate(-45deg)', whiteSpace: 'nowrap', marginTop: '10px', flexShrink: 0 }}>{d.date.slice(5)}</div>
+                              {showLabel && (
+                                <div className="rl-dashboard-chart-datelabel mono" style={{ fontSize: '9px', color: 'var(--text-3)', transform: 'rotate(-45deg)', whiteSpace: 'nowrap', marginTop: '10px', flexShrink: 0 }}>{d.date.slice(5)}</div>
+                              )}
                             </div>
                           );
-                        })}
+                        }); })()}
                       </div>
                     </div>
                   </div>
@@ -643,7 +695,7 @@ export function Dashboard() {
                     icon={<ClockIcon size={16} />}
                     tone="info"
                     title="Processing activity"
-                    detail={`${activeDays} of the last 14 days had activity, ${periodTotal.toLocaleString()} processed in total.`}
+                    detail={`${activeDays} of the last ${days} days had activity, ${periodTotal.toLocaleString()} processed in total.`}
                   />
                 )}
                 {reportMix && (

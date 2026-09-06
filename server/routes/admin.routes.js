@@ -40,9 +40,16 @@ router.get('/credits-total', requireAdmin, async (req, res, next) => {
   }
 });
 
+// Same whitelist/default as me.routes.js's personal dashboard -- the two
+// range pickers offer identical options on purpose.
+const OVERVIEW_RANGE_DAYS = [7, 14, 30, 90];
+const OVERVIEW_DEFAULT_DAYS = 14;
+
 router.get('/overview', requireAdmin, async (req, res, next) => {
   try {
     const db = getDb();
+    const days = OVERVIEW_RANGE_DAYS.includes(Number(req.query.days)) ? Number(req.query.days) : OVERVIEW_DEFAULT_DAYS;
+
     const reelJobs = await db.collection('jobs').countDocuments({ type: 'reel' });
     const profileJobs = await db.collection('jobs').countDocuments({ type: 'profile' });
     const linksProcessed = await db.collection('submittedLinks').countDocuments({});
@@ -53,8 +60,8 @@ router.get('/overview', requireAdmin, async (req, res, next) => {
     const recentLogins = await db.collection('loginHistory').find({}).sort({ at: -1 }).limit(10).toArray();
 
     const now = new Date();
-    const days14 = [];
-    for (let i = 13; i >= 0; i--) {
+    const activityByDay = [];
+    for (let i = days - 1; i >= 0; i--) {
       const d = new Date(now);
       d.setDate(d.getDate() - i);
       const dateStr = d.toISOString().split('T')[0];
@@ -64,14 +71,15 @@ router.get('/overview', requireAdmin, async (req, res, next) => {
         db.collection('submittedLinks').countDocuments({ type: 'reel', at: { $gte: dayStart, $lte: dayEnd } }),
         db.collection('submittedLinks').countDocuments({ type: 'profile', at: { $gte: dayStart, $lte: dayEnd } }),
       ]);
-      days14.push({ date: dateStr, reels, profiles, count: reels + profiles });
+      activityByDay.push({ date: dateStr, reels, profiles, count: reels + profiles });
     }
 
     res.json({
       stats: { reelJobs, profileJobs, linksProcessed, successRate },
       runningJobs: runningJobs.map(j => ({ id: j._id, owner: j.ownerUsername, type: j.type, counts: j.counts, cursor: j.cursor })),
       recentLogins,
-      activity14Days: days14
+      days,
+      activityByDay,
     });
   } catch (err) {
     next(err);

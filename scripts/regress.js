@@ -81,6 +81,11 @@ const suites = [
     args: ['--test', 'tests/auth-flows.test.js'],
   },
   {
+    name: 'API: dashboard stats range handling',
+    cmd: process.execPath,
+    args: ['--test', 'tests/dashboard-stats.test.js'],
+  },
+  {
     name: 'UI: browser smoke + console gate',
     // Invoked through its own CLI entry rather than `npx`, which on Windows
     // needs shell:true and then warns about unescaped arguments on every run.

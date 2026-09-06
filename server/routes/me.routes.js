@@ -5,10 +5,18 @@ const { getDb } = require('../db');
 
 /*
   Period-scoped counts, not all-time totals -- the Dashboard header carries a
-  "Last 14 days" badge next to these numbers, so an all-time total sitting
-  under that label was already a quiet mismatch before the comparison
-  feature below existed. Both windows use the same `at` timestamp field
-  admin.routes.js's own /overview route already scopes activity by.
+  range badge next to these numbers (?days=, see ALLOWED_RANGE_DAYS below),
+  so an all-time total sitting under that label was already a quiet mismatch
+  before the comparison feature below existed. Both windows use the same
+  `at` timestamp field admin.routes.js's own /overview route already scopes
+  activity by.
+
+  This being period-scoped is also exactly why it must never be what decides
+  whether an account has EVER used the product (see hasReports in
+  Dashboard.jsx, which used to read this and told an account with hundreds
+  of historical reports "No reports yet" the moment its most recent activity
+  fell outside the selected window) -- recentJobs below is deliberately
+  fetched unscoped by date for that reason.
 */
 async function windowCounts(db, username, start, end) {
     const match = { username, at: { $gte: start, $lt: end } };
@@ -32,21 +40,29 @@ function pctChange(current, previous) {
     return Math.round(((current - previous) / previous) * 1000) / 10;
 }
 
+// Whitelisted, not an arbitrary integer straight from the query string --
+// an unbounded ?days= would let a request force this endpoint into
+// scanning/generating an unreasonable date range. 14 stays the default a
+// visitor lands on; the other three are what the range picker below offers.
+const ALLOWED_RANGE_DAYS = [7, 14, 30, 90];
+const DEFAULT_RANGE_DAYS = 14;
+
 router.get('/stats', requireLogin, async (req, res, next) => {
     try {
         const db = getDb();
         const username = req.currentUser.username;
+        const days = ALLOWED_RANGE_DAYS.includes(Number(req.query.days)) ? Number(req.query.days) : DEFAULT_RANGE_DAYS;
 
         const now = new Date();
         const periodStart = new Date(now);
-        periodStart.setDate(periodStart.getDate() - 14);
+        periodStart.setDate(periodStart.getDate() - days);
         const previousPeriodStart = new Date(now);
-        previousPeriodStart.setDate(previousPeriodStart.getDate() - 28);
+        previousPeriodStart.setDate(previousPeriodStart.getDate() - (days * 2));
 
         // Every date this endpoint's chart needs, computed up front so the
-        // 14-day usageStats lookup below can be ONE query instead of 14.
+        // usageStats lookup below can be ONE query instead of one per day.
         const dateStrs = [];
-        for (let i = 13; i >= 0; i--) {
+        for (let i = days - 1; i >= 0; i--) {
             const d = new Date(now);
             d.setDate(d.getDate() - i);
             dateStrs.push(d.toISOString().split('T')[0]);
@@ -91,7 +107,7 @@ router.get('/stats', requireLogin, async (req, res, next) => {
         };
 
         const statsByDate = new Map(statsRows.map((s) => [s.date, s]));
-        const days14 = dateStrs.map((dateStr) => {
+        const activityByDay = dateStrs.map((dateStr) => {
             const stat = statsByDate.get(dateStr);
             return {
                 date: dateStr,
@@ -104,7 +120,8 @@ router.get('/stats', requireLogin, async (req, res, next) => {
         res.json({
             ...current,
             trends,
-            activity14Days: days14,
+            days,
+            activityByDay,
             recentJobs: recentJobs.map(j => ({
                 id: j._id,
                 type: j.type,
