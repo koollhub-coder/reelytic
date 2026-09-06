@@ -91,7 +91,13 @@ function MetricCard({ icon, tone, label, value, trend, tooltip, periodDays }) {
 // everywhere on this page.
 function ReportSplitDonut({ reelCount, profileCount }) {
   const total = reelCount + profileCount;
-  if (total === 0) return null;
+  if (total === 0) {
+    return (
+      <div style={{ color: 'var(--text-3)', textAlign: 'center', padding: 'var(--s6)', width: '100%' }}>
+        No reports in this window yet -- run a Reel or Profile report to see the split here.
+      </div>
+    );
+  }
   const r = 60;
   const circumference = 2 * Math.PI * r;
   const reelFrac = reelCount / total;
@@ -205,6 +211,12 @@ export function Dashboard() {
   const { user } = useAuth();
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
+  // Only true for a range-switch refetch, not the first load -- the first
+  // load has its own full-page BrandLoader below since there's nothing to
+  // show yet. Without this, switching "14 days" to "30 days" left the old
+  // numbers on screen with no indication anything was happening until the
+  // new response landed.
+  const [refreshing, setRefreshing] = useState(false);
   const planCreditsTotal = usePlanCreditsTotal(user);
   // 14 is still what a visitor lands on -- only the ceiling on how far back
   // they can pull it changed. See RANGE_OPTIONS below for the other choices
@@ -212,9 +224,12 @@ export function Dashboard() {
   const [days, setDays] = useState(14);
 
   useEffect(() => {
+    if (data !== null) setRefreshing(true);
     apiFetch(`/me/stats?days=${days}`)
       .then((res) => { setData(res); setError(''); })
-      .catch((err) => setError(err.message));
+      .catch((err) => setError(err.message))
+      .finally(() => setRefreshing(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [days]);
 
   if (error) {
@@ -296,8 +311,10 @@ export function Dashboard() {
               value={String(days)}
               onChange={(v) => setDays(Number(v))}
               options={RANGE_OPTIONS}
+              disabled={refreshing}
               style={{ height: '48px', minWidth: '150px', fontSize: '13px' }}
             />
+            {refreshing && <span className="rl-inline-spinner" aria-label="Updating" />}
             {dateRangeLabel && (
               <span className="rl-hide-mobile" style={{ fontSize: '12px', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>({dateRangeLabel})</span>
             )}
@@ -568,12 +585,27 @@ export function Dashboard() {
             <div className="card" style={{ height: `${LOWER_CARD_H}px`, display: 'flex', flexDirection: 'column' }}>
               <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 600, marginBottom: 'var(--s4)' }}>Quick insights</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--s4)', flex: 1, justifyContent: 'space-between' }}>
-                <InsightRow
-                  icon={<TrendingUpIcon size={16} />}
-                  tone="ok"
-                  title={`Your success rate is ${data.successRate}%`}
-                  detail={`${data.successCount ?? data.totalCount}/${data.totalCount} links processed successfully.`}
-                />
+                {data.totalCount === 0 && !reportMix && (
+                  <InsightRow
+                    icon={<TrendingUpIcon size={16} />}
+                    tone="info"
+                    title="No insights yet"
+                    detail={`Run a Reel or Profile report and this panel fills in with your success rate, busiest day, and report mix.`}
+                  />
+                )}
+                {/* A "100% success rate, 0/0 processed" row is not an
+                    insight for a brand-new or empty-window account -- it's
+                    a division-by-zero default reading as a real stat. Only
+                    worth showing once something has actually been
+                    processed to have a rate over. */}
+                {data.totalCount > 0 && (
+                  <InsightRow
+                    icon={<TrendingUpIcon size={16} />}
+                    tone="ok"
+                    title={`Your success rate is ${data.successRate}%`}
+                    detail={`${data.successCount ?? data.totalCount}/${data.totalCount} links processed successfully.`}
+                  />
+                )}
                 {busiestDay && busiestDay.total > 0 && (
                   <InsightRow
                     icon={<CalendarIcon size={16} />}

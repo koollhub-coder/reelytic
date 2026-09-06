@@ -106,6 +106,24 @@
   .rl-loader-ring, .rl-loader-mark img { animation: none; }
 }
 
+/* HowItsCalculated's section entrance -- a fixed on-mount animation, not an
+   IntersectionObserver scroll reveal. That version had a real bug: a
+   backgrounded/not-yet-focused tab's observer callback can simply never
+   fire, which left whole sections stuck at opacity:0 with nothing visible.
+   animation-fill-mode:both means it always resolves to its end state
+   (opacity 1) once it plays, whether that's immediately or delayed by
+   throttling -- there's no callback to fail to fire. */
+@keyframes rl-howcalc-in {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.rl-howcalc-section {
+  animation: rl-howcalc-in 450ms ease both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rl-howcalc-section { animation: none; }
+}
+
 /* Inline text links (a clickable phrase sitting inside a sentence, e.g.
    "Not you? Switch account" or "How is this calculated?") -- color alone is
    the affordance, no permanent underline. A permanent underline on running
@@ -325,6 +343,18 @@
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.4);
   border-top-color: #fff;
+  animation: rlSpin 700ms linear infinite;
+}
+/* Same rlSpin keyframe, neutral border for use on a light/dark card
+   background instead of btn-spinner's white-on-color variant -- e.g. a
+   range-filter refetch, where the surrounding content is still visible. */
+.rl-inline-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--accent);
   animation: rlSpin 700ms linear infinite;
 }
 

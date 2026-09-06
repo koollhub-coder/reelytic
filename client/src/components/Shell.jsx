@@ -323,7 +323,9 @@ export function Shell() {
                       {group.heading}
                     </div>
                   )}
-                  {group.items.map(item => (
+                  {group.items.map(item => {
+                    const adminActive = isActive(item.path);
+                    return (
                     <Tooltip key={item.path} content={effectiveCollapsed ? item.label : null} position="right" style={{ display: 'flex', width: '100%' }}>
                     <button
                       onClick={() => { navigate(item.path); setMobileOpen(false); }}
@@ -335,16 +337,26 @@ export function Shell() {
                         width: '100%',
                         padding: effectiveCollapsed ? '10px' : '10px var(--s3)',
                         borderRadius: 'var(--r-sm)',
-                        backgroundColor: isActive(item.path) ? 'var(--accent-soft)' : 'transparent',
-                        color: isActive(item.path) ? 'var(--accent)' : 'var(--text)',
-                        fontWeight: isActive(item.path) ? 600 : 500,
+                        // Same muted-until-active treatment as the client nav
+                        // group above (var(--text-2) when inactive) -- this
+                        // used to be var(--text), the same full-contrast color
+                        // every item gets regardless of active state, which
+                        // made the whole admin section read as permanently
+                        // "highlighted" next to the client nav's clearly-dim
+                        // inactive rows.
+                        backgroundColor: adminActive ? 'var(--accent-soft)' : 'transparent',
+                        color: adminActive ? 'var(--accent)' : 'var(--text-2)',
+                        fontWeight: adminActive ? 600 : 500,
                         textAlign: 'left',
                         border: 'none',
-                        cursor: 'pointer'
+                        cursor: 'pointer',
+                        transition: 'background var(--t-fast)',
                       }}
+                      onMouseEnter={(e) => { if (!adminActive) e.currentTarget.style.backgroundColor = 'var(--surface-2)'; }}
+                      onMouseLeave={(e) => { if (!adminActive) e.currentTarget.style.backgroundColor = 'transparent'; }}
                     >
                       <span style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
-                        {item.icon && <item.icon size={16} style={{ flexShrink: 0 }} />}
+                        {item.icon && <item.icon size={16} style={{ flexShrink: 0, color: adminActive ? 'var(--accent)' : 'var(--text-3)' }} />}
                         {!effectiveCollapsed && <span>{item.label}</span>}
                       </span>
                       {/* Only rendered when something is actually wrong, so
@@ -367,7 +379,7 @@ export function Shell() {
                       )}
                     </button>
                     </Tooltip>
-                  ))}
+                  );})}
                 </React.Fragment>
               ))}
             </>

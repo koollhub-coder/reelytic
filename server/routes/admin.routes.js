@@ -49,6 +49,7 @@ router.get('/overview', requireAdmin, async (req, res, next) => {
   try {
     const db = getDb();
     const days = OVERVIEW_RANGE_DAYS.includes(Number(req.query.days)) ? Number(req.query.days) : OVERVIEW_DEFAULT_DAYS;
+    const now = new Date();
 
     const reelJobs = await db.collection('jobs').countDocuments({ type: 'reel' });
     const profileJobs = await db.collection('jobs').countDocuments({ type: 'profile' });
@@ -59,7 +60,17 @@ router.get('/overview', requireAdmin, async (req, res, next) => {
     const runningJobs = await db.collection('jobs').find({ status: 'running' }).toArray();
     const recentLogins = await db.collection('loginHistory').find({}).sort({ at: -1 }).limit(10).toArray();
 
-    const now = new Date();
+    // Two counts the old dashboard never surfaced despite already being one
+    // query away: how many real client accounts exist at all, and how many
+    // of them actually touched the product in the selected window -- the
+    // number that answers "is anyone using this" better than a raw job
+    // count does.
+    const periodStart = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+    const [totalClients, activeClientUsernames] = await Promise.all([
+      db.collection('users').countDocuments({ role: { $ne: 'admin' } }),
+      db.collection('submittedLinks').distinct('username', { at: { $gte: periodStart } }),
+    ]);
+
     const activityByDay = [];
     for (let i = days - 1; i >= 0; i--) {
       const d = new Date(now);
@@ -75,9 +86,12 @@ router.get('/overview', requireAdmin, async (req, res, next) => {
     }
 
     res.json({
-      stats: { reelJobs, profileJobs, linksProcessed, successRate },
+      stats: {
+        reelJobs, profileJobs, linksProcessed, successRate,
+        totalClients, activeClients: activeClientUsernames.length,
+      },
       runningJobs: runningJobs.map(j => ({ id: j._id, owner: j.ownerUsername, type: j.type, counts: j.counts, cursor: j.cursor })),
-      recentLogins,
+      recentLogins: recentLogins.map(l => ({ username: l.username, at: l.at, device: l.userAgent || null, success: l.success !== false })),
       days,
       activityByDay,
     });

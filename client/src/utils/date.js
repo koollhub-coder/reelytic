@@ -74,3 +74,16 @@ export function formatDayKey(key, fallback = '-') {
   if (!m) return formatDate(key, fallback);
   return formatDate(new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])), fallback);
 }
+
+// "8 Aug" -- no year, no dashes. For rotated chart axis ticks specifically:
+// formatDayKey's full "8-Aug-26" is what the tooltip shows (exact date
+// matters there), but at a 40deg rotation every dropped character shortens
+// how far the label descends below the axis, and the year is redundant
+// against 90 days of ticks that are all clearly the current year.
+export function formatDayKeyShort(key, fallback = '-') {
+  if (typeof key !== 'string') return fallback;
+  const m = key.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return fallback;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return `${d.getDate()} ${MONTHS[d.getMonth()]}`;
+}

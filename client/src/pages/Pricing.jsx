@@ -6,6 +6,7 @@ import { Logo } from '../components/Logo';
 import { AccountMenu } from '../components/AccountMenu';
 import { useAuth } from '../context/AuthContext';
 import { useDocumentMeta } from '../hooks/useDocumentMeta';
+import { useReveal } from '../hooks/useReveal';
 
 const ANNUAL_DISCOUNT = 0.9; // -10% for annual billing
 
@@ -29,22 +30,6 @@ function useCountUp(value) {
         return () => cancelAnimationFrame(raf);
     }, [value]);
     return display;
-}
-
-function useReveal() {
-    const ref = useRef(null);
-    const [visible, setVisible] = useState(false);
-    useEffect(() => {
-        const el = ref.current;
-        if (!el) return;
-        const obs = new IntersectionObserver(
-            ([entry]) => { if (entry.isIntersecting) { setVisible(true); obs.disconnect(); } },
-            { threshold: 0.15 }
-        );
-        obs.observe(el);
-        return () => obs.disconnect();
-    }, []);
-    return [ref, visible];
 }
 
 function PriceTag({ amount }) {

@@ -5,7 +5,7 @@ import React, { useState, useRef, useEffect } from 'react';
 // dropdown list is rendered by the OS and ignores our styles entirely --
 // that's the "childish" mismatched popup. This replaces it with a fully
 // custom, dark-mode-correct dropdown built from plain divs.
-export function Select({ value, onChange, options, placeholder = 'Select...', style, className }) {
+export function Select({ value, onChange, options, placeholder = 'Select...', style, className, disabled = false }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
 
@@ -29,9 +29,10 @@ export function Select({ value, onChange, options, placeholder = 'Select...', st
     <div ref={rootRef} className={className} style={{ position: 'relative', ...style }}>
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        disabled={disabled}
+        onClick={() => !disabled && setOpen((v) => !v)}
         className="input-field"
-        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', cursor: 'pointer' }}
+        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.6 : 1 }}
       >
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: selected ? 'var(--text)' : 'var(--text-3)' }}>
           {selected ? selected.label : placeholder}

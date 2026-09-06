@@ -35,7 +35,8 @@
 @media (max-width: 1024px) {
   .rl-dashboard-metrics { grid-template-columns: repeat(2, 1fr) !important; }
   .rl-dashboard-analytics,
-  .rl-dashboard-lower {
+  .rl-dashboard-lower,
+  .rl-admin-overview-lower {
     grid-template-columns: 1fr !important;
   }
 }

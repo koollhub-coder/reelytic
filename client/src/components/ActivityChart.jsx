@@ -1,6 +1,6 @@
 import React from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { formatDayKey } from '../utils/date';
+import { formatDayKey, formatDayKeyShort } from '../utils/date';
 
 /*
   Shared day-by-day activity chart -- Dashboard.jsx's personal view and
@@ -53,15 +53,15 @@ export function ActivityChart({ data, height = 220 }) {
         <CartesianGrid vertical={false} stroke="var(--border)" />
         <XAxis
           dataKey="date"
-          tickFormatter={formatDayKey}
+          tickFormatter={formatDayKeyShort}
           interval="preserveStartEnd"
-          angle={-40}
+          angle={-35}
           textAnchor="end"
-          height={44}
+          height={40}
           tick={{ fontSize: 10, fill: 'var(--text-3)' }}
           axisLine={{ stroke: 'var(--border)' }}
           tickLine={false}
-          minTickGap={data.length > 45 ? 12 : 24}
+          minTickGap={data.length > 45 ? 10 : 20}
         />
         <YAxis
           tick={{ fontSize: 10, fill: 'var(--text-3)' }}
