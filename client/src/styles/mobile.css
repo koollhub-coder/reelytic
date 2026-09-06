@@ -461,26 +461,39 @@
      (all four groups sitting on screen permanently was the actual clutter
      complaint, not just how they wrapped) -- and when it IS open, stacked
      into one clean full-width row per group rather than the desktop's
-     wrapped single row. */
-  .rl-history-filters { display: none !important; }
-  .rl-history-filters.rl-history-filters-open { display: flex !important; flex-direction: column; align-items: stretch; }
-  .rl-history-filter-group { justify-content: center; }
-  .rl-history-filter-select { width: 100% !important; }
+     wrapped single row. Shared by History and the Creator database
+     (components/Pagination.jsx's rl-pagination is the same idea for that
+     control) -- both pages hit the identical "too many filter groups for
+     one wrapped row on a phone" problem, so both get the same collapse
+     instead of two hand-built lookalikes. */
+  .rl-filters { display: none !important; }
+  .rl-filters.rl-filters-open { display: flex !important; flex-direction: column; align-items: stretch; }
+  .rl-filter-group { justify-content: center; }
+  .rl-filter-select { width: 100% !important; }
   .rl-history-filter-search { max-width: none !important; flex: none !important; width: 100%; }
   /* Each filter group is its own labeled full-width row inside the open
-     panel (Report type / Status / Date), instead of the desktop's single
-     wrapped row with no group labels -- same buttons/Select, just given
-     room and a heading so a phone screen can tell the groups apart. */
-  .rl-history-filter-row { width: 100%; display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
-  .rl-history-filter-label { font-size: 10px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.03em; }
+     panel (Report type / Status / Date, or Followers / Engagement / Sort
+     on Creators), instead of the desktop's single wrapped row with no
+     group labels -- same buttons/Select, just given room and a heading so
+     a phone screen can tell the groups apart. */
+  .rl-filter-row { width: 100%; display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
+  .rl-filter-label { font-size: 10px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.03em; }
+  /* Chip groups inside an open panel wrap to multiple rows at their
+     natural width just fine (flex-wrap, unchanged) -- only wide, single-
+     line controls need the width:100% treatment above. */
+  .rl-filter-row .chip { flex: 0 0 auto; }
 
   /* Always-visible search + Filters trigger row, sitting above the
      collapsible panel -- search never has to be opened via Filters to be
-     reachable. */
-  .rl-history-searchbar { display: flex !important; align-items: center; }
+     reachable. Also shared: Creators' top bar (search, admin scope toggle,
+     export) has the exact same "search must stay reachable without
+     opening Filters" requirement History's does. */
+  .rl-history-searchbar,
+  .rl-searchbar { display: flex !important; align-items: center; flex-wrap: wrap; }
 
   /* Page heading: desktop's fs-xl reads oversized on a phone. */
-  .rl-history-heading { font-size: 22px !important; }
+  .rl-history-heading,
+  .rl-page-heading { font-size: 22px !important; }
 
   /* Summary strip: 5 wide desktop tiles -> a compact 2-up grid, values
      and icons shrunk to match -- same counts, same data, just not one

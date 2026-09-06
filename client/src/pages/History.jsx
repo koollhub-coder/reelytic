@@ -1050,30 +1050,30 @@ export function History() {
               On mobile the search box hides here (it now lives in the
               always-visible bar above) and each group gets its own labeled
               row inside the collapsible panel. */}
-          <div className={`card rl-history-filters${mobileFiltersOpen ? ' rl-history-filters-open' : ''}`} style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--s3)', padding: 'var(--s3) var(--s4)', marginBottom: 'var(--s4)' }}>
-            <div className="rl-history-filter-row">
-              <span className="rl-history-filter-label rl-mobile-only">Report type</span>
-              <div className="rl-history-filter-group" style={{ display: 'flex', gap: '4px' }}>
+          <div className={`card rl-filters${mobileFiltersOpen ? ' rl-filters-open' : ''}`} style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--s3)', padding: 'var(--s3) var(--s4)', marginBottom: 'var(--s4)' }}>
+            <div className="rl-filter-row">
+              <span className="rl-filter-label rl-mobile-only">Report type</span>
+              <div className="rl-filter-group" style={{ display: 'flex', gap: '4px' }}>
                 <button onClick={() => setTypeFilter('all')} className={`chip ${typeFilter === 'all' ? 'accent' : ''}`} style={{ cursor: 'pointer', padding: '6px 12px' }}>All</button>
                 <button onClick={() => setTypeFilter('reel')} className={`chip ${typeFilter === 'reel' ? 'accent' : ''}`} style={{ cursor: 'pointer', padding: '6px 12px' }}>Reel</button>
                 <button onClick={() => setTypeFilter('profile')} className={`chip ${typeFilter === 'profile' ? 'ok' : ''}`} style={{ cursor: 'pointer', padding: '6px 12px' }}>Profile</button>
               </div>
             </div>
             <span className="rl-hide-mobile" style={{ width: '1px', alignSelf: 'stretch', backgroundColor: 'var(--border)' }} />
-            <div className="rl-history-filter-row">
-              <span className="rl-history-filter-label rl-mobile-only">Status</span>
-              <Select value={statusFilter} onChange={setStatusFilter} options={statusOptions} style={{ minWidth: '150px' }} className="rl-history-filter-select" />
+            <div className="rl-filter-row">
+              <span className="rl-filter-label rl-mobile-only">Status</span>
+              <Select value={statusFilter} onChange={setStatusFilter} options={statusOptions} style={{ minWidth: '150px' }} className="rl-filter-select" />
             </div>
-            <div className="rl-history-filter-row">
-              <span className="rl-history-filter-label rl-mobile-only">Date</span>
-              <div className="rl-history-filter-group" style={{ display: 'flex', gap: '4px' }}>
+            <div className="rl-filter-row">
+              <span className="rl-filter-label rl-mobile-only">Date</span>
+              <div className="rl-filter-group" style={{ display: 'flex', gap: '4px' }}>
                 <button onClick={() => setDateFilter('all')} className={`chip ${dateFilter === 'all' ? 'accent' : ''}`} style={{ cursor: 'pointer', padding: '6px 12px' }}>All time</button>
                 <button onClick={() => setDateFilter('30d')} className={`chip ${dateFilter === '30d' ? 'accent' : ''}`} style={{ cursor: 'pointer', padding: '6px 12px' }}>Last 30 days</button>
                 <button onClick={() => setDateFilter('7d')} className={`chip ${dateFilter === '7d' ? 'accent' : ''}`} style={{ cursor: 'pointer', padding: '6px 12px' }}>Last 7 days</button>
               </div>
             </div>
             <span className="rl-hide-mobile" style={{ width: '1px', alignSelf: 'stretch', backgroundColor: 'var(--border)' }} />
-            <div className="rl-history-filter-row rl-hide-mobile">
+            <div className="rl-filter-row rl-hide-mobile">
               <span className="rl-history-filter-search" style={{ position: 'relative', flex: '1 1 220px', minWidth: 0, maxWidth: '260px' }}>
                 <SearchIcon size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)', pointerEvents: 'none' }} />
                 <input

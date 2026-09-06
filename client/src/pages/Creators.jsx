@@ -142,6 +142,64 @@ function CreatorRow({ creator }) {
   );
 }
 
+// Mobile: one card per creator instead of the same 7-column table squeezed
+// into a horizontal scroll -- same reasoning, and same composition
+// (identity block, a small stat row, secondary details below) as History's
+// ReportCardMobile/CampaignCard mobile cards.
+function CreatorCardMobile({ creator }) {
+  return (
+    <div className="card" style={{ padding: 'var(--s3) var(--s4)', marginBottom: 'var(--s3)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s3)', minWidth: 0 }}>
+        <CampaignAvatar name={creator.name || creator.username} size={36} />
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ fontWeight: 600, fontSize: 'var(--fs-sm)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {creator.name || creator.username}
+          </div>
+          {creator.profileLink ? (
+            <a href={creator.profileLink} target="_blank" rel="noreferrer" className="mono" style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>
+              @{creator.username}
+            </a>
+          ) : (
+            <span className="mono" style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>@{creator.username}</span>
+          )}
+        </div>
+        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+          <div className="mono" style={{ fontSize: 'var(--fs-sm)', fontWeight: 700 }}>{formatCompactNumber(creator.followers)}</div>
+          <div style={{ fontSize: '10px', color: 'var(--text-3)', textTransform: 'uppercase' }}>Followers</div>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 'var(--s4)', marginTop: 'var(--s3)', paddingTop: 'var(--s3)', borderTop: '1px solid var(--border)' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: '10px', color: 'var(--text-3)', textTransform: 'uppercase', marginBottom: '2px' }}>Reel avg</div>
+          <div className="mono" style={{ fontSize: 'var(--fs-xs)' }}>
+            {creator.reel.count ? `${formatCompactNumber(creator.reel.avgViews)} views · ${creator.reel.avgEr}% ER` : '-'}
+          </div>
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: '10px', color: 'var(--text-3)', textTransform: 'uppercase', marginBottom: '2px' }}>Profile avg</div>
+          <div className="mono" style={{ fontSize: 'var(--fs-xs)' }}>
+            {creator.profile.count ? `${formatCompactNumber(creator.profile.avgViews)} views · ${creator.profile.avgEr}% ER` : '-'}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--s2)', marginTop: 'var(--s3)' }}>
+        {creator.campaigns.length ? (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', minWidth: 0 }}>
+            {creator.campaigns.map((c) => (
+              <span key={c.id} className="chip" style={{ fontSize: '10px' }}>{c.name}</span>
+            ))}
+          </div>
+        ) : <span />}
+        <span className="mono" style={{ fontSize: '10px', color: 'var(--text-3)', whiteSpace: 'nowrap', flexShrink: 0 }}>
+          {creator.timesAnalyzed}x · {formatDate(creator.lastAnalyzedAt)}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 const HEADERS = ['Creator', 'Followers', 'Times analyzed', 'Reel avg', 'Profile avg', 'Campaigns', 'Last analyzed'];
 
 export function Creators() {
@@ -169,6 +227,7 @@ export function Creators() {
   const [saveViewOpen, setSaveViewOpen] = useState(false);
   const [saveViewName, setSaveViewName] = useState('');
   const [savingView, setSavingView] = useState(false);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false); // mobile only -- see .rl-filters in mobile.css
 
   const runId = useRef(0);
 
@@ -293,7 +352,13 @@ export function Creators() {
       .finally(() => { if (id === runId.current) setExtending(false); });
   };
 
-  const filtersActive = followerTier !== 'all' || minEr !== 0 || sortBy !== 'recent' || !!campaignId;
+  // Excludes sortBy on purpose for the "narrows the result set" meaning of
+  // this flag (the empty-state message below) -- a sort order alone can
+  // never be why zero rows matched. filtersActive (below) is the broader
+  // "anything non-default worth a Reset link" meaning, which sort DOES
+  // belong in.
+  const rangeFiltersActive = followerTier !== 'all' || minEr !== 0 || !!campaignId;
+  const filtersActive = rangeFiltersActive || sortBy !== 'recent';
   const resetFilters = () => { setFollowerTier('all'); setMinEr(0); setSortBy('recent'); setCampaignId(''); };
 
   // A saved segment is search + every filter chip, bundled -- applying one
@@ -390,7 +455,7 @@ export function Creators() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 'var(--s3)', marginBottom: 'var(--s4)' }}>
         <div>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-xl)', fontWeight: 700, marginBottom: 'var(--s1)' }}>
+          <h1 className="rl-page-heading" style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-xl)', fontWeight: 700, marginBottom: 'var(--s1)' }}>
             Creator database
           </h1>
           <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)' }}>
@@ -399,7 +464,7 @@ export function Creators() {
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 'var(--s3)', flexWrap: 'wrap', alignItems: 'center', marginBottom: 'var(--s4)' }}>
+      <div className="rl-searchbar" style={{ display: 'flex', gap: 'var(--s3)', flexWrap: 'wrap', alignItems: 'center', marginBottom: 'var(--s4)' }}>
         <span style={{ position: 'relative', flex: '1 1 260px', minWidth: 0, maxWidth: '360px' }}>
           <SearchIcon size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)', pointerEvents: 'none' }} />
           <input
@@ -410,6 +475,25 @@ export function Creators() {
             onChange={(e) => setSearch(e.target.value)}
             style={{ height: '36px', fontSize: 'var(--fs-sm)', width: '100%', paddingLeft: '30px' }}
           />
+        </span>
+        {/* Everything else in the filter card below is hidden behind this
+            on a phone (see .rl-filters in mobile.css) -- search stays
+            reachable right here regardless, same as History. */}
+        <span className="rl-mobile-only">
+          <button
+            type="button"
+            onClick={() => setMobileFiltersOpen((v) => !v)}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '6px', height: '36px', padding: '0 var(--s3)',
+              background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)',
+              color: 'var(--text)', fontSize: 'var(--fs-sm)', fontWeight: 600, cursor: 'pointer',
+            }}
+          >
+            Filters
+            {filtersActive && (
+              <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'var(--accent)', display: 'inline-block' }} aria-hidden="true" />
+            )}
+          </button>
         </span>
         {user?.role === 'admin' && (
           <div style={{ display: 'inline-flex', padding: '3px', backgroundColor: 'var(--surface-2)', borderRadius: 'var(--r-md)' }}>
@@ -456,47 +540,60 @@ export function Creators() {
           creatorDb.service.js's bestAvgEr/followers indexes), not a filter
           over whatever's already loaded, so they narrow the FULL dataset
           the same way search does, not just the warmed first 500. */}
-      <div className="card" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--s3)', padding: 'var(--s3) var(--s4)', marginBottom: 'var(--s4)' }}>
-        <div style={{ display: 'flex', gap: '4px' }}>
-          {FOLLOWER_TIERS.map((t) => (
-            <button
-              key={t.value}
-              type="button"
-              onClick={() => setFollowerTier(t.value)}
-              className={`chip ${followerTier === t.value ? 'accent' : ''}`}
-              style={{ cursor: 'pointer', padding: '6px 12px', whiteSpace: 'nowrap' }}
-            >
-              {t.label}
-            </button>
-          ))}
+      <div className={`card rl-filters${mobileFiltersOpen ? ' rl-filters-open' : ''}`} style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--s3)', padding: 'var(--s3) var(--s4)', marginBottom: 'var(--s4)' }}>
+        <div className="rl-filter-row">
+          <span className="rl-filter-label rl-mobile-only">Followers</span>
+          <div className="rl-filter-group" style={{ display: 'flex', gap: '4px' }}>
+            {FOLLOWER_TIERS.map((t) => (
+              <button
+                key={t.value}
+                type="button"
+                onClick={() => setFollowerTier(t.value)}
+                className={`chip ${followerTier === t.value ? 'accent' : ''}`}
+                style={{ cursor: 'pointer', padding: '6px 12px', whiteSpace: 'nowrap' }}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
         </div>
         <span className="rl-hide-mobile" style={{ width: '1px', alignSelf: 'stretch', backgroundColor: 'var(--border)' }} />
-        <div style={{ display: 'flex', gap: '4px' }}>
-          {ER_THRESHOLDS.map((t) => (
-            <button
-              key={t.value}
-              type="button"
-              onClick={() => setMinEr(t.value)}
-              className={`chip ${minEr === t.value ? 'accent' : ''}`}
-              style={{ cursor: 'pointer', padding: '6px 12px', whiteSpace: 'nowrap' }}
-            >
-              {t.label}
-            </button>
-          ))}
+        <div className="rl-filter-row">
+          <span className="rl-filter-label rl-mobile-only">Engagement</span>
+          <div className="rl-filter-group" style={{ display: 'flex', gap: '4px' }}>
+            {ER_THRESHOLDS.map((t) => (
+              <button
+                key={t.value}
+                type="button"
+                onClick={() => setMinEr(t.value)}
+                className={`chip ${minEr === t.value ? 'accent' : ''}`}
+                style={{ cursor: 'pointer', padding: '6px 12px', whiteSpace: 'nowrap' }}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
         </div>
         {campaigns.length > 0 && (
           <>
             <span className="rl-hide-mobile" style={{ width: '1px', alignSelf: 'stretch', backgroundColor: 'var(--border)' }} />
-            <Select
-              value={campaignId}
-              onChange={setCampaignId}
-              options={[{ value: '', label: 'All campaigns' }, ...campaigns.map((c) => ({ value: c.id, label: c.name }))]}
-              style={{ minWidth: '170px' }}
-            />
+            <div className="rl-filter-row">
+              <span className="rl-filter-label rl-mobile-only">Campaign</span>
+              <Select
+                value={campaignId}
+                onChange={setCampaignId}
+                options={[{ value: '', label: 'All campaigns' }, ...campaigns.map((c) => ({ value: c.id, label: c.name }))]}
+                style={{ minWidth: '170px' }}
+                className="rl-filter-select"
+              />
+            </div>
           </>
         )}
         <span className="rl-hide-mobile" style={{ width: '1px', alignSelf: 'stretch', backgroundColor: 'var(--border)' }} />
-        <Select value={sortBy} onChange={setSortBy} options={SORT_OPTIONS} style={{ minWidth: '190px' }} />
+        <div className="rl-filter-row">
+          <span className="rl-filter-label rl-mobile-only">Sort by</span>
+          <Select value={sortBy} onChange={setSortBy} options={SORT_OPTIONS} style={{ minWidth: '190px' }} className="rl-filter-select" />
+        </div>
         {filtersActive && (
           <button type="button" onClick={resetFilters} className="rl-text-link" style={{ fontSize: 'var(--fs-xs)' }}>
             Reset filters
@@ -566,33 +663,47 @@ export function Creators() {
       {error && <div style={{ color: 'var(--err)', fontSize: 'var(--fs-sm)', marginBottom: 'var(--s3)' }}>{error}</div>}
 
       {loading ? (
-        <div className="data-table-container">
-          <table className="data-table">
-            <thead><tr>{HEADERS.map((h) => <th key={h}>{h}</th>)}</tr></thead>
-            <TableSkeleton rows={8} columns={HEADERS.length} rowHeight={56} label="Loading creators" />
-          </table>
-        </div>
+        <>
+          <div className="data-table-container rl-hide-mobile">
+            <table className="data-table">
+              <thead><tr>{HEADERS.map((h) => <th key={h}>{h}</th>)}</tr></thead>
+              <TableSkeleton rows={8} columns={HEADERS.length} rowHeight={56} label="Loading creators" />
+            </table>
+          </div>
+          <div className="rl-mobile-only" style={{ padding: 'var(--s5)', justifyContent: 'center', color: 'var(--text-3)', fontSize: 'var(--fs-sm)' }}>
+            Loading creators...
+          </div>
+        </>
       ) : rows.length === 0 ? (
         <EmptyState
           icon={<UsersIcon size={32} />}
-          title={search.trim() || followerTier !== 'all' || minEr ? 'No creators match this search' : 'No creators analyzed yet'}
+          title={search.trim() || rangeFiltersActive ? 'No creators match this search' : 'No creators analyzed yet'}
           description={
             search.trim()
               ? `Nothing found for "${search.trim()}". Check the spelling or try a shorter search.`
-              : followerTier !== 'all' || minEr
-                ? 'Nothing in this follower/engagement range yet. Try widening it, or reset filters above.'
+              : rangeFiltersActive
+                ? 'Nothing matches these filters yet. Try widening them, or reset filters above.'
                 : 'Run a reel or profile report and the creators in it will show up here automatically.'
           }
         />
       ) : (
-        <div className="data-table-container">
-          <table className="data-table">
-            <thead><tr>{HEADERS.map((h) => <th key={h}>{h}</th>)}</tr></thead>
-            <tbody>
-              {visibleRows.map((c) => <CreatorRow key={c.id} creator={c} />)}
-            </tbody>
-          </table>
-          <div style={{ borderTop: '1px solid var(--border)' }}>
+        <div>
+          {/* Desktop: the full table. Mobile: one card per creator instead
+              of the same 7 columns squeezed into a horizontal scroll -- see
+              CreatorCardMobile's own note. Same rows, same Pagination
+              underneath either way. */}
+          <div className="data-table-container rl-hide-mobile">
+            <table className="data-table">
+              <thead><tr>{HEADERS.map((h) => <th key={h}>{h}</th>)}</tr></thead>
+              <tbody>
+                {visibleRows.map((c) => <CreatorRow key={c.id} creator={c} />)}
+              </tbody>
+            </table>
+          </div>
+          <div className="rl-mobile-only" style={{ flexDirection: 'column' }}>
+            {visibleRows.map((c) => <CreatorCardMobile key={c.id} creator={c} />)}
+          </div>
+          <div className="card" style={{ padding: 0 }}>
             <Pagination
               page={page}
               totalPages={totalPages}
