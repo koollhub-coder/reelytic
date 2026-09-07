@@ -61,19 +61,39 @@ export function Shell() {
     Unresolved production faults, shown as a badge beside the Health nav item.
     Polled slowly: this is an ambient "is anything on fire" signal, not a
     live feed, and the Health page itself refreshes properly when opened.
+
+    Paused while the tab itself isn't visible (backgrounded, minimized,
+    another tab focused) -- the badge lives in the sidebar, which is on
+    screen for every admin page Shell wraps, so "only poll while visible"
+    only has meaning at the tab level, not a specific in-app page. Nothing
+    to see while hidden means nothing worth a request every 60s; a check
+    fires immediately on becoming visible again instead of waiting out
+    whatever was left of the last interval, so the badge is never stale
+    for a full minute after tabbing back in.
   */
   const [healthCount, setHealthCount] = useState(0);
   useEffect(() => {
     if (user?.role !== 'admin') return undefined;
     let alive = true;
+    let t = null;
     const check = () => {
       apiFetch('/admin/health/count')
         .then((r) => { if (alive) setHealthCount(r.unresolved || 0); })
         .catch(() => {});
     };
-    check();
-    const t = setInterval(check, 60000);
-    return () => { alive = false; clearInterval(t); };
+    const startPolling = () => { if (!t) t = setInterval(check, 60000); };
+    const stopPolling = () => { if (t) { clearInterval(t); t = null; } };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') { check(); startPolling(); }
+      else stopPolling();
+    };
+    if (document.visibilityState === 'visible') { check(); startPolling(); }
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      alive = false;
+      stopPolling();
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, [user]);
 
   // Admin's own credits panel would otherwise show '∞' -- meaningless, since
