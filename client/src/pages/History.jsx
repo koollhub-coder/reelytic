@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '../api/client';
 import { EmptyState } from '../components/EmptyState';
 import { BrandLoader } from '../components/BrandLoader';
@@ -636,8 +637,8 @@ export function History() {
   const [compareOpen, setCompareOpen] = useState(false);
   const [dateFilter, setDateFilter] = useState('all'); // all, 7d, 30d
   // Client-side only, same as typeFilter/dateFilter -- job.status is already
-  // in every job object the existing load() fetches, this just adds one more
-  // filter over data already in memory rather than a new query.
+  // in every job object the page-1 query already fetches, this just adds
+  // one more filter over data already in memory rather than a new query.
   const [statusFilter, setStatusFilter] = useState('all'); // all, not-started, in-progress, done
   // Filters the already-loaded jobs by file name, entirely client-side --
   // this used to hit the server on a 350ms debounce (creatorSearch, joined
@@ -682,71 +683,94 @@ export function History() {
   const loadRunId = useRef(0);
 
   const PAGE_SIZE = 100;
+  const queryClient = useQueryClient();
 
-  const load = useCallback(() => {
-    const runId = ++loadRunId.current;
-    const qs = (page) => {
-      const params = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) });
-      return `/jobs?${params.toString()}`;
-    };
-
-    setLoading(true);
-    Promise.all([apiFetch(qs(1)), apiFetch('/campaigns')])
-      .then(([jobsRes, campaignsRes]) => {
-        if (runId !== loadRunId.current) return;
-        const firstPage = jobsRes.jobs || [];
-        setJobs(firstPage);
-        setCampaigns(campaignsRes.campaigns || []);
-        setUncategorizedRollup(campaignsRes.uncategorized || null);
-        // Collapsed by default -- every campaign auto-expanding on load meant
-        // the page opened as one long wall of every report in every
-        // campaign at once, which is what "doesn't look responsive at all"
-        // on a phone actually was: nothing to scroll past, just everything.
-        setHasAnyReports(firstPage.length > 0);
-        setLoading(false);
-
-        // Page one is on screen and interactive at this point; the rest
-        // arrives underneath it without another spinner.
-        if (jobsRes.hasMore) {
-          setLoadingMore(true);
-          const drain = async () => {
-            let page = 2;
-            let more = true;
-            while (more && runId === loadRunId.current) {
-              try {
-                const res = await apiFetch(qs(page));
-                if (runId !== loadRunId.current) return;
-                const batch = res.jobs || [];
-                if (batch.length) {
-                  // Guard against duplicates: a report created while paging
-                  // shifts everything down a slot, which would otherwise
-                  // re-append rows already on screen.
-                  setJobs((prev) => {
-                    const seen = new Set(prev.map((j) => j.id));
-                    return [...prev, ...batch.filter((j) => !seen.has(j.id))];
-                  });
-                }
-                more = !!res.hasMore;
-                page += 1;
-              } catch {
-                more = false;
-              }
-            }
-            if (runId === loadRunId.current) setLoadingMore(false);
-          };
-          drain();
-        }
-      })
-      .catch(() => {
-        if (runId === loadRunId.current) setLoading(false);
-      });
+  const qs = useCallback((page) => {
+    const params = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) });
+    return `/jobs?${params.toString()}`;
   }, []);
 
+  // Only page 1 (+ campaigns) is cached here, same reasoning as Creators.jsx's
+  // identical split: this is what makes "History -> Creators -> History"
+  // render the first screen instantly from the App.jsx-wide staleTime
+  // instead of the old blank-skeleton-then-fetch every single visit. Pages
+  // 2+ still stream in fresh via the unchanged drain loop below -- there is
+  // no per-page filter here to key a cache on (type/date/status/file search
+  // are all client-side over what's already loaded, per their own state
+  // comments above), so unlike Creators there's exactly one cache entry.
+  const firstPageQuery = useQuery({
+    queryKey: ['history-first-page'],
+    queryFn: () => Promise.all([apiFetch(qs(1)), apiFetch('/campaigns')])
+      .then(([jobsRes, campaignsRes]) => ({ jobsRes, campaignsRes })),
+  });
+
+  // Reseeds jobs/campaigns from page 1 the moment it's available (cache hit
+  // or fresh fetch), then runs the exact same background drain loop as the
+  // old load() to stream in the rest. Guarded by the same loadRunId
+  // cancellation, still bumped on unmount/re-run below.
   useEffect(() => {
-    load();
-    // Abandons any in-flight background paging when the page unmounts.
+    if (firstPageQuery.error) { setLoading(false); return undefined; }
+    if (!firstPageQuery.data) { setLoading(true); return undefined; }
+
+    const runId = ++loadRunId.current;
+    const { jobsRes, campaignsRes } = firstPageQuery.data;
+    const firstPage = jobsRes.jobs || [];
+    setJobs(firstPage);
+    setCampaigns(campaignsRes.campaigns || []);
+    setUncategorizedRollup(campaignsRes.uncategorized || null);
+    // Collapsed by default -- every campaign auto-expanding on load meant
+    // the page opened as one long wall of every report in every campaign at
+    // once, which is what "doesn't look responsive at all" on a phone
+    // actually was: nothing to scroll past, just everything.
+    setHasAnyReports(firstPage.length > 0);
+    setLoading(false);
+
+    // Page one is on screen and interactive at this point; the rest arrives
+    // underneath it without another spinner.
+    if (jobsRes.hasMore) {
+      setLoadingMore(true);
+      const drain = async () => {
+        let page = 2;
+        let more = true;
+        while (more && runId === loadRunId.current) {
+          try {
+            const res = await apiFetch(qs(page));
+            if (runId !== loadRunId.current) return;
+            const batch = res.jobs || [];
+            if (batch.length) {
+              // Guard against duplicates: a report created while paging
+              // shifts everything down a slot, which would otherwise
+              // re-append rows already on screen.
+              setJobs((prev) => {
+                const seen = new Set(prev.map((j) => j.id));
+                return [...prev, ...batch.filter((j) => !seen.has(j.id))];
+              });
+            }
+            more = !!res.hasMore;
+            page += 1;
+          } catch {
+            more = false;
+          }
+        }
+        if (runId === loadRunId.current) setLoadingMore(false);
+      };
+      drain();
+    }
+    // Abandons any in-flight background paging on unmount or a fresh reseed.
     return () => { loadRunId.current += 1; };
-  }, [load]);
+  }, [firstPageQuery.data, firstPageQuery.error, qs]);
+
+  // Replaces the old load() as the "force a genuinely fresh full reload"
+  // path (create/delete campaign, bulk assign -- see their own call sites).
+  // Unlike the old load(), this does not flash the table back to its
+  // skeleton first: invalidateQueries keeps the current page 1 on screen
+  // and refetches underneath it, the same "no skeleton, no full reload"
+  // treatment handleReassign's own comment below already argues for and
+  // already does for a single-row move -- this just applies it to the
+  // handful of call sites that still needed a real refetch.
+  const reload = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['history-first-page'] });
+  }, [queryClient]);
 
   // A filter change can put page 3 out of range for the new, smaller result
   // set -- reset to page 1 rather than showing an empty page or clamping
@@ -800,7 +824,7 @@ export function History() {
       setNewCampaignName('');
       setNewCampaignAvatarUrl(null);
       setNewCampaignOpen(false);
-      load();
+      reload();
     } catch (err) {
       addToast(err.message || "Couldn't create that campaign, try again", 'err');
     } finally {
@@ -864,7 +888,7 @@ export function History() {
       addToast(`${ids.length - failed.length} assigned, ${failed.length} failed. Try those again.`, 'err');
     }
     setSelectedUnassignedIds(new Set(failed));
-    load();
+    reload();
   };
 
   const handleDeleteCampaign = async () => {
@@ -873,7 +897,7 @@ export function History() {
       await apiFetch(`/campaigns/${deleteTarget.id}`, { method: 'DELETE' });
       addToast('Campaign deleted, its reports are now uncategorized', 'ok');
       setDeleteTarget(null);
-      load();
+      reload();
     } catch (err) {
       addToast(err.message || "Couldn't delete that campaign, try again", 'err');
     }

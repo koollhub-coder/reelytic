@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { apiFetch } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { BrandLoader } from '../components/BrandLoader';
@@ -210,28 +211,31 @@ function IconButton({ tooltip, ...props }) {
 export function Dashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [data, setData] = useState(null);
-  const [error, setError] = useState('');
-  // Only true for a range-switch refetch, not the first load -- the first
-  // load has its own full-page BrandLoader below since there's nothing to
-  // show yet. Without this, switching "14 days" to "30 days" left the old
-  // numbers on screen with no indication anything was happening until the
-  // new response landed.
-  const [refreshing, setRefreshing] = useState(false);
   const planCreditsTotal = usePlanCreditsTotal(user);
   // 14 is still what a visitor lands on -- only the ceiling on how far back
   // they can pull it changed. See RANGE_OPTIONS below for the other choices
   // and server/routes/me.routes.js's ALLOWED_RANGE_DAYS for why these four.
   const [days, setDays] = useState(14);
 
-  useEffect(() => {
-    if (data !== null) setRefreshing(true);
-    apiFetch(`/me/stats?days=${days}`)
-      .then((res) => { setData(res); setError(''); })
-      .catch((err) => setError(err.message))
-      .finally(() => setRefreshing(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [days]);
+  // Cached per days value (queryKey), and cached across navigation for
+  // App.jsx's default staleTime -- leaving for Creators and coming back to
+  // Dashboard within that window renders the last-known numbers instantly
+  // instead of the full loading sequence below firing again from zero.
+  // placeholderData:keepPreviousData is what reproduces the old refetch
+  // effect's exact behavior on a days change: keep showing the previous
+  // range's numbers (not a blank state) while the new range loads, same as
+  // the old code never clearing `data` in its .finally.
+  const { data, error: queryError, isLoading, isFetching } = useQuery({
+    queryKey: ['me-stats', days],
+    queryFn: () => apiFetch(`/me/stats?days=${days}`),
+    placeholderData: keepPreviousData,
+  });
+  const error = queryError?.message || '';
+  // isLoading is only true pre-first-data for THIS query key; once any data
+  // (real or kept-previous) is on screen, further fetches are a background
+  // isFetching -- same "old numbers stay up, small spinner shows" case the
+  // old refreshing state covered.
+  const refreshing = isFetching && !isLoading;
 
   if (error) {
     return (

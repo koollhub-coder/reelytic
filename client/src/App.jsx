@@ -1,8 +1,29 @@
 import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { ToastProvider } from './context/ToastContext';
+
+/*
+  One query client for the whole app -- pages opt into caching per-fetch via
+  their own queryKey, this just sets the shared defaults. staleTime:30s means
+  "History -> Creators -> History" within half a minute reuses what's already
+  in memory instead of refetching from zero (the actual perf goal); anything
+  older still refetches, so nothing goes stale-forever. refetchOnWindowFocus
+  off -- Reelytic isn't a live dashboard where alt-tabbing back should trigger
+  a network round trip; a manual range/filter change or the existing
+  navigation-triggered fetch is what actually needs fresh data.
+*/
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 
 /*
   Every routed page below is lazy -- before this, a single JS bundle held
@@ -161,6 +182,7 @@ function PublicRoute({ children }) {
 
 export function App() {
   return (
+    <QueryClientProvider client={queryClient}>
     <ThemeProvider>
       <ToastProvider>
         <AuthProvider>
@@ -223,6 +245,7 @@ export function App() {
         </AuthProvider>
       </ToastProvider>
     </ThemeProvider>
+    </QueryClientProvider>
   );
 }
 

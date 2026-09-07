@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { CampaignAvatar } from '../components/CampaignAvatar';
@@ -463,71 +464,85 @@ export function Creators() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, scope, sortBy, followerTier, minEr, campaignId]);
 
-  // Fresh query: fires on mount and on any filter change (search, scope,
-  // follower tier, ER threshold, sort). Renders the first page the moment
-  // it lands, then keeps quietly pulling more pages behind it up to
-  // WARM_CAP so the pages that follow are instant. Guarded by runId
-  // throughout -- a query that's since gone stale (user kept typing, or
-  // changed a filter mid-fetch) stops touching state.
-  const runQuery = useCallback(() => {
+  // Debounced 300ms after the last filter/search change, same as the old
+  // single setTimeout -- this object (not the live search/scope/etc state)
+  // is what the first-page query below is actually keyed and fetched by, so
+  // typing doesn't fire a request per keystroke.
+  const [debouncedFilters, setDebouncedFilters] = useState(null);
+  useEffect(() => {
+    if (locked) return undefined;
+    const handle = setTimeout(() => {
+      setDebouncedFilters({ search: search.trim(), scope, followerTier, minEr, sortBy, campaignId });
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [locked, search, scope, followerTier, minEr, sortBy, campaignId]);
+
+  // Only the FIRST page is cached here -- the App.jsx-wide staleTime is what
+  // makes "Creators -> History -> Creators" with the same filters render
+  // the first screen instantly instead of the old blank-skeleton-then-fetch
+  // every single time. Pages 2+ still stream in fresh via the unchanged
+  // warm-drain loop below: caching the full warmed set too would mean this
+  // query's cache entry growing to WARM_CAP (500) rows and getting rebuilt
+  // by hand on every background page arrival, which is a materially
+  // different (and riskier) change than what this pass is asking for.
+  const firstPageQuery = useQuery({
+    queryKey: ['creators', debouncedFilters],
+    queryFn: () => fetchPage(null),
+    enabled: !locked && !!debouncedFilters,
+  });
+
+  // Reseeds rows/cursor/hasMore from the first page the moment it's
+  // available (cache hit or fresh fetch -- useQuery doesn't distinguish,
+  // which is exactly the point), then runs the same background warm-drain
+  // up to WARM_CAP as before, guarded by the same runId cancellation.
+  useEffect(() => {
+    if (locked) { setLoading(false); return undefined; }
+    if (!debouncedFilters) return undefined;
+    if (firstPageQuery.error) {
+      setError(firstPageQuery.error.message || "Couldn't load the creator database, try again.");
+      setLoading(false);
+      return undefined;
+    }
+    if (!firstPageQuery.data) {
+      // No cache for this exact filter combination yet -- show the same
+      // loading skeleton the old runQuery showed while its first fetch
+      // was in flight.
+      setLoading(true);
+      return undefined;
+    }
+
     const id = ++runId.current;
-    setLoading(true);
     setError('');
     setPage(1);
     setExpandedIds(new Set());
-    fetchPage(null)
-      .then(async (res) => {
-        if (id !== runId.current) return;
-        const firstRows = res.creators || [];
-        setRows(firstRows);
-        setCursor(res.nextCursor || null);
-        setHasMore(!!res.nextCursor);
-        setLoading(false);
+    const res = firstPageQuery.data;
+    const firstRows = res.creators || [];
+    setRows(firstRows);
+    setCursor(res.nextCursor || null);
+    setHasMore(!!res.nextCursor);
+    setLoading(false);
 
-        if (!res.nextCursor) return;
-        setWarming(true);
-        let acc = firstRows;
-        let nextCursor = res.nextCursor;
-        while (nextCursor && acc.length < WARM_CAP) {
-          if (id !== runId.current) return;
-          // eslint-disable-next-line no-await-in-loop
-          const chunk = await fetchPage(nextCursor).catch(() => null);
-          if (!chunk || id !== runId.current) break;
-          acc = acc.concat(chunk.creators || []);
-          nextCursor = chunk.nextCursor || null;
-          setRows(acc);
-          setCursor(nextCursor);
-          setHasMore(!!nextCursor);
-        }
-        if (id === runId.current) setWarming(false);
-      })
-      .catch((err) => {
+    if (!res.nextCursor) return undefined;
+    setWarming(true);
+    (async () => {
+      let acc = firstRows;
+      let nextCursor = res.nextCursor;
+      while (nextCursor && acc.length < WARM_CAP) {
         if (id !== runId.current) return;
-        setError(err.message || "Couldn't load the creator database, try again.");
-        setLoading(false);
-      });
-  }, [fetchPage]);
-
-  // One effect drives every (re)query: initial mount and every filter
-  // change land here instead of separate effects each trying to fire on
-  // every change EXCEPT their own first render. That "skip only the first
-  // run" idea sounds simple but isn't: every effect runs once on mount no
-  // matter what its dependency array says, so a version of this split
-  // across effects either fired a redundant duplicate query on mount
-  // (competing "first runs") or, fixed the naive way with a ref, went the
-  // other direction and silently stopped firing on real changes -- React
-  // re-runs an effect's cleanup before every subsequent invocation, not
-  // just on unmount, so a cleanup that resets a "first run" flag resets it
-  // before every keystroke too, permanently stuck skipping. One effect
-  // sidesteps the whole class of bug: firing on mount is exactly what
-  // should happen here, so there is no "first run" to skip in the first
-  // place.
-  useEffect(() => {
-    if (locked) { setLoading(false); return undefined; }
-    const handle = setTimeout(() => runQuery(), 300);
-    return () => clearTimeout(handle);
+        // eslint-disable-next-line no-await-in-loop
+        const chunk = await fetchPage(nextCursor).catch(() => null);
+        if (!chunk || id !== runId.current) break;
+        acc = acc.concat(chunk.creators || []);
+        nextCursor = chunk.nextCursor || null;
+        setRows(acc);
+        setCursor(nextCursor);
+        setHasMore(!!nextCursor);
+      }
+      if (id === runId.current) setWarming(false);
+    })();
+    return () => { runId.current += 1; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [locked, search, scope, followerTier, minEr, sortBy, campaignId]);
+  }, [locked, debouncedFilters, firstPageQuery.data, firstPageQuery.error]);
 
   const totalPages = Math.ceil(rows.length / PAGE_SIZE);
 
