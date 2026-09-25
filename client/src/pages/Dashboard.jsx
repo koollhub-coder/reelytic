@@ -96,7 +96,7 @@ function ReportSplitDonut({ reelCount, profileCount }) {
   if (total === 0) {
     return (
       <div style={{ color: 'var(--text-3)', textAlign: 'center', padding: 'var(--s6)', width: '100%' }}>
-        No reports in this window yet -- run a Reel or Profile report to see the split here.
+        No reports in this window yet. Run a Reel or Profile report to see the split here.
       </div>
     );
   }
@@ -282,7 +282,9 @@ export function Dashboard() {
   // account with real history has at least one entry here regardless of
   // when it last ran something.
   const hasReports = !!(data.recentJobs && data.recentJobs.length > 0);
-  const trends = data.trends || {};
+  // The "vs previous period" percentages are an operator's number. A client
+  // just wants their own figures, so only admins get the comparison.
+  const trends = user && user.role === 'admin' ? (data.trends || {}) : {};
 
   // Report-mix insight: which type this workspace mostly runs. Only a
   // meaningful statement when the two counts actually differ -- an exact

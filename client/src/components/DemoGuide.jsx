@@ -43,7 +43,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
   half-finished tour and float a tooltip over the login form.
 */
 
-const CHAPTERS = ['Your report', 'Your report', 'The client version', 'The client version', 'Your branding', 'Your creators', 'Done'];
+const CHAPTERS = ['Your report', 'Your report', 'The client version', 'The client version', 'Your branding', 'Your creators', 'Your team', 'Client portals', 'Done'];
 
 const STEPS = [
   {
@@ -116,6 +116,38 @@ const STEPS = [
     target: '[data-tour="creators-page"]',
     title: 'Your creator database',
     body: 'Every creator from every report you run, deduped and searchable: follower size, engagement, and which campaigns they showed up in, all filled in automatically as reports finish. Available on Starter, Pro and Agency.',
+  },
+  {
+    /*
+      Same "shown to every account regardless of plan" reasoning as the
+      creators step above, but deliberately no `target`. TeamCard.jsx's
+      locked-overlay branch renders the whole real (dimmed) card underneath
+      it, seat list and invite form included, which made this ring a very
+      tall element and pushed placeCard into its corner-docked fallback,
+      landing on top of the tour's own nav bar. An announcement-only card
+      (same shape as the closing 'done' step, which has never carried a
+      target either) says the same thing without measuring anything on the
+      page, and is the safer choice for a step that's really just "by the
+      way, this exists" rather than "look at this exact control".
+    */
+    id: 'team',
+    route: '/settings',
+    announce: 'One more thing: you can bring your team into this same workspace.',
+    announceCta: 'Show me Settings',
+    title: 'Bring your team in',
+    body: 'Look for the Team card on this page. Invite teammates by email and they share this workspace: the same reports, campaigns, credits and creator database. You stay the only one who manages billing. Available on Starter, Pro and Agency.',
+  },
+  {
+    // No target for the same reason as the team step above -- a specific
+    // campaign's portal icon does not exist yet on a brand new account
+    // with no campaigns, and there's nothing else on this page reliably
+    // sized to ring instead.
+    id: 'portal',
+    route: '/history',
+    announce: 'Last thing: you can give a client a living link to a whole campaign.',
+    announceCta: 'Show me History',
+    title: 'A living link for your client',
+    body: 'Every campaign gets its own portal icon next to its delete button. Turn it on and your client gets one link that keeps showing the latest numbers as you add more reports, no login needed on their end. Available on Starter, Pro and Agency.',
   },
   {
     id: 'done',

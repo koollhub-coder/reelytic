@@ -1,4 +1,5 @@
 const { getDb, queryId } = require('../db');
+const { inferGender } = require('./gender.service');
 
 /*
   The creator database: every Instagram creator an account has ever run a
@@ -53,6 +54,15 @@ const { getDb, queryId } = require('../db');
   the same operation, not written separately.
 */
 
+// Which report type a creator's headline engagement rate comes from.
+const BEST_TYPE_EXPR = {
+  $cond: [
+    { $lte: ['$reel.count', 0] }, 'profile',
+    { $cond: [{ $lte: ['$profile.count', 0] }, 'reel', { $cond: [{ $gte: ['$reel.avgEr', '$profile.avgEr'] }, 'reel', 'profile'] }] },
+  ],
+};
+const BEST_VIEWS_EXPR = { $cond: [{ $eq: ['$bestType', 'reel'] }, '$reel.avgViews', '$profile.avgViews'] };
+
 function creatorId(ownerUsername, username) {
   return `${ownerUsername}::${username}`;
 }
@@ -81,6 +91,7 @@ async function recordAnalyzedCreator({ ownerUsername, type, jobId, result }) {
   const username = String(result.username).toLowerCase();
   const now = new Date();
   const isReel = type === 'reel';
+  const inferred = inferGender({ name: result.name, username });
 
   // Stage 1: bump raw counters (both reel.* and profile.* kept fully
   // present every call, incremented by 0 on the side this report isn't --
@@ -97,6 +108,12 @@ async function recordAnalyzedCreator({ ownerUsername, type, jobId, result }) {
       ...(result.name ? { name: result.name } : {}),
       ...(result.profileLink ? { profileLink: result.profileLink } : {}),
       ...(result.followers != null ? { followers: result.followers } : {}),
+      // Estimated from the name (see gender.service.js). A value someone set by
+      // hand (genderSource 'manual') is never overwritten by a later estimate.
+      ...(inferred ? {
+        gender: { $cond: [{ $eq: ['$genderSource', 'manual'] }, '$gender', inferred] },
+        genderSource: { $cond: [{ $eq: ['$genderSource', 'manual'] }, 'manual', 'inferred'] },
+      } : {}),
       'reel.count': { $add: [{ $ifNull: ['$reel.count', 0] }, isReel ? 1 : 0] },
       'reel.totalViews': { $add: [{ $ifNull: ['$reel.totalViews', 0] }, isReel ? (result.views || 0) : 0] },
       'reel.totalLikes': { $add: [{ $ifNull: ['$reel.totalLikes', 0] }, isReel ? (result.likes || 0) : 0] },
@@ -115,6 +132,10 @@ async function recordAnalyzedCreator({ ownerUsername, type, jobId, result }) {
       'reel.avgEr': { $cond: [{ $gt: ['$reel.count', 0] }, { $round: [{ $divide: ['$reel.totalEr', '$reel.count'] }, 2] }, 0] },
       'profile.avgEr': { $cond: [{ $gt: ['$profile.count', 0] }, { $round: [{ $divide: ['$profile.totalEr', '$profile.count'] }, 2] }, 0] },
       timesAnalyzed: { $add: ['$reel.count', '$profile.count'] },
+      // Stored (not computed on read) so the Avg views column can be sorted and
+      // filtered like any other.
+      'reel.avgViews': { $cond: [{ $gt: ['$reel.count', 0] }, { $round: [{ $divide: ['$reel.totalViews', '$reel.count'] }, 0] }, 0] },
+      'profile.avgViews': { $cond: [{ $gt: ['$profile.count', 0] }, { $round: [{ $divide: ['$profile.totalViews', '$profile.count'] }, 0] }, 0] },
     },
   };
 
@@ -122,11 +143,14 @@ async function recordAnalyzedCreator({ ownerUsername, type, jobId, result }) {
   // number the "engagement rate" filter/sort actually queries on, so a
   // creator only measured via profile reports (or only via reels) still
   // shows up correctly instead of needing the filter to check both fields.
-  const stage3 = { $set: { bestAvgEr: { $max: ['$reel.avgEr', '$profile.avgEr'] } } };
+  const stage3 = { $set: { bestAvgEr: { $max: ['$reel.avgEr', '$profile.avgEr'] }, bestType: BEST_TYPE_EXPR } };
+  // The views shown next to the engagement rate come from the SAME report
+  // type that rate came from, so the two columns never describe different things.
+  const stage4 = { $set: { bestAvgViews: BEST_VIEWS_EXPR } };
 
   await db.collection('analyzedCreators').updateOne(
     { _id: creatorId(ownerUsername, username) },
-    [stage1, stage2, stage3],
+    [stage1, stage2, stage3, stage4],
     { upsert: true }
   );
 }
@@ -161,7 +185,18 @@ const SORT_FIELDS = {
   followers: 'followers',
   engagement: 'bestAvgEr',
   timesAnalyzed: 'timesAnalyzed',
+  name: 'username',
+  views: 'bestAvgViews',
 };
+
+// Which way each sort runs when the caller does not say. A to Z for names,
+// biggest first for everything numeric or dated.
+const DEFAULT_SORT_DIR = { name: 1 };
+function sortDirection(sort, dir) {
+  if (dir === 'asc') return 1;
+  if (dir === 'desc') return -1;
+  return DEFAULT_SORT_DIR[sort] || -1;
+}
 
 function encodeCursor(row, sortField) {
   if (!row) return null;
@@ -194,7 +229,7 @@ function decodeCursor(cursor, sortField) {
   overlaps that set ($in) -- still a live answer, just computed once up
   front instead of per row.
 */
-async function buildFilter({ db, ownerUsername, isAdmin, search, minFollowers, maxFollowers, minEr, campaignId }) {
+async function buildFilter({ db, ownerUsername, isAdmin, search, minFollowers, maxFollowers, minEr, maxEr, minViews, maxViews, minTimes, maxTimes, gender, campaignId }) {
   const and = [];
   if (!isAdmin) and.push({ ownerUsername });
   const cleanSearch = (search || '').trim();
@@ -208,8 +243,26 @@ async function buildFilter({ db, ownerUsername, isAdmin, search, minFollowers, m
   if (minFollowers != null && minFollowers !== '') and.push({ followers: { $gte: Number(minFollowers) } });
   if (maxFollowers != null && maxFollowers !== '') and.push({ followers: { $lte: Number(maxFollowers) } });
   if (minEr != null && minEr !== '') and.push({ bestAvgEr: { $gte: Number(minEr) } });
-  if (campaignId) {
-    const jobFilter = { campaignId: queryId(campaignId) };
+  if (maxEr != null && maxEr !== '') and.push({ bestAvgEr: { $lte: Number(maxEr) } });
+  if (minViews != null && minViews !== '') and.push({ bestAvgViews: { $gte: Number(minViews) } });
+  if (maxViews != null && maxViews !== '') and.push({ bestAvgViews: { $lte: Number(maxViews) } });
+  if (minTimes != null && minTimes !== '') and.push({ timesAnalyzed: { $gte: Number(minTimes) } });
+  if (maxTimes != null && maxTimes !== '') and.push({ timesAnalyzed: { $lte: Number(maxTimes) } });
+  // Comma-separated subset of female,male,unknown. Unknown is a missing or
+  // null gender, which is what an unclassified creator actually stores.
+  const genders = String(gender || '').split(',').map((g) => g.trim()).filter((g) => ['female', 'male', 'unknown'].includes(g));
+  if (genders.length && genders.length < 3) {
+    const named = genders.filter((g) => g !== 'unknown');
+    const clauses = [];
+    if (named.length) clauses.push({ gender: { $in: named } });
+    if (genders.includes('unknown')) clauses.push({ gender: null });
+    and.push(clauses.length === 1 ? clauses[0] : { $or: clauses });
+  }
+  // campaignId may be one id or a comma-separated list (the column filter
+  // lets someone tick several campaigns at once).
+  const campaignIds = String(campaignId || '').split(',').map((c) => c.trim()).filter(Boolean);
+  if (campaignIds.length) {
+    const jobFilter = { campaignId: campaignIds.length === 1 ? queryId(campaignIds[0]) : { $in: campaignIds.map((c) => queryId(c)) } };
     // A non-admin's own campaign list (client/src/pages/Creators.jsx only
     // ever offers campaigns GET /campaigns already scoped to them) can only
     // ever contain their own campaigns anyway, but scoping this lookup the
@@ -226,16 +279,23 @@ async function buildFilter({ db, ownerUsername, isAdmin, search, minFollowers, m
   return and;
 }
 
-async function searchAnalyzedCreators({ ownerUsername, isAdmin, search, cursor, limit = 30, sort, minFollowers, maxFollowers, minEr, campaignId }) {
+async function searchAnalyzedCreators({ ownerUsername, isAdmin, search, cursor, limit = 30, sort, dir, minFollowers, maxFollowers, minEr, maxEr, minViews, maxViews, minTimes, maxTimes, gender, campaignId }) {
   const db = getDb();
   const sortField = SORT_FIELDS[sort] || SORT_FIELDS.recent;
-  const and = await buildFilter({ db, ownerUsername, isAdmin, search, minFollowers, maxFollowers, minEr, campaignId });
+  const direction = sortDirection(sort, dir);
+  const and = await buildFilter({ db, ownerUsername, isAdmin, search, minFollowers, maxFollowers, minEr, maxEr, minViews, maxViews, minTimes, maxTimes, gender, campaignId });
+
+  // How many creators match, sent with the first page only so the header can
+  // say "42 creators" while filtering. Counted before the cursor clause is
+  // added, so it is the size of the whole result, not of what is left.
+  const total = cursor ? undefined : await db.collection('analyzedCreators').countDocuments(and.length ? { $and: and } : {});
 
   const decoded = cursor ? decodeCursor(cursor, sortField) : null;
   if (decoded) {
+    const past = direction === 1 ? '$gt' : '$lt';
     and.push({ $or: [
-      { [sortField]: { $lt: decoded.v } },
-      { [sortField]: decoded.v, _id: { $lt: decoded.id } },
+      { [sortField]: { [past]: decoded.v } },
+      { [sortField]: decoded.v, _id: { [past]: decoded.id } },
     ] });
   }
 
@@ -244,7 +304,7 @@ async function searchAnalyzedCreators({ ownerUsername, isAdmin, search, cursor, 
 
   const rows = await db.collection('analyzedCreators')
     .find(filter)
-    .sort({ [sortField]: -1, _id: -1 })
+    .sort({ [sortField]: direction, _id: direction })
     .limit(pageSize + 1)
     .toArray();
 
@@ -296,6 +356,11 @@ async function searchAnalyzedCreators({ ownerUsername, isAdmin, search, cursor, 
       name: row.name || null,
       profileLink: row.profileLink || null,
       followers: row.followers ?? null,
+      gender: row.gender || null,
+      genderSource: row.genderSource || null,
+      bestAvgEr: row.bestAvgEr ?? null,
+      bestType: row.bestType || null,
+      bestAvgViews: row.bestAvgViews ?? null,
       firstAnalyzedAt: row.firstAnalyzedAt,
       lastAnalyzedAt: row.lastAnalyzedAt,
       // avgEr/timesAnalyzed are stored now (see the pipeline update above),
@@ -316,7 +381,7 @@ async function searchAnalyzedCreators({ ownerUsername, isAdmin, search, cursor, 
     };
   });
 
-  return { creators, nextCursor };
+  return { creators, nextCursor, total };
 }
 
 // CSV export deliberately doesn't paginate or join campaign tags -- it's
@@ -330,15 +395,16 @@ async function searchAnalyzedCreators({ ownerUsername, isAdmin, search, cursor, 
 // text itself is already visible on screen in the app).
 const EXPORT_ROW_CAP = 20000;
 
-async function exportAnalyzedCreators({ ownerUsername, isAdmin, search, sort, minFollowers, maxFollowers, minEr, campaignId }) {
+async function exportAnalyzedCreators({ ownerUsername, isAdmin, search, sort, dir, minFollowers, maxFollowers, minEr, maxEr, minViews, maxViews, minTimes, maxTimes, gender, campaignId }) {
   const db = getDb();
   const sortField = SORT_FIELDS[sort] || SORT_FIELDS.recent;
-  const and = await buildFilter({ db, ownerUsername, isAdmin, search, minFollowers, maxFollowers, minEr, campaignId });
+  const direction = sortDirection(sort, dir);
+  const and = await buildFilter({ db, ownerUsername, isAdmin, search, minFollowers, maxFollowers, minEr, maxEr, minViews, maxViews, minTimes, maxTimes, gender, campaignId });
   const filter = and.length ? { $and: and } : {};
 
   const rows = await db.collection('analyzedCreators')
     .find(filter)
-    .sort({ [sortField]: -1, _id: -1 })
+    .sort({ [sortField]: direction, _id: direction })
     .limit(EXPORT_ROW_CAP + 1)
     .toArray();
 
@@ -366,15 +432,17 @@ async function getCreatorSummary({ ownerUsername, isAdmin }) {
   startOfMonth.setUTCDate(1);
   startOfMonth.setUTCHours(0, 0, 0, 0);
 
-  const [total, analyzedThisMonth, highPerformers] = await Promise.all([
+  const [total, analyzedThisMonth, highPerformers, engaged] = await Promise.all([
     db.collection('analyzedCreators').countDocuments(base),
     db.collection('analyzedCreators').countDocuments({ ...base, lastAnalyzedAt: { $gte: startOfMonth } }),
     // Same 5% threshold as the "5%+ ER" filter chip -- this line is meant
     // to read as a preview of that filter, not a different number.
     db.collection('analyzedCreators').countDocuments({ ...base, bestAvgEr: { $gte: 5 } }),
+    // Above 2% is what the green engagement badge on the Creators screen marks.
+    db.collection('analyzedCreators').countDocuments({ ...base, bestAvgEr: { $gt: 2 } }),
   ]);
 
-  return { total, analyzedThisMonth, highPerformers };
+  return { total, analyzedThisMonth, highPerformers, engaged };
 }
 
 /*
@@ -446,4 +514,20 @@ async function getCreatorReports({ ownerUsername, isAdmin, creatorId }) {
   return { reports };
 }
 
-module.exports = { recordAnalyzedCreator, searchAnalyzedCreators, exportAnalyzedCreators, getCreatorSummary, getCreatorReports };
+// Someone correcting the estimate by hand. 'manual' is what stops a later
+// report from overwriting it (see recordAnalyzedCreator). Anything other than
+// female or male clears back to Unknown; the next report estimates it again.
+async function setCreatorGender({ ownerUsername, isAdmin, creatorId: id, gender }) {
+  const db = getDb();
+  const creator = await db.collection('analyzedCreators').findOne({ _id: id }, { projection: { ownerUsername: 1 } });
+  if (!creator) return null;
+  if (!isAdmin && creator.ownerUsername !== ownerUsername) return null;
+  const next = ['female', 'male'].includes(gender) ? gender : null;
+  await db.collection('analyzedCreators').updateOne(
+    { _id: id },
+    { $set: { gender: next, genderSource: next ? 'manual' : null, updatedAt: new Date() } }
+  );
+  return { gender: next, genderSource: next ? 'manual' : null };
+}
+
+module.exports = { setCreatorGender, BEST_TYPE_EXPR, BEST_VIEWS_EXPR, recordAnalyzedCreator, searchAnalyzedCreators, exportAnalyzedCreators, getCreatorSummary, getCreatorReports };

@@ -64,6 +64,11 @@ import {
   Sparkles,
   PanelLeftClose,
   PanelLeftOpen,
+  UserPlus,
+  Globe,
+  Filter,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 
 /*
@@ -182,6 +187,11 @@ export const PackageIcon = make(Package, 'PackageIcon');
 export const SparkleIcon = make(Sparkles, 'SparkleIcon');
 export const SidebarCollapseIcon = make(PanelLeftClose, 'SidebarCollapseIcon');
 export const SidebarExpandIcon = make(PanelLeftOpen, 'SidebarExpandIcon');
+export const UserPlusIcon = make(UserPlus, 'UserPlusIcon');
+export const GlobeIcon = make(Globe, 'GlobeIcon');
+export const FilterIcon = make(Filter, 'FilterIcon');
+export const ArrowUpIcon = make(ArrowUp, 'ArrowUpIcon');
+export const ArrowDownIcon = make(ArrowDown, 'ArrowDownIcon');
 
 /*
   Lucide dropped every trademarked brand/logo glyph (Instagram, LinkedIn,

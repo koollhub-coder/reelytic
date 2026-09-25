@@ -7,15 +7,18 @@ import { BrandLoader } from '../components/BrandLoader';
 import { Modal } from '../components/Modal';
 import { Select } from '../components/Select';
 import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
 import { formatDate, formatDateTime, formatDayKey } from '../utils/date';
 import { TableSkeleton } from '../components/TableSkeleton';
 import {
   PlusIcon, ChartIcon, FileIcon, ReelIcon, ProfileIcon, SuccessIcon, ClockIcon,
-  SearchIcon, ChevronDownIcon, MoreIcon, TrashIcon,
+  SearchIcon, ChevronDownIcon, MoreIcon, TrashIcon, GlobeIcon,
 } from '../components/Icon';
 import { CampaignAvatar, CampaignAvatarPicker } from '../components/CampaignAvatar';
 import { Tooltip } from '../components/Tooltip';
 import { Pagination } from '../components/Pagination';
+import { PortalDialog } from '../components/PortalDialog';
+import { UpgradeDialog, PREMIUM_FEATURES } from '../components/Premium';
 
 // chip: matches the same semantic language as everywhere else in the app --
 // green = done, amber = not started, and running/paused share one "in
@@ -23,8 +26,8 @@ import { Pagination } from '../components/Pagination';
 // distinguished from each other by their label text, not their color.
 const STATUS_LABELS = {
   preview: { label: 'Not started', chip: 'warn', filterGroup: 'not-started' },
-  running: { label: 'Running', chip: 'info', filterGroup: 'in-progress' },
-  paused: { label: 'Paused', chip: 'info', filterGroup: 'in-progress' },
+  running: { label: 'Running', chip: 'info', filterGroup: 'running' },
+  paused: { label: 'Paused', chip: 'info', filterGroup: 'paused' },
   done: { label: 'Complete', chip: 'ok', filterGroup: 'done' },
 };
 
@@ -373,8 +376,40 @@ function ReportsTable({ jobs, campaigns, navigate, onReassign, loading = false, 
   );
 }
 
-function CampaignCard({ campaign, jobs, campaigns, navigate, onReassign, expanded, onToggle, onDelete, onAvatarChange }) {
+// Compact icon-only button, findable by the tour on both the locked and
+// unlocked render -- same "still visible, still clickable, wearing a
+// lock" rule as LockedFeatureButton in Premium.jsx, just built here as its
+// own small button since LockedFeatureButton's label+badge layout doesn't
+// fit a 28px icon slot.
+function PortalButton({ locked, onClick }) {
   return (
+    <Tooltip content={locked ? 'Client portal, on Starter, Pro and Agency' : 'Client portal'}>
+      <button
+        type="button"
+        data-tour="campaign-portal-button"
+        onClick={onClick}
+        aria-label="Client portal"
+        style={{
+          width: '28px', height: '28px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'none', border: '1px solid var(--border-strong)', borderRadius: 'var(--r-sm)',
+          color: locked ? 'var(--text-3)' : 'var(--text-2)', cursor: 'pointer',
+          transition: 'background var(--t-fast), border-color var(--t-fast)',
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2)'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+      >
+        <GlobeIcon size={14} />
+      </button>
+    </Tooltip>
+  );
+}
+
+function CampaignCard({ campaign, jobs, campaigns, navigate, onReassign, expanded, onToggle, onDelete, onAvatarChange, onOpenPortal, portalLocked }) {
+  const [showUpgrade, setShowUpgrade] = useState(false);
+  const openPortal = () => (portalLocked ? setShowUpgrade(true) : onOpenPortal(campaign));
+  return (
+    <>
+    <UpgradeDialog isOpen={showUpgrade} onClose={() => setShowUpgrade(false)} feature={PREMIUM_FEATURES.clientPortal} />
     <div className="card" style={{ marginBottom: 'var(--s3)', padding: 0, overflow: 'hidden' }}>
       {/* Desktop: one clickable row, everything (avatar, stats, delete,
           expand chevron) inline -- unchanged from before this redesign. */}
@@ -406,9 +441,12 @@ function CampaignCard({ campaign, jobs, campaigns, navigate, onReassign, expande
             <div style={{ fontFamily: 'var(--font-data)', fontSize: 'var(--fs-md)', fontWeight: 700, color: 'var(--ok)' }}>{campaign.avgEr != null ? `${campaign.avgEr}%` : '-'}</div>
             <div style={{ fontSize: '10px', color: 'var(--text-3)', textTransform: 'uppercase' }}>Avg ER</div>
           </div>
-          {/* A single-item "..." menu was ceremony for its own sake -- one
-              action gets one button, a direct delete icon, not a dropdown
-              that opens to reveal exactly one row. */}
+          {/* Portal, then delete -- the one non-destructive action sits
+              before the destructive one, same left-to-right severity order
+              the row-menu's ⋮ list already uses everywhere else. */}
+          <span onClick={(e) => e.stopPropagation()}>
+            <PortalButton locked={portalLocked} onClick={(e) => { e.stopPropagation(); openPortal(); }} />
+          </span>
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onDelete(campaign); }}
@@ -453,7 +491,10 @@ function CampaignCard({ campaign, jobs, campaigns, navigate, onReassign, expande
               </div>
             </div>
           </div>
-          <RowMenu items={[{ label: 'Delete campaign', onClick: () => onDelete(campaign) }]} />
+          <RowMenu items={[
+            { label: 'Client portal', onClick: openPortal },
+            { label: 'Delete campaign', onClick: () => onDelete(campaign) },
+          ]} />
         </div>
 
         <div style={{ display: 'flex', gap: 'var(--s5)', marginTop: 'var(--s3)' }}>
@@ -489,6 +530,7 @@ function CampaignCard({ campaign, jobs, campaigns, navigate, onReassign, expande
         )
       )}
     </div>
+    </>
   );
 }
 
@@ -622,6 +664,8 @@ function SummaryTile({ icon, tone, value, label, sublabel }) {
 export function History() {
   const navigate = useNavigate();
   const { addToast } = useToast();
+  const { user } = useAuth();
+  const [portalTarget, setPortalTarget] = useState(null);
   const [jobs, setJobs] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
   const [uncategorizedRollup, setUncategorizedRollup] = useState(null);
@@ -639,7 +683,7 @@ export function History() {
   // Client-side only, same as typeFilter/dateFilter -- job.status is already
   // in every job object the page-1 query already fetches, this just adds
   // one more filter over data already in memory rather than a new query.
-  const [statusFilter, setStatusFilter] = useState('all'); // all, not-started, in-progress, done
+  const [statusFilter, setStatusFilter] = useState('all'); // all, not-started, running, paused, done
   // Filters the already-loaded jobs by file name, entirely client-side --
   // this used to hit the server on a 350ms debounce (creatorSearch, joined
   // against every report's individual rows to match a creator username),
@@ -931,7 +975,8 @@ export function History() {
   // STATUS_LABELS already defines for the status filter above, so the strip
   // and the filter can never disagree about what counts as which.
   const completedCount = dateFilteredJobs.filter((j) => (STATUS_LABELS[j.status] || {}).filterGroup === 'done').length;
-  const inProgressCount = dateFilteredJobs.filter((j) => (STATUS_LABELS[j.status] || {}).filterGroup === 'in-progress').length;
+  const runningCount = dateFilteredJobs.filter((j) => (STATUS_LABELS[j.status] || {}).filterGroup === 'running').length;
+  const pausedCount = dateFilteredJobs.filter((j) => (STATUS_LABELS[j.status] || {}).filterGroup === 'paused').length;
   const notStartedCount = dateFilteredJobs.filter((j) => (STATUS_LABELS[j.status] || {}).filterGroup === 'not-started').length;
 
   const jobsByCampaignId = new Map();
@@ -960,7 +1005,8 @@ export function History() {
   const statusOptions = [
     { value: 'all', label: 'All status' },
     { value: 'done', label: `Completed (${completedCount})` },
-    { value: 'in-progress', label: `In progress (${inProgressCount})` },
+    { value: 'running', label: `Running (${runningCount})` },
+    { value: 'paused', label: `Paused (${pausedCount})` },
     { value: 'not-started', label: `Not started (${notStartedCount})` },
   ];
 
@@ -986,7 +1032,7 @@ export function History() {
               <ChartIcon size={15} />Compare campaigns
             </button>
           )}
-          <button className="btn btn-primary" onClick={() => setNewCampaignOpen(true)} style={{ gap: 'var(--s2)' }}>
+          <button data-tour="new-campaign-btn" className="btn btn-primary" onClick={() => setNewCampaignOpen(true)} style={{ gap: 'var(--s2)' }}>
             <PlusIcon size={15} />New campaign
           </button>
         </div>
@@ -1001,7 +1047,7 @@ export function History() {
             <SummaryTile icon={<ReelIcon size={14} />} tone="accent" value={reelCount} label="Reel reports" />
             <SummaryTile icon={<ProfileIcon size={14} />} tone="info" value={profileCount} label="Profile reports" />
             <SummaryTile icon={<SuccessIcon size={14} />} tone="ok" value={completedCount} label="Completed" />
-            <SummaryTile icon={<ClockIcon size={14} />} tone="info" value={inProgressCount} label="In progress" />
+            <SummaryTile icon={<ClockIcon size={14} />} tone="info" value={pausedCount} label="Paused" />
           </div>
 
           {/* Primary view switch: same groupByCampaign state and grouping
@@ -1195,6 +1241,8 @@ export function History() {
               onToggle={() => toggleExpanded(c.id)}
               onDelete={setDeleteTarget}
               onAvatarChange={handleAvatarChange}
+              onOpenPortal={setPortalTarget}
+              portalLocked={!user?.features?.clientPortal}
             />
           ))}
 
@@ -1306,6 +1354,15 @@ export function History() {
         </p>
         <CampaignCompareTable campaigns={campaigns} />
       </Modal>
+
+      {portalTarget && (
+        <PortalDialog
+          isOpen={!!portalTarget}
+          onClose={() => setPortalTarget(null)}
+          campaignId={portalTarget.id}
+          campaignName={portalTarget.name}
+        />
+      )}
     </div>
   );
 }

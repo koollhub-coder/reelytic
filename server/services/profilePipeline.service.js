@@ -76,13 +76,13 @@ async function getV2FetchDepth() {
   const db = getDb();
   const doc = await db.collection('settings').findOne({ key: V2_FETCH_DEPTH_KEY });
   const value = doc && Number(doc.value);
-  return Number.isFinite(value) && value >= 4 ? value : DEFAULT_V2_FETCH_DEPTH;
+  return Number.isFinite(value) && value >= 5 ? value : DEFAULT_V2_FETCH_DEPTH;
 }
 
 async function setV2FetchDepth(depth, adminUsername) {
   const value = Number(depth);
-  if (!Number.isFinite(value) || value < 4 || value > 20) {
-    throw new Error('Fetch depth must be a number between 4 and 20');
+  if (!Number.isFinite(value) || value < 5 || value > 20) {
+    throw new Error('Fetch depth must be a number between 5 and 20');
   }
   const db = getDb();
   const previous = await getV2FetchDepth();

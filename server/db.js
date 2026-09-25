@@ -412,6 +412,18 @@ async function ensureIndexes() {
     */
     await db.collection('billingOrders').createIndex({ razorpayOrderId: 1 }, { unique: true });
     await db.collection('billingOrders').createIndex({ username: 1, createdAt: -1 });
+
+    // Team seats (team.routes.js). One pending-invite row per email per
+    // owner; token is what the accept-invite link resolves by.
+    await db.collection('teamInvites').createIndex({ token: 1 }, { unique: true });
+    await db.collection('teamInvites').createIndex({ teamOwnerUsername: 1, status: 1 });
+    // A member's own doc points back at the owner it belongs to -- used to
+    // list an owner's seats without a table scan.
+    await db.collection('users').createIndex({ teamOwnerUsername: 1 }, { sparse: true });
+
+    // Persistent client portal (campaigns.routes.js POST /:id/portal). Same
+    // sparse-token shape as jobs.shareToken above, just on campaigns instead.
+    await db.collection('campaigns').createIndex({ portalToken: 1 }, { sparse: true });
   } catch (e) {
     console.warn('[DB Indexes]', e.message);
   }

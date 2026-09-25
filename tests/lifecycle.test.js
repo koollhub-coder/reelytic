@@ -298,3 +298,182 @@ describe('exports', () => {
     }
   });
 });
+
+/*
+  Editing a sheet after upload: replace it with a corrected file or add more
+  links, then carry on from where the report was. The rules that matter are
+  about money: finished links keep their results and are never charged again,
+  only links that have not run yet can cost anything, and editing itself
+  never moves the balance.
+
+  URLs are written in normalized form (no trailing slash) because that is
+  what a real upload stores, and rows are matched on exactly that.
+*/
+const reelUrl = (code) => `https://www.instagram.com/reel/${code}`;
+const balanceOf = async () => (await getDb().collection('users').findOne({ username: usernameFor('pro') })).credits;
+
+async function runToDone(urls) {
+  const id = await createPendingJob({ urls });
+  const started = await agent.post(`/jobs/${id}/start`, {});
+  assert.ok(started.ok, `start should be accepted, got ${started.status}`);
+  await waitForStatus(id, ['done']);
+  return id;
+}
+
+describe('editing a sheet after upload', () => {
+  test('a dry run says what would change and changes nothing', async () => {
+    const id = await runToDone([reelUrl('OK300'), reelUrl('OK301')]);
+    const before = await getDb().collection('jobs').findOne({ _id: id });
+
+    const res = await agent.post(`/jobs/${id}/sheet`, { links: `${reelUrl('OK300')}\n${reelUrl('OK302')}`, mode: 'replace', dryRun: true });
+    assert.ok(res.ok, JSON.stringify(res.data));
+    assert.equal(res.data.summary.kept, 1, 'the finished link that is still in the sheet is kept');
+    assert.equal(res.data.summary.added, 1, 'the new link would be added');
+    assert.equal(res.data.summary.removed, 1, 'the link that is no longer in the sheet would be removed');
+
+    const after = await getDb().collection('jobs').findOne({ _id: id });
+    assert.deepEqual(after.rows.map((r) => r.input.url), before.rows.map((r) => r.input.url), 'a dry run must not touch the report');
+    assert.equal(after.status, 'done');
+  });
+
+  test('adding links to a finished report reopens it and charges only for the new ones', async () => {
+    const id = await runToDone([reelUrl('OK310'), reelUrl('OK311')]);
+    const beforeEdit = await balanceOf();
+
+    const edit = await agent.post(`/jobs/${id}/sheet`, { links: `${reelUrl('OK310')}\n${reelUrl('OK312')}\n${reelUrl('OK313')}`, mode: 'add' });
+    assert.ok(edit.ok, JSON.stringify(edit.data));
+    assert.equal(edit.data.summary.added, 2);
+    assert.equal(edit.data.summary.alreadyInReport, 1, 'a link that is already in the report is not added twice');
+    assert.equal(await balanceOf(), beforeEdit, 'editing the sheet must not spend anything');
+
+    const paused = await getDb().collection('jobs').findOne({ _id: id });
+    assert.equal(paused.status, 'paused', 'left paused, never started for the user');
+    // Index 2 is the repeat of OK310 (shown as a duplicate, never run), so the
+    // first link that actually still has to run sits at index 3.
+    assert.equal(paused.cursor, 3, 'resumes at the first link that has not run');
+    assert.equal(paused.counts.success, 2, 'the two finished links are still counted');
+
+    const resumed = await agent.post(`/jobs/${id}/resume`, {});
+    assert.ok(resumed.ok, JSON.stringify(resumed.data));
+    const job = await waitForStatus(id, ['done']);
+
+    assert.equal(job.counts.success, 4, 'all four links should now have results');
+    assert.equal(beforeEdit - (await balanceOf()), 2, 'only the two new links may cost a credit each');
+    assert.ok(job.rows.every((r) => r.state === 'done' || r.state === 'duplicate'), 'nothing left waiting');
+  });
+
+  test('replacing the sheet keeps finished results, retries failures, and drops what is gone', async () => {
+    const id = await runToDone([reelUrl('OK320'), reelUrl('OK321'), reelUrl('FAIL322')]);
+    const beforeEdit = await balanceOf();
+
+    const edit = await agent.post(`/jobs/${id}/sheet`, { links: `${reelUrl('OK320')}\n${reelUrl('OK323')}\n${reelUrl('FAIL322')}`, mode: 'replace' });
+    assert.ok(edit.ok, JSON.stringify(edit.data));
+    assert.equal(edit.data.summary.kept, 1);
+    assert.equal(edit.data.summary.added, 1);
+    assert.equal(edit.data.summary.retry, 1, 'the link that failed before gets another try');
+    assert.equal(edit.data.summary.removed, 1);
+    assert.equal(edit.data.summary.removedWithResults, 1);
+
+    await agent.post(`/jobs/${id}/resume`, {});
+    const job = await waitForStatus(id, ['done']);
+    const urls = job.rows.map((r) => r.input.url);
+    assert.ok(!urls.includes(reelUrl('OK321')), 'the removed link is gone from the report');
+    assert.equal(job.counts.success, 2, 'OK320 kept plus OK323 newly run');
+    assert.equal(beforeEdit - (await balanceOf()), 1, 'only OK323 is a new success; OK320 is not charged twice');
+  });
+
+  test('a report cannot be edited while it is running', async () => {
+    const id = await createPendingJob({ urls: [reelUrl('OK330')] });
+    await getDb().collection('jobs').updateOne({ _id: id }, { $set: { status: 'running' } });
+    const res = await agent.post(`/jobs/${id}/sheet`, { links: reelUrl('OK331'), mode: 'add' });
+    assert.equal(res.status, 409);
+    assert.equal(res.data.code, 'JOB_RUNNING');
+  });
+
+  test("someone else's report cannot be edited", async () => {
+    const id = await createPendingJob({ urls: [reelUrl('OK340')], owner: 'starter' });
+    const res = await agent.post(`/jobs/${id}/sheet`, { links: reelUrl('OK341'), mode: 'add' });
+    assert.equal(res.status, 403);
+  });
+
+  test('editing a report that has not started replaces it in place, still a preview', async () => {
+    const id = await createPendingJob({ urls: [reelUrl('OK350'), reelUrl('OK351')] });
+    const res = await agent.post(`/jobs/${id}/sheet`, { links: `${reelUrl('OK352')}\nhttps://example.com/not-instagram`, mode: 'replace' });
+    assert.ok(res.ok, JSON.stringify(res.data));
+    const job = await getDb().collection('jobs').findOne({ _id: id });
+    assert.equal(job.status, 'preview');
+    assert.equal(job.cursor, 0);
+    assert.equal(job.counts.total, 2);
+    assert.equal(job.counts.valid, 1);
+    assert.equal(job.counts.invalid, 1);
+  });
+});
+
+/*
+  Sponsored (paid partnership) and collab posts used to be thrown out of a
+  profile's average. Clients asked for every Reel to count, so only pinned and
+  non-Reel posts are set aside now. Pure functions, no network.
+*/
+describe('profile post selection', () => {
+  const { selectProfileReels, selectProfileReelsV2 } = require('../server/services/apify.service');
+  const day = (n) => `2026-08-0${n}T00:00:00Z`;
+
+  test('legacy pipeline: sponsored and collab posts are included, pinned is not', () => {
+    const mk = (n, extra = {}) => ({ videoPlayCount: 1000 + n, timestamp: day(n), ...extra });
+    const { candidates } = selectProfileReels([
+      mk(1), mk(2, { paidPartnership: true }), mk(3, { coauthorProducers: [{ id: 1 }] }), mk(4, { isPinned: true }), mk(5),
+    ]);
+    const reasons = candidates.map((c) => c.reason);
+    assert.ok(!reasons.includes('sponsored') && !reasons.includes('collab'), `nothing should be excluded as sponsored/collab, got ${reasons}`);
+    assert.equal(reasons.filter((r) => r === 'included').length, 4);
+    assert.equal(reasons.filter((r) => r === 'pinned').length, 1);
+  });
+
+  test('Express pipeline: sponsored and collab posts are included, pinned is not', () => {
+    const mk = (n, extra = {}) => ({ views: 1000 + n, videoPlayCount: 1000 + n, playCount: 1000 + n, timestamp: day(n), ...extra });
+    const { candidates } = selectProfileReelsV2([
+      mk(1), mk(2, { isSponsored: true }), mk(3, { isCollab: true }), mk(4, { isPinned: true }), mk(5), mk(6),
+    ]);
+    const reasons = candidates.map((c) => c.reason);
+    assert.ok(!reasons.includes('sponsored') && !reasons.includes('collab'));
+    assert.equal(reasons.filter((r) => r === 'pinned').length, 1);
+  });
+});
+
+/*
+  The profile actor renamed `owner` to `user` in Sep 2026. Only `owner` was
+  read, so every post lost its username and every profile failed with "no
+  data". Both output shapes must normalize to the same thing.
+*/
+describe('profile actor output shapes', () => {
+  const { normalizeProfileReelItemV2 } = require('../server/services/apify.service');
+  const base = { play_count: 5000, like_count: 100, comment_count: 4, shortcode: 'abc', taken_at: '2026-08-01T00:00:00Z' };
+
+  test('new shape (user / follower_count) resolves the username and followers', () => {
+    const n = normalizeProfileReelItemV2({ ...base, user: { username: 'someone', full_name: 'Some One', follower_count: 1234 } });
+    assert.equal(n.ownerUsername, 'someone');
+    assert.equal(n.ownerFollowersCount, 1234);
+  });
+
+  test('old shape (owner / followers) still works', () => {
+    const n = normalizeProfileReelItemV2({ ...base, owner: { username: 'someone', full_name: 'Some One', followers: 99 } });
+    assert.equal(n.ownerUsername, 'someone');
+    assert.equal(n.ownerFollowersCount, 99);
+  });
+});
+
+describe('profile actor pinned flag', () => {
+  const { normalizeProfileReelItemV2 } = require('../server/services/apify.service');
+  const base = { play_count: 5000, shortcode: 'abc', user: { username: 'someone' } };
+
+  test('clips_tab_pinned_user_ids marks a Reel as pinned', () => {
+    assert.equal(normalizeProfileReelItemV2({ ...base, clips_tab_pinned_user_ids: ['123'] }).isPinned, true);
+  });
+  test('the older pinned_for_users field still marks it pinned', () => {
+    assert.equal(normalizeProfileReelItemV2({ ...base, pinned_for_users: [{ id: 1 }] }).isPinned, true);
+  });
+  test('an empty pin list means not pinned', () => {
+    assert.equal(normalizeProfileReelItemV2({ ...base, clips_tab_pinned_user_ids: [] }).isPinned, false);
+    assert.equal(normalizeProfileReelItemV2({ ...base }).isPinned, false);
+  });
+});

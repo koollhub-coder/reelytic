@@ -110,7 +110,7 @@ export function AdminDashboard() {
             Running right now
           </h3>
           {runningJobs.length === 0 ? (
-            <div style={{ color: 'var(--text-3)', textAlign: 'center', padding: 'var(--s5)' }}>Nothing is running -- the queue is idle.</div>
+            <div style={{ color: 'var(--text-3)', textAlign: 'center', padding: 'var(--s5)' }}>Nothing is running, the queue is idle.</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--s3)' }}>
               {runningJobs.map((j) => (

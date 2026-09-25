@@ -170,7 +170,10 @@ export function Shell() {
         // its own separate nav bar and no sidebar, so routing here to it used to
         // eject the user from their whole workspace for what looked like a
         // different site. Admin has unlimited credits and never needs this.
-        ...(isAdmin ? [] : [{ label: 'Pricing & Plans', path: '/billing', icon: CreditCardIcon }]),
+        // A team member never sees it either -- billing.routes.js only lets
+        // the account owner manage the plan (see requireAccountOwner there),
+        // so a member following this link would just hit a 403.
+        ...(isAdmin || user?.isTeamMember ? [] : [{ label: 'Pricing & Plans', path: '/billing', icon: CreditCardIcon }]),
       ],
     },
   ];

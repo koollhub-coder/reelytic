@@ -959,3 +959,101 @@ div.chip {
 .rl-dashboard-chart-yaxis {
   width: 22px;
 }
+
+/* ---- Creators table: column filters, engagement badge, gender ----------
+   Clickable column headings in the Excel style (see
+   components/CreatorColumnFilters.jsx). The heading keeps the table's own
+   uppercase label look; only the button reset and the on-state are new. */
+.rl-colhead {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: none; border: none; padding: 4px 6px; margin: -4px -6px;
+  font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit;
+  border-radius: var(--r-sm); cursor: pointer; white-space: nowrap;
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.rl-colhead:hover { background: var(--border); color: var(--text); }
+.rl-colhead:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.rl-colhead-on { color: var(--accent); }
+
+.rl-filter-popover {
+  position: fixed; z-index: 1200;
+  background: var(--surface); border: 1px solid var(--border-strong);
+  border-radius: var(--r-md); box-shadow: var(--shadow-lg);
+  text-transform: none; letter-spacing: normal; font-weight: 400;
+  color: var(--text); font-size: var(--fs-sm); text-align: left;
+}
+.rl-filter-section { padding: var(--s3); }
+.rl-filter-title {
+  font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--text-3); margin-bottom: var(--s2);
+}
+.rl-filter-item {
+  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+  background: none; border: none; padding: 8px; border-radius: var(--r-sm);
+  color: var(--text); font-size: var(--fs-sm); cursor: pointer;
+}
+.rl-filter-item:hover { background: var(--surface-2); }
+.rl-filter-item-on { color: var(--accent); font-weight: 600; }
+.rl-filter-check {
+  display: flex; align-items: center; gap: 10px; padding: 7px 4px;
+  font-size: var(--fs-sm); cursor: pointer; border-radius: var(--r-sm);
+}
+.rl-filter-check:hover { background: var(--surface-2); }
+.rl-filter-note { font-size: var(--fs-xs); color: var(--text-3); line-height: 1.5; margin-top: 4px; }
+
+/* Engagement badge: green above 2%, quiet grey otherwise. The first thing in
+   every row, so a good performer reads at a glance before anything else. */
+.rl-er-badge {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-width: 68px; padding: 5px 10px; border-radius: var(--r-full);
+  font-family: var(--font-data); font-size: var(--fs-sm); font-weight: 700;
+  background: var(--surface-2); color: var(--text-3);
+}
+.rl-er-badge::before {
+  content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: 0.55;
+}
+.rl-er-badge-good { background: var(--ok-soft); color: var(--ok); }
+.rl-er-badge-good::before { opacity: 1; }
+
+.rl-gender-pill {
+  display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px;
+  border: 1px solid var(--border); border-radius: var(--r-full); background: transparent;
+  font-size: var(--fs-xs); font-weight: 500; color: var(--text-2); cursor: pointer;
+}
+.rl-gender-pill:hover { background: var(--surface-2); border-color: var(--border-strong); }
+.rl-gender-pill-empty { color: var(--text-3); }
+
+.rl-filter-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: var(--s3); align-items: center; }
+.rl-filter-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 10px;
+  background: var(--accent-soft); color: var(--accent); border: none; border-radius: var(--r-full);
+  font-size: var(--fs-xs); font-weight: 600; cursor: pointer;
+}
+.rl-filter-chip:hover { filter: brightness(0.96); }
+
+/* A multi-line field must not inherit the 38px single-line height and zero
+   vertical padding of .input-field: that clipped the first line of text and
+   the placeholder. */
+textarea.input-field {
+  height: auto;
+  padding: var(--s3);
+  line-height: 1.5;
+}
+
+/* Optional list name on the paste panel. Quiet on purpose: no box, just a
+   hairline underline that wakes up on focus. */
+.rl-upload-paste-name {
+  width: 100%;
+  margin-top: var(--s3);
+  padding: var(--s1) 0;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  color: var(--text);
+  font-size: var(--fs-sm);
+  box-sizing: border-box;
+  transition: border-color var(--t-fast);
+}
+.rl-upload-paste-name::placeholder { color: var(--text-3); }
+.rl-upload-paste-name:focus { outline: none; border-bottom-color: var(--accent); }

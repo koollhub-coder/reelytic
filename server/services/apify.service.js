@@ -444,11 +444,15 @@ function selectProfileReels(posts) {
   // reasonFor: post -> final reason. Set once per post, overwritten only by
   // the very last pass (selected -> 'included') so every post ends up with
   // exactly one final status.
+  // Sponsored/paid-partnership and collab posts used to be excluded here.
+  // Removed on request: clients want every Reel a creator posted to count
+  // toward their numbers, branded or co-posted or not. 'sponsored' and
+  // 'collab' are still valid reason strings in stored reports (and in the
+  // label maps that render them) so reports run before this change keep
+  // displaying correctly.
   const reasonFor = new Map();
   for (const p of allPosts) {
-    if (p.paidPartnership === true) reasonFor.set(p, 'sponsored');
-    else if (Array.isArray(p.coauthorProducers) && p.coauthorProducers.length > 0) reasonFor.set(p, 'collab');
-    else if (p.isPinned) reasonFor.set(p, 'pinned');
+    if (p.isPinned) reasonFor.set(p, 'pinned');
     else if (anyReel && !isReelPost(p)) reasonFor.set(p, 'not_a_reel');
   }
 
@@ -538,10 +542,10 @@ function selectProfileReels(posts) {
 function selectProfileReelsV2(posts) {
   const allPosts = posts || [];
   const reasonFor = new Map();
+  // Sponsored and collab posts count like any other Reel (see the same note
+  // in selectProfileReels above); only pinned posts are set aside up front.
   for (const p of allPosts) {
-    if (p.isSponsored) reasonFor.set(p, 'sponsored');
-    else if (p.isCollab) reasonFor.set(p, 'collab');
-    else if (p.isPinned) reasonFor.set(p, 'pinned');
+    if (p.isPinned) reasonFor.set(p, 'pinned');
   }
 
   const withViews = [];
@@ -587,6 +591,11 @@ function buildCandidateStatusList(allPosts, reasonFor) {
       views: postViews(p),
       included: reason === 'included',
       reason,
+      // Sponsored and collab posts are counted like any other Reel now, so
+      // they no longer show up as a reason. The flags ride along so the
+      // "considered posts" view can still label them.
+      isSponsored: !!p.isSponsored,
+      isCollab: !!p.isCollab,
     };
   }).sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
 }
@@ -831,7 +840,11 @@ const PROFILE_REELS_ACTOR = 'instagram-scraper~instagram-profile-reels-scraper';
 // don't need to know which pipeline ran.
 function normalizeProfileReelItemV2(item) {
   if (!item || typeof item !== 'object') return item;
-  const owner = item.owner || {};
+  // The actor renamed `owner` to `user` (and `followers` to `follower_count`)
+  // in Sep 2026. With only `owner` read, every post lost its username, was
+  // dropped by groupByOwner, and every profile came back as "no data".
+  // Accepting both keeps old and new output working.
+  const owner = item.owner || item.user || {};
   return {
     ...item,
     // play_count is the only trustworthy view metric here -- view_count is
@@ -841,13 +854,18 @@ function normalizeProfileReelItemV2(item) {
     commentsCount: item.comment_count ?? undefined,
     ownerUsername: owner.username || item.ownerUsername,
     ownerFullName: owner.full_name || item.ownerFullName,
-    ownerFollowersCount: owner.followers ?? undefined,
+    ownerFollowersCount: owner.followers ?? owner.follower_count ?? undefined,
     shortCode: item.shortcode || item.shortCode,
     url: item.reel_url || item.url || (item.shortcode ? `https://www.instagram.com/reel/${item.shortcode}/` : undefined),
     timestamp: item.taken_at,
     // pinned_for_users may be entirely absent when nothing is pinned --
     // absent must mean NOT pinned, not "unknown."
-    isPinned: Array.isArray(item.pinned_for_users) && item.pinned_for_users.length > 0,
+    // The actor stopped sending pinned_for_users and now marks pins with
+    // clips_tab_pinned_user_ids (verified live, Sep 2026: 3 pinned Reels per
+    // creator carried it, and none carried the old field). Reading only the
+    // old one counted every pinned Reel, at millions of views, in the average.
+    isPinned: (Array.isArray(item.pinned_for_users) && item.pinned_for_users.length > 0)
+      || (Array.isArray(item.clips_tab_pinned_user_ids) && item.clips_tab_pinned_user_ids.length > 0),
     // Real fields, confirmed present on every call this actor already makes
     // (checked directly against live output -- no extra cost, no extra
     // request, just fields that were already being paid for and ignored).
@@ -934,6 +952,12 @@ async function scrapeProfilesBatchV2(usernamesOrUrls) {
   // summary race condition, not specific to one actor.
   const items = (raw || []).map(normalizeProfileReelItemV2);
   const byUser = groupByOwner(items);
+  // Posts came back but none could be tied to an account: the actor's output
+  // shape has drifted again. Say so loudly instead of letting every profile
+  // quietly report "no data".
+  if (items.length > 0 && byUser.size === 0) {
+    console.error(`[Apify] ${PROFILE_REELS_ACTOR} returned ${items.length} items but none carried a username. Output shape changed? Keys: ${Object.keys(raw[0] || {}).slice(0, 30).join(',')}`);
+  }
 
   const result = new Map();
   const needsRetry = [];

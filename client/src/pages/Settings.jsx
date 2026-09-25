@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { PasswordInput } from '../components/PasswordInput';
 import { Select } from '../components/Select';
 import { ProBadge, PREMIUM_FEATURES } from '../components/Premium';
+import { TeamCard } from '../components/TeamCard';
 import { WelcomeTour } from '../components/WelcomeTour';
 import { Tooltip } from '../components/Tooltip';
 import {
@@ -356,6 +357,10 @@ export function Settings() {
       </div>
 
       {showTour && <WelcomeTour onDone={() => setShowTour(false)} username={user?.username} />}
+
+      <div style={{ marginBottom: 'var(--s4)' }}>
+        <TeamCard user={user} />
+      </div>
 
       {/* Report Branding: full-width, primary section (per its outsized
           effect on client-facing reports) -- no longer competing for grid

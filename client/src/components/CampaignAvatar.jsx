@@ -91,7 +91,7 @@ export function CampaignAvatarPicker({ name, avatarUrl, onChange, size = 44, dis
       return;
     }
     if (file.size > MAX_AVATAR_BYTES) {
-      setError('Image is too large -- under 512KB.');
+      setError('Image is too large, please keep it under 512KB.');
       return;
     }
     const reader = new FileReader();

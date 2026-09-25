@@ -5,6 +5,7 @@ export function FileDrop({ onFileSelected, type = 'reel' }) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [pasteMode, setPasteMode] = useState(false);
   const [pastedText, setPastedText] = useState('');
+  const [listName, setListName] = useState('');
   const fileInputRef = useRef(null);
 
   const handleDrop = (e) => {
@@ -74,13 +75,24 @@ export function FileDrop({ onFileSelected, type = 'reel' }) {
             onChange={(e) => setPastedText(e.target.value)}
             autoFocus
           />
+          {/* Optional and deliberately quiet: no label, no border box. Only
+              there so a pasted list can be told apart later in History. */}
+          <input
+            type="text"
+            className="rl-upload-paste-name"
+            placeholder="Name this list (optional)"
+            maxLength={60}
+            value={listName}
+            onChange={(e) => setListName(e.target.value)}
+            aria-label="Name this list (optional)"
+          />
           <div className="rl-upload-paste-footer">
             <span>{lineCount} {lineCount === 1 ? 'link' : 'links'} detected</span>
             <button
               type="button"
               className="btn btn-primary"
               disabled={lineCount === 0}
-              onClick={() => onFileSelected(pastedText)}
+              onClick={() => onFileSelected(pastedText, listName.trim())}
             >
               Process {lineCount} links
             </button>

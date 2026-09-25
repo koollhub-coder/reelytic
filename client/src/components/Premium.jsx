@@ -180,4 +180,24 @@ export const PREMIUM_FEATURES = {
     ],
     plans: ['Starter', 'Pro', 'Agency'],
   },
+  teamSeats: {
+    title: 'Team seats',
+    description: 'Bring your teammates in to the same workspace, sharing your reports, campaigns and credits.',
+    points: [
+      'Invite teammates by email, no shared password needed',
+      'Everyone sees the same reports, campaigns and creator database',
+      'You stay the only one who manages billing',
+    ],
+    plans: ['Starter', 'Pro', 'Agency'],
+  },
+  clientPortal: {
+    title: 'Persistent client portal',
+    description: 'One living link per campaign that always shows your client the latest numbers, instead of a new file every time you have an update.',
+    points: [
+      'Updates automatically as you add more reports to the campaign',
+      'No login needed on their end',
+      'Turn it off any time from the campaign itself',
+    ],
+    plans: ['Starter', 'Pro', 'Agency'],
+  },
 };

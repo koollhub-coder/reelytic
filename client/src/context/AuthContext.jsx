@@ -96,6 +96,18 @@ export function AuthProvider({ children }) {
     });
   };
 
+  // Accepts a team invite (see AcceptTeamInvite.jsx / team.routes.js POST
+  // /invite/:token/accept) -- creates the member's account and starts a
+  // session in one step, same shape as verifyOtp above.
+  const acceptTeamInvite = async (token, { name, username, password }) => {
+    const data = await apiFetch(`/team/invite/${encodeURIComponent(token)}/accept`, {
+      method: 'POST',
+      body: JSON.stringify({ name, username, password }),
+    });
+    setUser(data.user);
+    return data.user;
+  };
+
   // credential = real Google ID token; { email, name } = dummy-mode fallback.
   const googleLogin = async (payload) => {
     const data = await apiFetch('/auth/google', {
@@ -129,7 +141,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, signup, verifyOtp, verifyOtpLink, resendOtp, forgotPassword, checkResetToken, resetPassword, googleLogin, logout, refreshUser, loading }}>
+    <AuthContext.Provider value={{ user, login, signup, verifyOtp, verifyOtpLink, resendOtp, forgotPassword, checkResetToken, resetPassword, acceptTeamInvite, googleLogin, logout, refreshUser, loading }}>
       {children}
     </AuthContext.Provider>
   );

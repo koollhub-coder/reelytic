@@ -40,7 +40,7 @@ export function NewsletterSignup() {
     <div className="landing-newsletter">
       <div className="landing-newsletter-icon"><MailIcon size={18} /></div>
       <div className="landing-newsletter-title">Stay in the loop</div>
-      <div className="landing-newsletter-desc">Tips, product updates, and insights — straight to your inbox.</div>
+      <div className="landing-newsletter-desc">Tips, product updates, and insights, straight to your inbox.</div>
       {state === 'done' ? (
         <div className="landing-newsletter-success"><CheckIcon size={14} />Subscribed. Thanks for joining.</div>
       ) : (

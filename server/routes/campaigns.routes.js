@@ -1,8 +1,10 @@
 const express = require('express');
+const crypto = require('crypto');
 const router = express.Router();
 const { ObjectId } = require('mongodb');
 const { requireLogin, requireChangePasswordCheck } = require('../middleware/auth');
 const { getDb, queryId } = require('../db');
+const { hasFeature } = require('../services/features.service');
 
 // Campaigns are a pure organizing layer on top of reports (jobs) -- a report
 // still runs, pauses, and exports exactly as before whether or not it's
@@ -75,7 +77,7 @@ function computeRollup(jobs) {
 router.get('/', requireLogin, requireChangePasswordCheck, async (req, res, next) => {
   try {
     const db = getDb();
-    const ownerUsername = req.currentUser.role === 'admin' && req.query.user ? req.query.user : req.currentUser.username;
+    const ownerUsername = req.currentUser.role === 'admin' && req.query.user ? req.query.user : req.currentUser.effectiveUsername;
 
     const campaigns = await db.collection('campaigns').find({ ownerUsername }).sort({ createdAt: -1 }).toArray();
     const jobs = await db.collection('jobs').find({ ownerUsername }).toArray();
@@ -126,7 +128,7 @@ router.post('/', requireLogin, requireChangePasswordCheck, async (req, res, next
       _id: new ObjectId().toHexString(),
       name,
       avatarUrl,
-      ownerUsername: req.currentUser.username,
+      ownerUsername: req.currentUser.effectiveUsername,
       createdAt: new Date(),
     };
     await db.collection('campaigns').insertOne(campaign);
@@ -143,7 +145,7 @@ router.patch('/:id', requireLogin, requireChangePasswordCheck, async (req, res, 
     const db = getDb();
     const campaign = await db.collection('campaigns').findOne({ _id: queryId(req.params.id) });
     if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
-    if (campaign.ownerUsername !== req.currentUser.username) return res.status(403).json({ error: 'Forbidden' });
+    if (campaign.ownerUsername !== req.currentUser.effectiveUsername) return res.status(403).json({ error: 'Forbidden' });
 
     let avatarUrl;
     try {
@@ -164,12 +166,88 @@ router.delete('/:id', requireLogin, requireChangePasswordCheck, async (req, res,
     const db = getDb();
     const campaign = await db.collection('campaigns').findOne({ _id: queryId(req.params.id) });
     if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
-    if (campaign.ownerUsername !== req.currentUser.username) return res.status(403).json({ error: 'Forbidden' });
+    if (campaign.ownerUsername !== req.currentUser.effectiveUsername) return res.status(403).json({ error: 'Forbidden' });
 
     await db.collection('campaigns').deleteOne({ _id: queryId(req.params.id) });
     await db.collection('jobs').updateMany(
-      { campaignId: req.params.id, ownerUsername: req.currentUser.username },
+      { campaignId: req.params.id, ownerUsername: req.currentUser.effectiveUsername },
       { $set: { campaignId: null } }
+    );
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/*
+  Persistent client portal: a single, non-expiring link that shows a campaign's
+  whole rolled-up performance, unlike the per-report share link in
+  jobs.routes.js (POST /:id/share) which covers one report and can expire.
+  Same token shape and same "mint only once, read-only status, explicit
+  revoke" pattern as that file, just stored on the campaign document instead
+  of the job -- see public.routes.js GET /campaigns/:token for how it's
+  resolved on the other end, with no login.
+*/
+function portalState(campaign) {
+  return {
+    portalToken: campaign.portalToken || null,
+    portalViews: campaign.portalViews || 0,
+    portalLastViewedAt: campaign.portalLastViewedAt || null,
+  };
+}
+
+router.post('/:id/portal', requireLogin, requireChangePasswordCheck, async (req, res, next) => {
+  try {
+    const db = getDb();
+    const campaign = await db.collection('campaigns').findOne({ _id: queryId(req.params.id) });
+    if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
+    if (campaign.ownerUsername !== req.currentUser.effectiveUsername) return res.status(403).json({ error: 'Forbidden' });
+
+    if (!campaign.portalToken && !(await hasFeature(req.currentUser, 'clientPortal'))) {
+      return res.status(403).json({ error: 'The client portal isn\'t available on your current plan. Upgrade to give clients a living link to this campaign.', code: 'FEATURE_LOCKED' });
+    }
+
+    let portalToken = campaign.portalToken;
+    const update = {};
+    if (!portalToken) {
+      portalToken = crypto.randomBytes(16).toString('hex');
+      update.portalToken = portalToken;
+      update.portalViews = 0;
+      update.portalLastViewedAt = null;
+    }
+    await db.collection('campaigns').updateOne({ _id: queryId(req.params.id) }, { $set: update });
+    res.json({ success: true, ...portalState({ ...campaign, ...update }) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Read-only status, same reasoning as GET /jobs/:id/share -- opening the
+// dialog to look at it must not itself mint a link nobody asked for.
+router.get('/:id/portal', requireLogin, requireChangePasswordCheck, async (req, res, next) => {
+  try {
+    const db = getDb();
+    const campaign = await db.collection('campaigns').findOne({ _id: queryId(req.params.id) });
+    if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
+    if (campaign.ownerUsername !== req.currentUser.effectiveUsername) return res.status(403).json({ error: 'Forbidden' });
+    res.json(portalState(campaign));
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/:id/portal/revoke', requireLogin, requireChangePasswordCheck, async (req, res, next) => {
+  try {
+    const db = getDb();
+    const campaign = await db.collection('campaigns').findOne({ _id: queryId(req.params.id) });
+    if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
+    if (campaign.ownerUsername !== req.currentUser.effectiveUsername) return res.status(403).json({ error: 'Forbidden' });
+
+    // $set to null, not $unset -- same reason as jobs.routes.js's share
+    // revoke: the in-memory DB fallback only implements $set/$inc/$push.
+    await db.collection('campaigns').updateOne(
+      { _id: queryId(req.params.id) },
+      { $set: { portalToken: null } }
     );
     res.json({ success: true });
   } catch (err) {

@@ -10,6 +10,12 @@ const { hasFeature } = require('../services/features.service');
 const { buildReportContext } = require('../services/reportContext.service');
 const { getOrCreateDemoJob, deleteDemoJob } = require('../services/demo.service');
 const { getReportBranding } = require('../services/branding.service');
+const multer = require('multer');
+const { parseSpreadsheetBuffer } = require('../services/parse.service');
+const { planSheetEdit, applySheetEdit, editBlocker, MODES } = require('../services/sheetEdit.service');
+
+// Same 15 MB ceiling as the first upload (upload.routes.js).
+const sheetUpload = multer({ limits: { fileSize: 15 * 1024 * 1024 } });
 
 // Escapes regex special characters in free-text search input before it's
 // used to build a MongoDB $regex -- otherwise a search term like "a.b*c"
@@ -35,7 +41,7 @@ async function loadOwnedJob(req, res) {
     res.status(404).json({ error: 'Report not found' });
     return null;
   }
-  if (job.ownerUsername !== req.currentUser.username && req.currentUser.role !== 'admin') {
+  if (job.ownerUsername !== req.currentUser.effectiveUsername && req.currentUser.role !== 'admin') {
     res.status(403).json({ error: 'Forbidden' });
     return null;
   }
@@ -45,7 +51,7 @@ async function loadOwnedJob(req, res) {
 router.get('/', requireLogin, requireChangePasswordCheck, async (req, res, next) => {
   try {
     const db = getDb();
-    const ownerUsername = req.currentUser.role === 'admin' && req.query.user ? req.query.user : req.currentUser.username;
+    const ownerUsername = req.currentUser.role === 'admin' && req.query.user ? req.query.user : req.currentUser.effectiveUsername;
     const query = { ownerUsername };
 
     // Creator search spans every report's individual rows, not just the
@@ -105,7 +111,7 @@ router.patch('/:id/campaign', requireLogin, requireChangePasswordCheck, async (r
     const db = getDb();
     const job = await db.collection('jobs').findOne({ _id: queryId(req.params.id) });
     if (!job) return res.status(404).json({ error: 'Report not found' });
-    if (job.ownerUsername !== req.currentUser.username && req.currentUser.role !== 'admin') {
+    if (job.ownerUsername !== req.currentUser.effectiveUsername && req.currentUser.role !== 'admin') {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
@@ -139,12 +145,12 @@ router.get('/active', requireLogin, requireChangePasswordCheck, async (req, res,
     const type = req.query.type;
     if (type !== 'reel' && type !== 'profile') return res.status(400).json({ error: 'type must be reel or profile' });
 
-    const pointerId = await getActiveJobPointer(req.currentUser.username, type);
+    const pointerId = await getActiveJobPointer(req.currentUser.effectiveUsername, type);
     if (!pointerId) return res.json({ job: null });
 
     const db = getDb();
     const job = await db.collection('jobs').findOne({ _id: queryId(pointerId) });
-    if (!job || job.ownerUsername !== req.currentUser.username) return res.json({ job: null });
+    if (!job || job.ownerUsername !== req.currentUser.effectiveUsername) return res.json({ job: null });
 
     res.json({ job });
   } catch (err) {
@@ -161,7 +167,7 @@ router.patch('/:id/rows/:rowIndex', requireLogin, requireChangePasswordCheck, as
     const db = getDb();
     const job = await db.collection('jobs').findOne({ _id: queryId(req.params.id) });
     if (!job) return res.status(404).json({ error: 'Report not found' });
-    if (job.ownerUsername !== req.currentUser.username && req.currentUser.role !== 'admin') {
+    if (job.ownerUsername !== req.currentUser.effectiveUsername && req.currentUser.role !== 'admin') {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
@@ -192,7 +198,7 @@ router.get('/:id', requireLogin, requireChangePasswordCheck, async (req, res, ne
     const db = getDb();
     const job = await db.collection('jobs').findOne({ _id: queryId(req.params.id) });
     if (!job) return res.status(404).json({ error: 'Report not found' });
-    if (job.ownerUsername !== req.currentUser.username && req.currentUser.role !== 'admin') {
+    if (job.ownerUsername !== req.currentUser.effectiveUsername && req.currentUser.role !== 'admin') {
       return res.status(403).json({ error: 'Forbidden' });
     }
     // Benchmark and previous-campaign comparison, computed server-side so
@@ -279,6 +285,63 @@ router.patch('/:id/columns', requireLogin, requireChangePasswordCheck, async (re
   }
 });
 
+/*
+  Edit a report's sheet after upload: replace it with a corrected file, or add
+  more links to it. Works on a report that has not started, one that is
+  paused, and one that already finished; a running report has to be paused
+  first. What is kept, retried, added and removed is decided by
+  sheetEdit.service.js, and the report is left paused (never started) so
+  spending credits stays an explicit click.
+
+  dryRun=1 returns what WOULD change without touching anything, which is what
+  the dialog shows before asking for confirmation.
+*/
+router.post('/:id/sheet', requireLogin, requireChangePasswordCheck, sheetUpload.single('file'), async (req, res, next) => {
+  try {
+    const job = await loadOwnedJob(req, res);
+    if (!job) return undefined;
+
+    const blocked = editBlocker(job);
+    if (blocked) return res.status(409).json(blocked);
+
+    const mode = MODES.includes(req.body && req.body.mode) ? req.body.mode : 'replace';
+    const dryRun = req.body && (req.body.dryRun === '1' || req.body.dryRun === true || req.body.dryRun === 'true');
+
+    let buffer;
+    let filename = 'pasted-links.txt';
+    let uploadedName = null;
+    if (req.file) {
+      buffer = req.file.buffer;
+      filename = req.file.originalname;
+      uploadedName = req.file.originalname;
+    } else if (req.body && req.body.links) {
+      buffer = Buffer.from(req.body.links, 'utf8');
+    } else {
+      return res.status(400).json({ error: 'Choose a file or paste some links first.' });
+    }
+
+    let parsed;
+    try {
+      parsed = await parseSpreadsheetBuffer(buffer, filename, job.type);
+    } catch (err) {
+      // The parser only throws plain, client-safe messages (unsupported file
+      // type, empty sheet, no link column), so they are shown as they are.
+      return res.status(400).json({ error: err.message });
+    }
+
+    const plan = planSheetEdit(job, parsed, { mode, fileName: uploadedName });
+    const perItem = costPerItem(job.type);
+    const summary = { ...plan.summary, creditsNeeded: plan.summary.toRun * perItem, perItem };
+
+    if (dryRun) return res.json({ dryRun: true, mode, summary });
+
+    await applySheetEdit(req.params.id, plan);
+    res.json({ success: true, mode, status: plan.status, summary });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.post('/:id/start', requireLogin, requireChangePasswordCheck, async (req, res, next) => {
   try {
     const db = getDb();
@@ -350,7 +413,27 @@ router.post('/:id/pause', requireLogin, requireChangePasswordCheck, async (req, 
 
 router.post('/:id/resume', requireLogin, requireChangePasswordCheck, async (req, res, next) => {
   try {
-    if (!(await loadOwnedJob(req, res))) return undefined;
+    const job = await loadOwnedJob(req, res);
+    if (!job) return undefined;
+
+    // Same pre-flight as /start, but only for what is still to run. A report
+    // resumed after its sheet was edited can have hundreds of links already
+    // done and paid for; only the ones that have not run yet can cost anything.
+    const remaining = (job.rows || []).filter((r) => r.state === 'pending').length;
+    const cost = costForRun(job.type, remaining);
+    const balance = req.currentUser.credits || 0;
+    if (remaining > 0 && balance < cost) {
+      return res.status(402).json({
+        code: 'INSUFFICIENT_CREDITS',
+        error: `The links still to run need ${cost} credits (${remaining} ${job.type}s × ${costPerItem(job.type)}), but you have ${balance}.`,
+        needed: cost,
+        balance,
+        shortBy: cost - balance,
+        perItem: costPerItem(job.type),
+        chargeable: remaining,
+      });
+    }
+
     await startJob(req.params.id);
     res.json({ success: true, status: 'running' });
   } catch (err) {
@@ -378,7 +461,7 @@ router.post('/:id/discard', requireLogin, requireChangePasswordCheck, async (req
     const db = getDb();
     const job = await db.collection('jobs').findOne({ _id: queryId(req.params.id) });
     if (!job) return res.status(404).json({ error: 'Report not found' });
-    if (job.ownerUsername !== req.currentUser.username && req.currentUser.role !== 'admin') {
+    if (job.ownerUsername !== req.currentUser.effectiveUsername && req.currentUser.role !== 'admin') {
       return res.status(403).json({ error: 'Forbidden' });
     }
     if (job.status === 'running') {
@@ -631,7 +714,7 @@ router.post('/:id/retry-failed', requireLogin, requireChangePasswordCheck, async
     const db = getDb();
     const job = await db.collection('jobs').findOne({ _id: queryId(req.params.id) });
     if (!job) return res.status(404).json({ error: 'Report not found' });
-    if (job.ownerUsername !== req.currentUser.username && req.currentUser.role !== 'admin') {
+    if (job.ownerUsername !== req.currentUser.effectiveUsername && req.currentUser.role !== 'admin') {
       return res.status(403).json({ error: 'Forbidden' });
     }
     await retryFailedRows(req.params.id);

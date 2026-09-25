@@ -57,7 +57,7 @@ function setStructuredData(json) {
 */
 export function useDocumentMeta({ title, description, path = '/', noindex = false, structuredData = null }) {
   useEffect(() => {
-    const fullTitle = title ? `${title} · ${SITE_NAME}` : `${SITE_NAME} — Instagram Reel & Profile Analytics for Agencies`;
+    const fullTitle = title ? `${title} · ${SITE_NAME}` : `${SITE_NAME}: Instagram Reel & Profile Analytics for Agencies`;
     const url = `${SITE_URL}${path}`;
 
     document.title = fullTitle;

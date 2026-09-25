@@ -20,6 +20,7 @@ import {
 } from '../components/Icon';
 import { ProfileMethodologyModal } from '../components/ProfileMethodologyModal';
 import { ReelMethodologyModal } from '../components/ReelMethodologyModal';
+import { EditSheetDialog } from '../components/EditSheetDialog';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import { formatDate, formatDateTime, formatDayKey } from '../utils/date';
@@ -190,16 +191,16 @@ function buildSummaryText(insights, type) {
   return lines.join('\n');
 }
 
-// Anything that isn't a straightforward success/pending/duplicate is just
-// "Invalid link" to the user -- no technical reasoning, no distinction
-// between "we rejected this before trying" and "Instagram gave us nothing."
-// The specific reason is still kept in row.error for the hover tooltip only.
+// A link we rejected before trying reads "Invalid link"; one we tried and
+// Instagram gave nothing back for (private, no Reels, or a hiccup) reads
+// "Couldn't fetch". Calling both "invalid" made people doubt links that
+// were fine. The specific reason stays in row.error for the hover tooltip.
 function statusChip(row) {
   switch (row.state) {
     case 'done': return <span className="chip ok">Success</span>;
-    case 'failed': return <Tooltip content={row.error}><span className="chip err">Invalid link</span></Tooltip>;
+    case 'failed': return <Tooltip content={row.error}><span className="chip err">Couldn't fetch</span></Tooltip>;
     case 'invalid': return <Tooltip content={row.error}><span className="chip err">Invalid link</span></Tooltip>;
-    case 'duplicate': return <Tooltip content="Duplicate link — won't be processed"><span className="chip warn">Duplicate</span></Tooltip>;
+    case 'duplicate': return <Tooltip content="Duplicate link, won't be processed"><span className="chip warn">Duplicate</span></Tooltip>;
     case 'processing': return <span className="chip accent">Processing...</span>;
     case 'skipped': return <span className="chip">Skipped</span>;
     default: return <span className="chip">Pending</span>;
@@ -332,35 +333,6 @@ function ReelsSkippedCell({ res, onViewReels }) {
   );
 }
 
-/*
-  Flags a profile average computed from too few organic posts to trust the
-  same way as a full sample. Two different things can land here, and the
-  tooltip says which one actually happened rather than always claiming the
-  same story (an earlier version of this text unconditionally said "even
-  after trying a wider fetch," which was false whenever the retry never ran
-  -- exactly the kind of overclaim worth catching):
-    - res.widenedFetch true: the server DID try fetching wider, and it still
-      wasn't enough. The creator's recent content is genuinely limited.
-    - res.widenedFetch falsy: no wider attempt was made, because the first
-      fetch already came back with fewer reels than were even asked for --
-      Instagram had nothing more to give for this account, so asking again
-      could not have found more.
-*/
-function LowSampleBadge({ res }) {
-  const n = res.reelsAnalyzed;
-  const post = n === 1 ? 'post' : 'posts';
-  const title = res.widenedFetch
-    ? `Only ${n} eligible ${post} for this creator, even after trying a wider fetch. Treat this average as directional, not precise.`
-    : `Only ${n} eligible ${post} for this creator. This account has ${res.candidatesFetched ?? 'very few'} reel${res.candidatesFetched === 1 ? '' : 's'} in total -- Instagram had nothing more to fetch, so a wider search would not have found more.`;
-  return (
-    <Tooltip content={title}>
-      <span className="chip warn" style={{ fontSize: 'var(--fs-xs)' }}>
-        Low sample
-      </span>
-    </Tooltip>
-  );
-}
-
 function metricCells(row, type, onViewReels) {
   const isOk = row.state === 'done' && row.result;
   const res = row.result || {};
@@ -384,14 +356,7 @@ function metricCells(row, type, onViewReels) {
       <td className="numeric mono">{isOk ? (res.avgViews ?? 0).toLocaleString() : '-'}</td>
       <td className="numeric mono">
         {isOk ? (
-          res.lowSample ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
-              <span style={{ color: 'var(--ok)', fontWeight: 600 }}>{res.avgEr ?? 0}%</span>
-              <LowSampleBadge res={res} />
-            </div>
-          ) : (
-            <span style={{ color: 'var(--ok)', fontWeight: 600 }}>{res.avgEr ?? 0}%</span>
-          )
+          <span style={{ color: 'var(--ok)', fontWeight: 600 }}>{res.avgEr ?? 0}%</span>
         ) : '-'}
       </td>
       <td className="numeric mono">{isOk ? <ReelsAnalyzedCell res={res} onViewReels={onViewReels} /> : '-'}</td>
@@ -431,9 +396,9 @@ function NoteCell({ row, onEditNote }) {
 // Mobile: stacked label:value cards -- reused everywhere via the same rows/type.
 function ResultsTable({ rows, type, scrollRef, onViewReels, onEditNote }) {
   const reelHeaders = ['#', 'URL', 'Username', 'Status', 'Followers', 'Views', 'Likes', 'Comments', 'Shares', 'Reposts', 'Saves', 'ER (%)', 'Notes'];
-  // No longer "(outliers)" -- the column counts every exclusion (collab,
-  // sponsored, pinned, missing views, outlier trim), not only the trim step.
-  const profileHeaders = ['#', 'URL', 'Username', 'Status', 'Followers', 'Avg Views', 'Avg ER (%)', 'Reels Analyzed', 'Reels Skipped', 'Notes'];
+  // "Not Counted" = pinned, non-Reel, missing views and the outlier trim.
+  // Sponsored and collab posts are counted, so they are not in this number.
+  const profileHeaders = ['#', 'URL', 'Username', 'Status', 'Followers', 'Avg Views', 'Avg ER (%)', 'Reels Analyzed', 'Not Counted', 'Notes'];
   const headers = type === 'reel' ? reelHeaders : profileHeaders;
 
   return (
@@ -492,18 +457,11 @@ function ResultsTable({ rows, type, scrollRef, onViewReels, onEditNote }) {
                   <span style={{ color: 'var(--text-3)' }}>Avg ER</span>
                   <span className="mono" style={{ textAlign: 'right' }}>
                     {isOk ? (
-                      res.lowSample ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
-                          <span style={{ color: 'var(--ok)', fontWeight: 600 }}>{res.avgEr ?? 0}%</span>
-                          <LowSampleBadge res={res} />
-                        </div>
-                      ) : (
-                        <span style={{ color: 'var(--ok)', fontWeight: 600 }}>{res.avgEr ?? 0}%</span>
-                      )
+                      <span style={{ color: 'var(--ok)', fontWeight: 600 }}>{res.avgEr ?? 0}%</span>
                     ) : '-'}
                   </span>
                   <span style={{ color: 'var(--text-3)' }}>Reels Analyzed</span><span className="mono" style={{ textAlign: 'right' }}>{isOk ? <ReelsAnalyzedCell res={res} onViewReels={onViewReels} /> : '-'}</span>
-                  <span style={{ color: 'var(--text-3)' }}>Reels Skipped</span><span className="mono" style={{ textAlign: 'right' }}>{isOk ? <ReelsSkippedCell res={res} onViewReels={onViewReels} /> : '-'}</span>
+                  <span style={{ color: 'var(--text-3)' }}>Not Counted</span><span className="mono" style={{ textAlign: 'right' }}>{isOk ? <ReelsSkippedCell res={res} onViewReels={onViewReels} /> : '-'}</span>
                 </div>
               )}
               {isOk && (
@@ -738,6 +696,7 @@ export function ReportEngine({ type = 'reel' }) {
 
   // Confirm dialogs
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const [editSheetOpen, setEditSheetOpen] = useState(false);
   const [viewedReels, setViewedReels] = useState(null); // { username, perReel } | null
   // { loading, history: [{at,avgViews,avgEr}], otherCampaigns: [name] } | null.
   // Fetched lazily per creator, only while their modal is open -- pure
@@ -868,13 +827,14 @@ export function ReportEngine({ type = 'reel' }) {
     setSearchParams(searchParams);
   };
 
-  const handleFileSelected = async (fileOrText) => {
+  const handleFileSelected = async (fileOrText, listName = '') => {
     setLoading(true);
     setLoadingMessage('Reading your sheet...');
 
     const formData = new FormData();
     if (typeof fileOrText === 'string') {
       formData.append('links', fileOrText);
+      if (listName) formData.append('name', listName);
     } else {
       formData.append('file', fileOrText);
     }
@@ -1010,7 +970,7 @@ export function ReportEngine({ type = 'reel' }) {
       // must never be the reason a report fails to start.
       if (selectedCampaignId) {
         apiFetch(`/jobs/${jobId}/campaign`, { method: 'PATCH', body: JSON.stringify({ campaignId: selectedCampaignId }) })
-          .catch(() => addToast("Report started, but couldn't tag it to that campaign -- you can still do that from History.", 'accent'));
+          .catch(() => addToast("Report started, but couldn't tag it to that campaign. You can still do that from History.", 'accent'));
       }
       // `rows` up to this point only holds whatever page of the preview was
       // last loaded (100 at a time) -- the live-progress polling below only
@@ -1052,8 +1012,42 @@ export function ReportEngine({ type = 'reel' }) {
       await apiFetch(`/jobs/${jobId}/resume`, { method: 'POST' });
       setJobState('running');
     } catch (err) {
-      addToast("Couldn't resume, try again", 'err');
+      // A credit shortfall comes back with the exact numbers, which is far
+      // more useful than a generic retry prompt.
+      addToast(err.code === 'INSUFFICIENT_CREDITS' ? err.message : "Couldn't resume, try again", 'err');
     }
+  };
+
+  // Opens the sheet editor. A running report is paused first because rows
+  // cannot be rewritten while the engine is writing them; the dialog waits
+  // for the engine to finish its current batch (see EditSheetDialog.send).
+  const handleEditSheet = async () => {
+    if (jobState === 'running') {
+      try {
+        await apiFetch(`/jobs/${jobId}/pause`, { method: 'POST' });
+        setJobState('paused');
+      } catch (err) {
+        addToast("Couldn't pause the report to edit it, try again", 'err');
+        return;
+      }
+    }
+    setEditSheetOpen(true);
+  };
+
+  // Reload the report from the server and show it in whatever state the edit
+  // left it in: still a preview, paused and ready to resume, or done.
+  const handleSheetEdited = async (res) => {
+    setEditSheetOpen(false);
+    try {
+      const data = await apiFetch(`/jobs/${jobId}`);
+      if (data.job) rehydrateFromJob(data.job);
+    } catch (err) {
+      addToast('Your sheet was updated. Refresh the page to see it.', 'accent');
+      return;
+    }
+    if (res.status === 'paused') addToast('Sheet updated. Press Resume to run the new links.', 'ok');
+    else if (res.status === 'done') addToast('Sheet updated. There is nothing left to run.', 'ok');
+    else addToast('Sheet updated.', 'ok');
   };
 
   const handleToggleNotify = async (checked) => {
@@ -1611,7 +1605,7 @@ export function ReportEngine({ type = 'reel' }) {
                     </td>
                     <td>
                       {r.state === 'invalid' && <Tooltip content={r.error}><span className="chip err">Invalid link</span></Tooltip>}
-                      {r.state === 'duplicate' && <Tooltip content="Duplicate link — won't be processed"><span className="chip warn">Duplicate</span></Tooltip>}
+                      {r.state === 'duplicate' && <Tooltip content="Duplicate link, won't be processed"><span className="chip warn">Duplicate</span></Tooltip>}
                       {r.state === 'pending' && <span className="chip ok">Valid</span>}
                     </td>
                     {previewData.columns.map(c => (
@@ -1693,8 +1687,11 @@ export function ReportEngine({ type = 'reel' }) {
                   (Estimated duration: ~{Math.ceil(counts.valid / 3 * 4 / 60)} min{previewData.creditsPerItem != null ? `, uses ${counts.valid * previewData.creditsPerItem} credits` : ''})
                 </span>
               </div>
-              <div style={{ display: 'flex', gap: 'var(--s3)' }}>
+              <div style={{ display: 'flex', gap: 'var(--s3)', flexWrap: 'wrap' }}>
                 <button className="btn btn-secondary" onClick={() => setConfirmDiscard(true)}>Discard</button>
+                <Tooltip content="Uploaded the wrong file? Swap it or add more links">
+                  <button className="btn btn-secondary" onClick={handleEditSheet} data-tour="edit-sheet">Edit sheet</button>
+                </Tooltip>
                 <Tooltip content={counts.valid === 0 ? 'There are no valid links in this sheet to run' : undefined}>
                 <button
                   className="btn btn-primary"
@@ -1751,6 +1748,9 @@ export function ReportEngine({ type = 'reel' }) {
                 ) : (
                   <button className="btn btn-primary" onClick={handleResume}>Resume</button>
                 )}
+                <Tooltip content={jobState === 'running' ? 'Pauses the report so you can swap the sheet or add links' : 'Swap the sheet or add more links. Finished links keep their results.'}>
+                  <button className="btn btn-secondary" onClick={handleEditSheet} data-tour="edit-sheet">Edit sheet</button>
+                </Tooltip>
                 <button className="btn btn-secondary" onClick={handleReset}>Reset</button>
                 {counts.processed > 0 ? (
                   <a href={`/api/export/${jobId}.xlsx`} className="btn btn-secondary" download>
@@ -1877,6 +1877,11 @@ export function ReportEngine({ type = 'reel' }) {
                   Retry failed ({counts.failed})
                 </button>
               )}
+              <Tooltip content="Forgot some links, or need to swap the sheet? Finished links keep their results.">
+                <button className="btn btn-secondary" onClick={handleEditSheet} data-tour="edit-sheet">
+                  Edit sheet
+                </button>
+              </Tooltip>
               <button className="btn btn-secondary" onClick={handleDiscard}>
                 Run another report
               </button>
@@ -2060,14 +2065,15 @@ export function ReportEngine({ type = 'reel' }) {
             // already sitting on these candidates, no new data needed.
             // Deliberately just a number: not "risky" or flagged, an
             // agency reads this in context far better than a verdict would.
-            const paidCount = viewedReels.candidates.filter((c) => c.reason === 'collab' || c.reason === 'sponsored').length;
+            const isPaid = (c) => c.isSponsored || c.isCollab || c.reason === 'collab' || c.reason === 'sponsored';
+            const paidCount = viewedReels.candidates.filter(isPaid).length;
             const paidPct = Math.round((paidCount / viewedReels.candidates.length) * 100);
 
             return (
               <>
                 {viewedReels.candidates.length > 0 && (
                   <div style={{ padding: 'var(--s3) var(--s4)', background: 'var(--surface-2)', borderRadius: 'var(--r-md)', fontSize: 'var(--fs-sm)', marginBottom: 'var(--s3)' }}>
-                    <strong>{paidPct}%</strong> of the posts fetched here are collab or sponsored content ({paidCount} of {viewedReels.candidates.length}).
+                    <strong>{paidPct}%</strong> of the posts fetched here are collab or sponsored content ({paidCount} of {viewedReels.candidates.length}). They are counted in the averages like any other Reel.
                   </div>
                 )}
 
@@ -2144,6 +2150,11 @@ export function ReportEngine({ type = 'reel' }) {
                               <span className={`chip ${c.included ? 'ok' : 'warn'}`} style={{ fontSize: 'var(--fs-xs)' }}>
                                 {CANDIDATE_REASON_LABELS[c.reason] || c.reason}
                               </span>
+                              {(c.isSponsored || c.isCollab) && c.reason !== 'sponsored' && c.reason !== 'collab' && (
+                                <span className="chip" style={{ fontSize: 'var(--fs-xs)', marginLeft: '4px' }}>
+                                  {c.isSponsored ? 'Sponsored' : 'Collab'}
+                                </span>
+                              )}
                             </td>
                           </tr>
                         );
@@ -2192,6 +2203,14 @@ export function ReportEngine({ type = 'reel' }) {
           </div>
         )}
       </Modal>
+
+      <EditSheetDialog
+        isOpen={editSheetOpen}
+        onClose={() => setEditSheetOpen(false)}
+        jobId={jobId}
+        started={jobState !== 'preview'}
+        onApplied={handleSheetEdited}
+      />
 
       <ConfirmDialog
         isOpen={confirmDiscard}

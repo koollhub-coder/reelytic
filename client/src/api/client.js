@@ -5,15 +5,16 @@ import { reportApiFailure } from '../utils/errorReporter';
 // expiring mid-use, so it must never force-navigate away from them (that
 // bug sent every logged-out visitor straight to /login, skipping Landing,
 // Pricing, and Signup entirely).
-const PUBLIC_PATHS = ['/', '/login', '/signup', '/pricing', '/dev-unlock', '/terms', '/privacy', '/forgot-password', '/reset-password', '/verify-email'];
+const PUBLIC_PATHS = ['/', '/login', '/signup', '/pricing', '/dev-unlock', '/terms', '/privacy', '/forgot-password', '/reset-password', '/verify-email', '/team/accept'];
 
-// /share/<token> takes a dynamic token per link, so it can't live in the
-// exact-match list above -- without this, AuthContext's routine /auth/me
-// check 401s for every signed-out visitor (which is the entire point of a
-// share link) and this same redirect bounced them straight to /login before
-// PublicReport ever got a chance to render.
+// /share/<token> and /portal/<token> take a dynamic token per link, so they
+// can't live in the exact-match list above -- without this, AuthContext's
+// routine /auth/me check 401s for every signed-out visitor (which is the
+// entire point of a share or portal link) and this same redirect bounced
+// them straight to /login before PublicReport/ClientPortal ever got a
+// chance to render.
 function isPublicPath(pathname) {
-  return PUBLIC_PATHS.includes(pathname) || pathname.startsWith('/share/');
+  return PUBLIC_PATHS.includes(pathname) || pathname.startsWith('/share/') || pathname.startsWith('/portal/');
 }
 
 export async function apiFetch(endpoint, options = {}) {

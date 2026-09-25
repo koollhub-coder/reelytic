@@ -70,12 +70,11 @@ function buildRowsHtml(job) {
     headers: ['Username', 'Followers', 'Avg Views', 'Avg ER %'],
     body: rows.map((r) => {
       const res = r.result;
-      const low = res.lowSample ? ' <span class="tag">low sample</span>' : '';
       return `<tr>
         <td>@${esc(res.username || '-')}</td>
         <td class="num">${num(res.followers)}</td>
         <td class="num">${num(res.avgViews)}</td>
-        <td class="num accent">${res.avgEr ?? 0}%${low}</td>
+        <td class="num accent">${res.avgEr ?? 0}%</td>
       </tr>`;
     }).join(''),
   };

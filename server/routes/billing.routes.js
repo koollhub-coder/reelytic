@@ -38,8 +38,21 @@ async function fulfillOrder(razorpayOrderId) {
     return { username: order.username, plan, credits: newBalance };
 }
 
+// Team members share the owner's plan and credits (see middleware/auth.js)
+// but never manage billing themselves -- a member changing the whole
+// account's plan or payment method is not a decision they should be able to
+// make alone. Checked before anything else in both routes below.
+function requireAccountOwner(req, res) {
+    if (req.currentUser.username !== req.currentUser.effectiveUsername) {
+        res.status(403).json({ error: 'Only the account owner can manage billing. Ask them to change the plan.' });
+        return false;
+    }
+    return true;
+}
+
 router.post('/create-order', requireLogin, async (req, res, next) => {
     try {
+        if (!requireAccountOwner(req, res)) return;
         const { planId, amount, billing } = req.body || {};
         if (!planId || !amount) {
             return res.status(400).json({ error: 'planId and amount are required' });
@@ -100,6 +113,7 @@ router.post('/create-order', requireLogin, async (req, res, next) => {
 */
 router.post('/verify-payment', requireLogin, async (req, res, next) => {
     try {
+        if (!requireAccountOwner(req, res)) return;
         if (!razorpay.isConfigured()) {
             return res.status(503).json({ error: 'Online payments are not enabled yet. Contact us to activate a plan.' });
         }

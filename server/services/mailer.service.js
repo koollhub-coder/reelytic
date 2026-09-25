@@ -272,6 +272,51 @@ function buildGoogleAccountNoticeText() {
   return `No password to reset\n\nSomeone requested a password reset for this email, but this Reelytic account signs in with Google -- there's no password on file to reset. Use "Continue with Google" on the login page instead.\n\nIf this wasn't you, no action is needed.`;
 }
 
+// Same card shell as the password reset email -- a team invite is the same
+// shape of message (one link, one action, expires). See team.routes.js
+// POST /invite for where this is sent.
+function buildTeamInviteEmailHtml({ inviterName, acceptUrl }) {
+  return `<!DOCTYPE html>
+<html>
+  <body style="margin:0;padding:0;background-color:#F7F6F3;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F7F6F3;padding:32px 16px;">
+      <tr><td align="center">
+        <table role="presentation" width="100%" style="max-width:420px;background-color:#FFFFFF;border-radius:12px;overflow:hidden;border:1px solid #E4E1DA;">
+          <tr><td style="padding:28px 32px 0 32px;">
+            ${logoHeader()}
+          </td></tr>
+          <tr><td style="padding:20px 32px 0 32px;">
+            <div style="font-size:16px;font-weight:600;color:#1A1C20;">You've been invited to a Reelytic team</div>
+            <p style="font-size:14px;color:#5D6169;line-height:1.6;margin:8px 0 0 0;">
+              ${inviterName} has invited you to join their workspace on Reelytic. Click below to set a password and get in.
+            </p>
+          </td></tr>
+          <tr><td style="padding:24px 32px;">
+            <a href="${acceptUrl}" style="display:block;background-color:#E23E57;color:#FFFFFF;text-decoration:none;text-align:center;font-size:15px;font-weight:600;padding:14px 20px;border-radius:8px;">
+              Accept invite
+            </a>
+          </td></tr>
+          <tr><td style="padding:0 32px 12px 32px;">
+            <p style="font-size:12px;color:#8B8F98;line-height:1.6;margin:0;word-break:break-all;">
+              Or paste this link into your browser: ${acceptUrl}
+            </p>
+          </td></tr>
+          <tr><td style="padding:0 32px 28px 32px;">
+            <p style="font-size:12px;color:#8B8F98;line-height:1.6;margin:0;">
+              This invite expires in 7 days. If you weren't expecting this, you can safely ignore this email -- no account will be created without it.
+            </p>
+          </td></tr>
+        </table>
+      </td></tr>
+    </table>
+  </body>
+</html>`;
+}
+
+function buildTeamInviteEmailText({ inviterName, acceptUrl }) {
+  return `You've been invited to a Reelytic team\n\n${inviterName} has invited you to join their workspace on Reelytic. Open this link to set a password and get in:\n${acceptUrl}\n\nThis invite expires in 7 days.\n\nIf you weren't expecting this, you can safely ignore this email -- no account will be created without it.`;
+}
+
 module.exports = {
   sendTransactionalEmail,
   buildOtpEmailHtml,
@@ -280,4 +325,6 @@ module.exports = {
   buildPasswordResetEmailText,
   buildGoogleAccountNoticeHtml,
   buildGoogleAccountNoticeText,
+  buildTeamInviteEmailHtml,
+  buildTeamInviteEmailText,
 };

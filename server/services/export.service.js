@@ -250,7 +250,7 @@ function generateCsvExport(job) {
 // (see that function's own comment on why), so every column below reads
 // straight off the stored totals, same math searchAnalyzedCreators uses.
 function generateCreatorsCsv(rows) {
-  const headers = ['Name', 'Username', 'Profile Link', 'Followers', 'Times Analyzed', 'Reel Avg Views', 'Reel Avg ER (%)', 'Profile Avg Views', 'Profile Avg ER (%)', 'First Analyzed', 'Last Analyzed'];
+  const headers = ['Name', 'Username', 'Gender (estimated)', 'Profile Link', 'Followers', 'Times Analyzed', 'Reel Avg Views', 'Reel Avg ER (%)', 'Profile Avg Views', 'Profile Avg ER (%)', 'First Analyzed', 'Last Analyzed'];
   const csvRow = (vals) => vals.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',') + '\n';
 
   let csv = csvRow(headers);

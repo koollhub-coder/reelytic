@@ -9,6 +9,13 @@ const { chargeSuccess, costPerItem, getBalance } = require('./credits.service');
 const { getLearnedAvgMs, recordJobTiming, DEFAULT_AVG_MS } = require('./learnedTiming.service');
 
 const activeJobs = new Map(); // jobId -> { abort: boolean }
+// Every job whose processing loop is still executing. Pausing removes a job
+// from activeJobs at once, but its loop can still be finishing the batch it
+// was in the middle of and writing rows back for a while after that. Editing a
+// report's rows in that window would collide with those writes, so anything
+// that rewrites rows (see sheetEdit.service.js) has to check this first.
+const loopBusy = new Set();
+function isJobBusy(jobId) { return loopBusy.has(String(jobId)); }
 
 // Reels: one analytics-actor run covers this many reels, amortizing its
 // per-run start fee across the batch instead of paying it per reel (margin-critical).
@@ -43,11 +50,12 @@ async function startJob(jobId) {
   }
   await jobsColl.updateOne({ _id: queryId(jobId) }, { $set: update });
 
+  loopBusy.add(String(jobId));
   processJobLoop(jobId).catch(err => {
     console.error(`[JobEngine] Error in job ${jobId}:`, err);
     jobsColl.updateOne({ _id: queryId(jobId) }, { $set: { status: 'paused', pausedReason: 'error' } }).catch(() => { });
     activeJobs.delete(jobId);
-  });
+  }).finally(() => loopBusy.delete(String(jobId)));
 }
 
 async function pauseJob(jobId) {
@@ -194,9 +202,10 @@ async function processProfileChunk(chunk, pipelineMode) {
       return { index, state: 'failed', error: 'Instagram returned no data for this profile' };
     }
     /*
-      Candidates were fetched, but every single one got excluded (collab,
-      sponsored/paid partnership, pinned, or missing view data) -- there is
-      nothing left in profile.posts to average.
+      Candidates were fetched, but every single one got excluded (pinned,
+      not a Reel, or missing view data) -- there is nothing left in
+      profile.posts to average. (Collab and sponsored posts used to be in
+      this list too; they count now, so this is much rarer than it was.)
 
       Before this check, that empty sample fell straight into
       computeProfileMetrics(V2) anyway. logMean/avgViews of [] returns 0 by
@@ -213,7 +222,7 @@ async function processProfileChunk(chunk, pipelineMode) {
       return {
         index,
         state: 'failed',
-        error: `All ${profile.candidatesFetched} fetched posts were excluded (collab, sponsored, pinned, or missing view data) -- nothing eligible left to analyze`,
+        error: `All ${profile.candidatesFetched} fetched posts were excluded (pinned, not a Reel, or missing view data), so there was nothing eligible left to analyze`,
       };
     }
     const followerInfo = pipelineMode === 'v2' ? (profile.followerInfo || null) : (followersMap.get(key) || null);
@@ -559,4 +568,4 @@ async function retryFailedRows(jobId) {
   await startJob(jobId);
 }
 
-module.exports = { startJob, pauseJob, resetJob, retryFailedRows };
+module.exports = { startJob, pauseJob, resetJob, retryFailedRows, isJobBusy };

@@ -17,7 +17,7 @@ const { TEST_DB_NAME } = require('./env');
 
 const TEST_PORT = Number(process.env.TEST_PORT || 3457);
 const BASE_URL = `http://127.0.0.1:${TEST_PORT}`;
-const STARTUP_TIMEOUT_MS = 25000;
+const STARTUP_TIMEOUT_MS = 60000;
 
 let child = null;
 

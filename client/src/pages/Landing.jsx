@@ -55,7 +55,7 @@ const LANDING_FAQ_ITEMS = [
   },
   {
     q: 'Can I send white-labeled Instagram reports to my clients?',
-    a: 'Yes. Add your own logo, colors and layout once, and every report you generate carries your branding, not ours -- your name is the only one your client sees.',
+    a: 'Yes. Add your own logo, colors and layout once, and every report you generate carries your branding, not ours, so your name is the only one your client sees.',
   },
   {
     q: 'What is the difference between a Reel Report and a Profile Report?',
@@ -63,7 +63,7 @@ const LANDING_FAQ_ITEMS = [
   },
   {
     q: 'Is there a free plan for Instagram analytics?',
-    a: 'Yes -- Reelytic’s free plan includes 10 credits to start, no credit card required, so you can run a real report before deciding to upgrade.',
+    a: 'Yes. Reelytic’s free plan includes 10 credits to start, no credit card required, so you can run a real report before deciding to upgrade.',
   },
 ];
 
@@ -251,7 +251,7 @@ export function Landing() {
                 free credits, no card) -- it just wasn't linked from the
                 landing page before now. */}
             <button className="btn btn-primary" style={{ height: '44px', padding: '0 var(--s6)', fontSize: 'var(--fs-md)' }} onClick={() => navigate(user ? '/reels' : '/signup')}>
-              {user ? 'Go to your workspace →' : 'Start free — No card required →'}
+              {user ? 'Go to your workspace →' : 'Start free, no card required →'}
             </button>
             <a
               href="#how-it-works"
@@ -424,7 +424,7 @@ export function Landing() {
             <div className="landing-cta-card-desc">Upload your first sheet and get your report in minutes.</div>
           </div>
           <button className="btn btn-primary landing-cta-card-btn" onClick={() => navigate(user ? '/reels' : '/signup')}>
-            {user ? 'Go to your workspace →' : 'Start free — No card required →'}
+            {user ? 'Go to your workspace →' : 'Start free, no card required →'}
           </button>
         </div>
       </div>

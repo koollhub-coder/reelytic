@@ -79,6 +79,8 @@ const Checkout = lazy(() => import('./pages/Checkout').then(m => ({ default: m.C
 const Dashboard = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
 const BrandedReport = lazy(() => import('./pages/BrandedReport').then(m => ({ default: m.BrandedReport })));
 const PublicReport = lazy(() => import('./pages/PublicReport').then(m => ({ default: m.PublicReport })));
+const ClientPortal = lazy(() => import('./pages/ClientPortal').then(m => ({ default: m.ClientPortal })));
+const AcceptTeamInvite = lazy(() => import('./pages/AcceptTeamInvite').then(m => ({ default: m.AcceptTeamInvite })));
 
 // Not lazy: Shell is the layout every protected route mounts into (lazy-
 // loading it would just move the waterfall one level up, not remove it),
@@ -102,13 +104,13 @@ import { DemoGuide } from './components/DemoGuide';
 // landing, pricing, and the "you're signed in as X, switch account?" screen
 // that /login shows. Being logged in is not enough on its own -- that is how
 // a half-finished tour ended up floating over the login form.
-const NO_TOUR_ROUTES = ['/', '/login', '/signup', '/pricing', '/change-password', '/terms', '/privacy', '/forgot-password', '/reset-password'];
+const NO_TOUR_ROUTES = ['/', '/login', '/signup', '/pricing', '/change-password', '/terms', '/privacy', '/forgot-password', '/reset-password', '/team/accept'];
 
 function TourHost() {
   const { user, loading } = useAuth();
   const { pathname } = useLocation();
   if (loading || !user) return null;
-  if (NO_TOUR_ROUTES.includes(pathname) || pathname.startsWith('/share/')) return null;
+  if (NO_TOUR_ROUTES.includes(pathname) || pathname.startsWith('/share/') || pathname.startsWith('/portal/')) return null;
   return <DemoGuide username={user.username} />;
 }
 
@@ -195,6 +197,7 @@ export function App() {
                 <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="/verify-email" element={<VerifyEmailLink />} />
+                <Route path="/team/accept" element={<AcceptTeamInvite />} />
                 <Route path="/dev-unlock" element={<DevUnlock />} />
                 <Route path="/pricing" element={<Pricing />} />
                 <Route path="/terms" element={<Legal type="terms" />} />
@@ -207,6 +210,10 @@ export function App() {
                     link" view a client with no Reelytic account opens. Must
                     stay outside ProtectedRoute. */}
                 <Route path="/share/:token" element={<PublicReport />} />
+                {/* Same shape as /share/:token above -- unauthenticated,
+                    the persistent campaign-level view behind a client
+                    portal link (see PortalDialog.jsx / campaigns.routes.js). */}
+                <Route path="/portal/:token" element={<ClientPortal />} />
 
                 <Route element={<ProtectedRoute><Shell /></ProtectedRoute>}>
                   <Route path="/reels" element={<ReelReport />} />

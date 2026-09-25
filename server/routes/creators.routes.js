@@ -4,7 +4,7 @@ const { ObjectId } = require('mongodb');
 const { requireLogin } = require('../middleware/auth');
 const { hasFeature } = require('../services/features.service');
 const { getDb, queryId } = require('../db');
-const { searchAnalyzedCreators, exportAnalyzedCreators, getCreatorSummary, getCreatorReports } = require('../services/creatorDb.service');
+const { searchAnalyzedCreators, exportAnalyzedCreators, getCreatorSummary, getCreatorReports, setCreatorGender } = require('../services/creatorDb.service');
 const { generateCreatorsCsv } = require('../services/export.service');
 
 /*
@@ -39,6 +39,26 @@ async function requireCreatorDbAccess(req, res, next) {
   }
 }
 
+// Every filter and sort knob the Creators screen can send, read in one place
+// so the list and the CSV export cannot drift apart.
+function filterParams(q) {
+  return {
+    search: q.search,
+    sort: q.sort,
+    dir: q.dir,
+    minFollowers: q.minFollowers,
+    maxFollowers: q.maxFollowers,
+    minEr: q.minEr,
+    maxEr: q.maxEr,
+    minViews: q.minViews,
+    maxViews: q.maxViews,
+    minTimes: q.minTimes,
+    maxTimes: q.maxTimes,
+    gender: q.gender,
+    campaignId: q.campaignId,
+  };
+}
+
 router.get('/', requireLogin, requireCreatorDbAccess, async (req, res, next) => {
   try {
     // Admin sees every account's creators by default (the platform-wide
@@ -48,20 +68,15 @@ router.get('/', requireLogin, requireCreatorDbAccess, async (req, res, next) => 
     // never consulted for them.
     const wantsAll = req.isAdmin && req.query.scope !== 'mine';
 
-    const { creators, nextCursor } = await searchAnalyzedCreators({
-      ownerUsername: req.currentUser.username,
+    const { creators, nextCursor, total } = await searchAnalyzedCreators({
+      ownerUsername: req.currentUser.effectiveUsername,
       isAdmin: wantsAll,
-      search: req.query.search,
       cursor: req.query.cursor,
       limit: req.query.limit,
-      sort: req.query.sort,
-      minFollowers: req.query.minFollowers,
-      maxFollowers: req.query.maxFollowers,
-      minEr: req.query.minEr,
-      campaignId: req.query.campaignId,
+      ...filterParams(req.query),
     });
 
-    res.json({ creators, nextCursor });
+    res.json({ creators, nextCursor, total });
   } catch (err) {
     next(err);
   }
@@ -75,14 +90,9 @@ router.get('/export.csv', requireLogin, requireCreatorDbAccess, async (req, res,
     const wantsAll = req.isAdmin && req.query.scope !== 'mine';
 
     const { rows, truncated } = await exportAnalyzedCreators({
-      ownerUsername: req.currentUser.username,
+      ownerUsername: req.currentUser.effectiveUsername,
       isAdmin: wantsAll,
-      search: req.query.search,
-      sort: req.query.sort,
-      minFollowers: req.query.minFollowers,
-      maxFollowers: req.query.maxFollowers,
-      minEr: req.query.minEr,
-      campaignId: req.query.campaignId,
+      ...filterParams(req.query),
     });
 
     const csv = generateCreatorsCsv(rows);
@@ -104,8 +114,25 @@ router.get('/export.csv', requireLogin, requireCreatorDbAccess, async (req, res,
 router.get('/summary', requireLogin, requireCreatorDbAccess, async (req, res, next) => {
   try {
     const wantsAll = req.isAdmin && req.query.scope !== 'mine';
-    const summary = await getCreatorSummary({ ownerUsername: req.currentUser.username, isAdmin: wantsAll });
+    const summary = await getCreatorSummary({ ownerUsername: req.currentUser.effectiveUsername, isAdmin: wantsAll });
     res.json(summary);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Correcting the estimated gender by hand. See setCreatorGender for why a
+// manual value sticks.
+router.patch('/:id/gender', requireLogin, requireCreatorDbAccess, async (req, res, next) => {
+  try {
+    const result = await setCreatorGender({
+      ownerUsername: req.currentUser.effectiveUsername,
+      isAdmin: req.isAdmin,
+      creatorId: req.params.id,
+      gender: req.body && req.body.gender,
+    });
+    if (!result) return res.status(404).json({ error: 'Creator not found' });
+    res.json(result);
   } catch (err) {
     next(err);
   }
@@ -117,7 +144,7 @@ router.get('/summary', requireLogin, requireCreatorDbAccess, async (req, res, ne
 router.get('/:id/reports', requireLogin, requireCreatorDbAccess, async (req, res, next) => {
   try {
     const result = await getCreatorReports({
-      ownerUsername: req.currentUser.username,
+      ownerUsername: req.currentUser.effectiveUsername,
       isAdmin: req.isAdmin,
       creatorId: req.params.id,
     });
@@ -141,7 +168,7 @@ router.get('/segments', requireLogin, requireCreatorDbAccess, async (req, res, n
   try {
     const db = getDb();
     const segments = await db.collection('creatorSegments')
-      .find({ ownerUsername: req.currentUser.username })
+      .find({ ownerUsername: req.currentUser.effectiveUsername })
       .sort({ createdAt: -1 })
       .toArray();
     res.json({ segments: segments.map((s) => ({ id: s._id, name: s.name, filters: s.filters, createdAt: s.createdAt })) });
@@ -160,18 +187,31 @@ router.post('/segments', requireLogin, requireCreatorDbAccess, async (req, res, 
     // trust the client to hand back an arbitrary object that gets replayed
     // straight into a future query string.
     const raw = (req.body && req.body.filters) || {};
+    const str = (v, max = 200) => (typeof v === 'string' ? v.slice(0, max) : '');
+    const numOrEmpty = (v) => (v === '' || v == null || Number.isNaN(Number(v)) ? '' : Number(v));
     const filters = {
-      search: typeof raw.search === 'string' ? raw.search.slice(0, 200) : '',
+      search: str(raw.search),
+      // followerTier/minEr/campaignId are the original saved-view keys and
+      // stay readable so views saved before column filters still apply.
       followerTier: typeof raw.followerTier === 'string' ? raw.followerTier : 'all',
       minEr: Number(raw.minEr) || 0,
       sort: typeof raw.sort === 'string' ? raw.sort : 'recent',
-      campaignId: typeof raw.campaignId === 'string' ? raw.campaignId : '',
+      campaignId: str(raw.campaignId, 500),
+      dir: raw.dir === 'asc' || raw.dir === 'desc' ? raw.dir : '',
+      minFollowers: numOrEmpty(raw.minFollowers),
+      maxFollowers: numOrEmpty(raw.maxFollowers),
+      maxEr: numOrEmpty(raw.maxEr),
+      minViews: numOrEmpty(raw.minViews),
+      maxViews: numOrEmpty(raw.maxViews),
+      minTimes: numOrEmpty(raw.minTimes),
+      maxTimes: numOrEmpty(raw.maxTimes),
+      gender: str(raw.gender, 40),
     };
 
     const db = getDb();
     const segment = {
       _id: new ObjectId().toHexString(),
-      ownerUsername: req.currentUser.username,
+      ownerUsername: req.currentUser.effectiveUsername,
       name,
       filters,
       createdAt: new Date(),
@@ -188,7 +228,7 @@ router.delete('/segments/:id', requireLogin, requireCreatorDbAccess, async (req,
     const db = getDb();
     const result = await db.collection('creatorSegments').deleteOne({
       _id: queryId(req.params.id),
-      ownerUsername: req.currentUser.username,
+      ownerUsername: req.currentUser.effectiveUsername,
     });
     if (result.deletedCount === 0) return res.status(404).json({ error: 'Saved view not found' });
     res.json({ success: true });

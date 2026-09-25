@@ -23,13 +23,27 @@ const APP_URL = config.appUrl;
 // Shared shape for anything we hand back to the client about the logged-in
 // user. Async because feature flags depend on a plans lookup (see
 // features.service.js) -- every call site below already awaits this.
+//
+// Resolves a team member's plan/credits/featureOverrides from the account
+// owner itself, rather than relying on every caller to already have the
+// merged shape middleware/auth.js builds. Several call sites here (login,
+// verify-otp, Google sign-in) pass a raw `users` document straight from
+// findOne, not req.currentUser -- without this, a member's very first
+// response after logging in showed their own inert plan:'free', credits:0
+// fallback instead of the shared workspace's real numbers, self-correcting
+// only once the next /auth/me call went through requireLogin's merge.
 async function publicUser(user) {
+  let effective = user;
+  if (user.teamOwnerUsername && !user.effectiveUsername) {
+    const owner = await getDb().collection('users').findOne({ username: user.teamOwnerUsername });
+    if (owner) effective = { ...user, plan: owner.plan, credits: owner.credits, featureOverrides: owner.featureOverrides };
+  }
   return {
     username: user.username,
     role: user.role,
     mustChangePassword: !!user.mustChangePassword,
-    credits: user.credits || 0,
-    plan: user.plan || 'free',
+    credits: effective.credits || 0,
+    plan: effective.plan || 'free',
     email: user.email || null,
     name: user.name || null,
     // Existing accounts predating this field never get a surprise tour --
@@ -45,7 +59,13 @@ async function publicUser(user) {
     // features.service.js for how plan defaults + per-account overrides
     // combine. Computed here so every page just reads user.features instead
     // of re-deriving plan logic client-side.
-    features: await getUserFeatures(user),
+    features: await getUserFeatures(effective),
+    // Team seats: true when this login is an invited member, not the
+    // account owner (see middleware/auth.js's requireLogin merge, which is
+    // what makes user.plan/credits/features above already reflect the
+    // owner's account for a member). The client uses this to hide billing
+    // controls and show a read-only team view instead of the management one.
+    isTeamMember: !!user.teamOwnerUsername,
   };
 }
 

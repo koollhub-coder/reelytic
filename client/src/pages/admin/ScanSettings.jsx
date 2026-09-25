@@ -111,8 +111,8 @@ export function ScanSettings() {
   const saveTuning = async () => {
     const fetchDepth = Number(fetchDepthInput);
     const cacheTtlDays = Number(cacheTtlInput);
-    if (!Number.isFinite(fetchDepth) || fetchDepth < 4 || fetchDepth > 20) {
-      addToast('Reels per profile must be between 4 and 20', 'err');
+    if (!Number.isFinite(fetchDepth) || fetchDepth < 5 || fetchDepth > 20) {
+      addToast('Reels per profile must be between 5 and 20', 'err');
       return;
     }
     if (!Number.isFinite(cacheTtlDays) || cacheTtlDays <= 0) {
@@ -241,7 +241,7 @@ export function ScanSettings() {
               </label>
               <input
                 type="number"
-                min={4}
+                min={5}
                 max={20}
                 className="input-field"
                 style={{ width: '100%', fontFamily: 'var(--font-data)', fontWeight: 700 }}

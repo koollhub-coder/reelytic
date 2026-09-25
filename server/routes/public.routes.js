@@ -126,6 +126,62 @@ router.get('/reports/:token', viewLimiter, async (req, res, next) => {
   }
 });
 
+/*
+  The persistent client portal: a whole campaign's rolled-up performance
+  behind one non-expiring link, instead of one report at a time. Same
+  unauthenticated shape as /reports/:token above (opaque token, slim
+  hand-picked projection, fire-and-forget view counter), just aggregated
+  across every job tagged to the campaign rather than a single job.
+*/
+router.get('/campaigns/:token', viewLimiter, async (req, res, next) => {
+  try {
+    const db = getDb();
+    const campaign = await db.collection('campaigns').findOne({ portalToken: req.params.token });
+    if (!campaign) return res.status(404).json({ error: 'This link is invalid or has been turned off.' });
+
+    const jobs = await db.collection('jobs').find({ campaignId: campaign._id, ownerUsername: campaign.ownerUsername }).toArray();
+    const branding = await getReportBranding(campaign.ownerUsername);
+
+    getDb().collection('campaigns').updateOne(
+      { _id: queryId(campaign._id) },
+      { $inc: { portalViews: 1 }, $set: { portalLastViewedAt: new Date() } }
+    ).catch(() => {});
+
+    let totalViews = 0;
+    let weightedErSum = 0;
+    const rows = [];
+    for (const job of jobs) {
+      for (const row of job.rows || []) {
+        const slim = slimRow(row);
+        if (!slim) continue;
+        const views = Number(slim.result.views ?? slim.result.avgViews ?? 0);
+        const er = Number(slim.result.er ?? slim.result.avgEr ?? 0);
+        totalViews += views;
+        weightedErSum += er * views;
+        rows.push({ ...slim, reportName: job.fileName || null, reportType: job.type, addedAt: job.createdAt });
+      }
+    }
+    // Newest report's rows first, so a client re-opening a living link sees
+    // whatever was most recently added at the top rather than buried below
+    // an ever-growing older campaign history.
+    rows.sort((a, b) => new Date(b.addedAt).getTime() - new Date(a.addedAt).getTime());
+
+    res.json({
+      campaign: {
+        name: campaign.name,
+        avatarUrl: campaign.avatarUrl || null,
+        reportCount: jobs.length,
+        totalViews,
+        avgEr: totalViews > 0 ? Math.round((weightedErSum / totalViews) * 100) / 100 : null,
+      },
+      rows,
+      branding: branding || {},
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Same token gate as the view above -- whoever can read the report can take
 // the table with them. Only the report's own columns, not the client's
 // original uploaded sheet.

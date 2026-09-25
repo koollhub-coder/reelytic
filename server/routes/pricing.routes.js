@@ -16,9 +16,15 @@ const DEFAULT_PLANS = [
             'Full report history',
             'Creator database & search',
             'Email support',
+            'Up to 2 team seats',
+            'Persistent client portal',
         ],
         popular: false,
-        featureFlags: { reportBranding: false, shareableLinks: false, creatorDatabase: true },
+        // maxTeamSeats counts the account owner PLUS invited members (a
+        // seat cap of 2 means the owner and one teammate) -- see
+        // team.routes.js POST /invite, the only place this is read.
+        maxTeamSeats: 2,
+        featureFlags: { reportBranding: false, shareableLinks: false, creatorDatabase: true, teamSeats: true, clientPortal: true },
     },
     {
         id: 'pro',
@@ -35,9 +41,12 @@ const DEFAULT_PLANS = [
             'Priority email support',
             'Custom-branded client reports',
             'Shareable report links',
+            'Up to 5 team seats',
+            'Persistent client portal',
         ],
         popular: true,
-        featureFlags: { reportBranding: true, shareableLinks: true, creatorDatabase: true },
+        maxTeamSeats: 5,
+        featureFlags: { reportBranding: true, shareableLinks: true, creatorDatabase: true, teamSeats: true, clientPortal: true },
     },
     {
         id: 'agency',
@@ -54,9 +63,12 @@ const DEFAULT_PLANS = [
             'Priority support + onboarding call',
             'Custom-branded client reports',
             'Shareable report links',
+            'Up to 15 team seats',
+            'Persistent client portal',
         ],
         popular: false,
-        featureFlags: { reportBranding: true, shareableLinks: true, creatorDatabase: true },
+        maxTeamSeats: 15,
+        featureFlags: { reportBranding: true, shareableLinks: true, creatorDatabase: true, teamSeats: true, clientPortal: true },
     },
 ];
 

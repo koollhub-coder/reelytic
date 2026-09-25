@@ -15,7 +15,7 @@ router.get('/', requireLogin, async (req, res) => {
 
 router.get('/report-branding', requireLogin, async (req, res, next) => {
   try {
-    const branding = await getReportBranding(req.currentUser.username);
+    const branding = await getReportBranding(req.currentUser.effectiveUsername);
     res.json({ branding: branding || { logoDataUri: null, accentColor: null, agencyName: null, logoPosition: 'left', showAgencyName: true, showHighlights: true } });
   } catch (err) {
     next(err);
@@ -32,7 +32,7 @@ router.patch('/report-branding', requireLogin, async (req, res, next) => {
       return res.status(403).json({ error: 'Report branding isn\'t available on your current plan. Upgrade to customize your reports.', code: 'FEATURE_LOCKED' });
     }
     const { logoDataUri, accentColor, agencyName, logoPosition, showAgencyName, showHighlights } = req.body || {};
-    const branding = await setReportBranding(req.currentUser.username, { logoDataUri, accentColor, agencyName, logoPosition, showAgencyName, showHighlights });
+    const branding = await setReportBranding(req.currentUser.effectiveUsername, { logoDataUri, accentColor, agencyName, logoPosition, showAgencyName, showHighlights });
     res.json({ success: true, branding });
   } catch (err) {
     // setReportBranding only ever throws a plain Error with a client-safe

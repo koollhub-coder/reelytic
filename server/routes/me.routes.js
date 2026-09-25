@@ -50,7 +50,7 @@ const DEFAULT_RANGE_DAYS = 14;
 router.get('/stats', requireLogin, async (req, res, next) => {
     try {
         const db = getDb();
-        const username = req.currentUser.username;
+        const username = req.currentUser.effectiveUsername;
         const days = ALLOWED_RANGE_DAYS.includes(Number(req.query.days)) ? Number(req.query.days) : DEFAULT_RANGE_DAYS;
 
         const now = new Date();

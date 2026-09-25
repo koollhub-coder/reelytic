@@ -20,13 +20,17 @@ router.post('/:type(reel|profile)', requireLogin, requireChangePasswordCheck, up
     const type = req.params.type;
     let buffer;
     let filename = 'pasted-links.txt';
+    let displayName = null;
 
     if (req.file) {
       buffer = req.file.buffer;
       filename = req.file.originalname;
     } else if (req.body && req.body.links) {
       buffer = Buffer.from(req.body.links, 'utf8');
-      filename = 'pasted-links.txt';
+      // Parsing always treats pasted text as plain .txt; the optional name
+      // the person typed is only what History shows for the report.
+      const typed = typeof req.body.name === 'string' ? req.body.name.replace(/\s+/g, ' ').trim().slice(0, 60) : '';
+      displayName = typed || 'pasted-links.txt';
     } else {
       return res.status(400).json({ error: 'No file or links provided' });
     }
@@ -47,9 +51,12 @@ router.post('/:type(reel|profile)', requireLogin, requireChangePasswordCheck, up
     const jobDoc = {
       _id: jobId,
       type,
-      ownerUsername: req.currentUser.username,
+      // effectiveUsername, not username: a team member's report is stamped
+      // and billed to the account owner, not the member's own login. See
+      // middleware/auth.js for how that's resolved.
+      ownerUsername: req.currentUser.effectiveUsername,
       status: 'preview',
-      fileName: filename,
+      fileName: displayName || filename,
       originalColumns: parsed.originalColumns,
       rows: parsed.rows,
       avgRowMs: learnedAvgMs,
@@ -63,11 +70,11 @@ router.post('/:type(reel|profile)', requireLogin, requireChangePasswordCheck, up
     };
 
     await db.collection('jobs').insertOne(jobDoc);
-    await setActiveJobPointer(req.currentUser.username, type, jobId);
+    await setActiveJobPointer(req.currentUser.effectiveUsername, type, jobId);
 
     res.json({
       jobId,
-      fileName: filename,
+      fileName: displayName || filename,
       columns: parsed.originalColumns,
       totalRows: parsed.counts.total,
       validRows: parsed.counts.valid,
