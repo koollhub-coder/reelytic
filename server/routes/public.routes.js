@@ -181,14 +181,24 @@ router.get('/campaigns/:token', viewLimiter, async (req, res, next) => {
     const reports = [];
     jobs.forEach((job, idx) => {
       const key = String(idx + 1);
+      /*
+        A profile row carries a creator's AVERAGE views per Reel and an ER
+        divided by followers, not views of anything in this campaign. So it is
+        shown on its own row and its report's line, but kept out of the
+        campaign's total views and views-weighted ER, which would otherwise
+        add averages to real counts and mix two different rates.
+      */
+      const isProfile = job.type === 'profile';
       let jobViews = 0;
       let jobEr = 0;
+      let jobErSum = 0;
+      let jobErCount = 0;
       let jobCount = 0;
       for (const row of job.rows || []) {
         const slim = slimRow(row);
         if (!slim) continue;
-        const views = Number(slim.result.views ?? slim.result.avgViews ?? 0);
-        const er = Number(slim.result.er ?? slim.result.avgEr ?? 0);
+        const views = isProfile ? 0 : Number(slim.result.views ?? 0);
+        const er = Number((isProfile ? slim.result.avgEr : slim.result.er) ?? 0);
         const ck = campaignKey(job, row);
         if (!ck || !counted.has(ck)) {
           if (ck) counted.add(ck);
@@ -198,17 +208,23 @@ router.get('/campaigns/:token', viewLimiter, async (req, res, next) => {
         }
         jobViews += views;
         jobEr += er * views;
+        if (isProfile && slim.result.avgEr != null) { jobErSum += er; jobErCount += 1; }
         jobCount += 1;
         rows.push({ ...slim, reportKey: key, reportName: job.fileName || null, reportType: job.type, addedAt: job.createdAt });
       }
+      let reportEr = null;
+      if (isProfile) reportEr = jobErCount > 0 ? Math.round((jobErSum / jobErCount) * 100) / 100 : null;
+      else if (jobViews > 0) reportEr = Math.round((jobEr / jobViews) * 100) / 100;
       reports.push({
         key,
         name: job.fileName || null,
         type: job.type,
         addedAt: job.createdAt,
         creators: jobCount,
-        totalViews: jobViews,
-        avgEr: jobViews > 0 ? Math.round((jobEr / jobViews) * 100) / 100 : null,
+        // null, not 0: a profile report has no campaign views to add up.
+        totalViews: isProfile ? null : jobViews,
+        avgEr: reportEr,
+        erBasis: isProfile ? 'followers' : 'views',
       });
     });
     // Newest report's rows first, so a client re-opening a living link sees

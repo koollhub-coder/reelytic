@@ -8,7 +8,7 @@ import { DataTable } from '../components/DataTable';
 import { Collapsible } from '../components/Collapsible';
 import { DownloadIcon } from '../components/Icon';
 import { useDocumentMeta } from '../hooks/useDocumentMeta';
-import { ER_VIEWS, ER_VIEWS_AVG } from '../utils/erLabels';
+import { ER_VIEWS, ER_VIEWS_AVG, ER_FOLLOWERS } from '../utils/erLabels';
 
 function formatViews(n) {
   if (n == null) return '-';
@@ -48,6 +48,11 @@ function csvCell(v) {
   return /[",\n\r\t]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
 
+// A small grey word after a figure saying what it is ("avg", "followers").
+function Basis({ children }) {
+  return <span style={{ marginLeft: 4, fontSize: '10px', fontWeight: 500, color: 'var(--text-3)' }}>{children}</span>;
+}
+
 // Everything under the campaign header: the rollup, a per-report breakdown so a
 // client can tell which report had which numbers, and the creator table with
 // the same sort, filter and pagination as the rest of the product.
@@ -67,27 +72,48 @@ function PortalBody({ campaign, rows, reports, accentColor }) {
     return out;
   }, [reports]);
 
-  const all = useMemo(() => rows.map((r, i) => ({
-    id: i,
-    username: r.result.username || '',
-    label: labels[r.reportKey] || r.reportName || 'Report',
-    reportKey: r.reportKey,
-    followers: Number(r.result.followers || 0),
-    views: Number(r.result.views ?? r.result.avgViews ?? 0),
-    likes: Number(r.result.likes || 0),
-    comments: Number(r.result.comments || 0),
-    er: Number(r.result.er ?? r.result.avgEr ?? 0),
-    addedAt: r.addedAt,
-  })), [rows, labels]);
+  /*
+    A profile row is a creator's typical performance: average views per Reel
+    and ER divided by followers, with no single post's likes. It used to be
+    read with the reel fields, which a profile result does not have, so every
+    profile creator showed 0 views, 0 likes and 0.00%. Each row now reads its
+    own fields and says which ER it is.
+  */
+  const all = useMemo(() => rows.map((r, i) => {
+    const isProfile = r.reportType === 'profile';
+    return {
+      id: i,
+      isProfile,
+      username: r.result.username || '',
+      label: labels[r.reportKey] || r.reportName || 'Report',
+      reportKey: r.reportKey,
+      followers: Number(r.result.followers || 0),
+      views: Number((isProfile ? r.result.avgViews : r.result.views) ?? 0),
+      likes: isProfile ? null : Number(r.result.likes || 0),
+      comments: isProfile ? null : Number(r.result.comments || 0),
+      er: Number((isProfile ? r.result.avgEr : r.result.er) ?? 0),
+      addedAt: r.addedAt,
+    };
+  }), [rows, labels]);
+  // Only a campaign holding both kinds needs every figure to name its basis.
+  const mixed = useMemo(() => all.some((r) => r.isProfile) && all.some((r) => !r.isProfile), [all]);
+  const basis = (isProfile) => (isProfile ? 'followers' : 'views');
 
   const visible = useMemo(() => (active === 'all' ? all : all.filter((r) => r.reportKey === active)), [all, active]);
-  const top = useMemo(() => visible.filter((r) => r.username && r.er > 0).sort((a, b) => b.er - a.er)[0], [visible]);
-  const most = useMemo(() => visible.filter((r) => r.username && r.views > 0).sort((a, b) => b.views - a.views)[0], [visible]);
+  // Highlights compare like with like: Reels when there are any, else profiles.
+  const pool = useMemo(() => {
+    const reels = visible.filter((r) => !r.isProfile);
+    return reels.length ? reels : visible;
+  }, [visible]);
+  const top = useMemo(() => pool.filter((r) => r.username && r.er > 0).sort((a, b) => b.er - a.er)[0], [pool]);
+  const most = useMemo(() => pool.filter((r) => r.username && r.views > 0).sort((a, b) => b.views - a.views)[0], [pool]);
   const scoped = active === 'all' ? null : reports.find((r) => r.key === active);
+  const erText = (r) => `${r.er.toFixed(2)}% ER (${basis(r.isProfile)})`;
+  const viewsText = (r) => `${formatViews(r.views)} ${r.isProfile ? 'avg views' : 'views'}`;
 
   const download = () => {
-    const head = ['Creator', 'Report', 'Followers', 'Views', 'Likes', 'Comments', ER_VIEWS, 'Added'];
-    const lines = [head.join(',')].concat(visible.map((r) => [r.username ? '@' + r.username : '', r.label, r.followers, r.views, r.likes, r.comments, r.er, formatDate(r.addedAt)].map(csvCell).join(',')));
+    const head = ['Creator', 'Report', 'Followers', 'Views', 'Likes', 'Comments', 'ER %', 'ER divided by', 'Added'];
+    const lines = [head.join(',')].concat(visible.map((r) => [r.username ? '@' + r.username : '', r.label, r.followers, r.views, r.likes ?? '', r.comments ?? '', r.er, r.isProfile ? 'Followers (average per Reel)' : 'Views', formatDate(r.addedAt)].map(csvCell).join(',')));
     const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -108,7 +134,9 @@ function PortalBody({ campaign, rows, reports, accentColor }) {
     { key: 'addedAt', label: 'Added', type: 'date', mono: true, accessor: (r) => r.addedAt, render: (r) => <span style={{ color: 'var(--text-3)', fontSize: 'var(--fs-xs)' }}>{formatDate(r.addedAt)}</span> },
     { key: 'creators', label: 'Creators', type: 'number', align: 'right', mono: true, accessor: (r) => r.creators },
     { key: 'totalViews', label: 'Views', type: 'number', align: 'right', mono: true, accessor: (r) => r.totalViews, render: (r) => formatViews(r.totalViews) },
-    { key: 'avgEr', label: ER_VIEWS_AVG, type: 'number', align: 'right', mono: true, accessor: (r) => r.avgEr, render: (r) => (r.avgEr != null ? <span style={{ color: 'var(--ok)', fontWeight: 600 }}>{r.avgEr}%</span> : '-') },
+    { key: 'avgEr', label: mixed ? 'Avg ER %' : (reports.some((r) => r.erBasis === 'followers') ? ER_FOLLOWERS : ER_VIEWS_AVG), type: 'number', align: 'right', mono: true, accessor: (r) => r.avgEr, render: (r) => (r.avgEr != null ? (
+      <span style={{ color: 'var(--ok)', fontWeight: 600, whiteSpace: 'nowrap' }}>{r.avgEr}%{mixed && <Basis>{r.erBasis === 'followers' ? 'followers' : 'views'}</Basis>}</span>
+    ) : '-') },
     { key: 'open', label: '', sortable: false, filterable: false, align: 'right', render: (r) => (
       <button type="button" className="btn btn-secondary" style={{ height: 28, fontSize: 'var(--fs-xs)', padding: '0 12px', whiteSpace: 'nowrap' }} onClick={() => setActive(r.key)}>View creators</button>
     ) },
@@ -118,9 +146,13 @@ function PortalBody({ campaign, rows, reports, accentColor }) {
     { key: 'username', label: 'Creator', type: 'text', accessor: (r) => r.username, render: (r) => <span className="rl-clip" title={r.username} style={{ fontWeight: 600, maxWidth: 240 }}>{r.username ? '@' + r.username : 'Unresolved creator'}</span> },
     { key: 'label', label: 'Report', type: 'select', accessor: (r) => r.label, render: (r) => <span className="rl-clip" title={r.label} style={{ color: 'var(--text-2)', fontSize: 'var(--fs-xs)', maxWidth: 200 }}>{r.label}</span> },
     { key: 'followers', label: 'Followers', type: 'number', align: 'right', mono: true, accessor: (r) => r.followers, render: (r) => formatViews(r.followers) },
-    { key: 'views', label: 'Views', type: 'number', align: 'right', mono: true, accessor: (r) => r.views, render: (r) => formatViews(r.views) },
+    { key: 'views', label: 'Views', type: 'number', align: 'right', mono: true, accessor: (r) => r.views, render: (r) => (
+      <span style={{ whiteSpace: 'nowrap' }}>{formatViews(r.views)}{r.isProfile && <Basis>avg</Basis>}</span>
+    ) },
     { key: 'likes', label: 'Likes', type: 'number', align: 'right', mono: true, accessor: (r) => r.likes, render: (r) => formatViews(r.likes) },
-    { key: 'er', label: ER_VIEWS, type: 'number', align: 'right', mono: true, accessor: (r) => r.er, render: (r) => <span style={{ color: 'var(--ok)', fontWeight: 600 }}>{r.er.toFixed(2)}%</span> },
+    { key: 'er', label: mixed ? 'ER %' : (all.some((r) => r.isProfile) ? ER_FOLLOWERS : ER_VIEWS), type: 'number', align: 'right', mono: true, accessor: (r) => r.er, render: (r) => (
+      <span style={{ color: 'var(--ok)', fontWeight: 600, whiteSpace: 'nowrap' }}>{r.er.toFixed(2)}%{mixed && <Basis>{basis(r.isProfile)}</Basis>}</span>
+    ) },
     { key: 'addedAt', label: 'Added', type: 'date', mono: true, accessor: (r) => r.addedAt, render: (r) => <span style={{ color: 'var(--text-3)', fontSize: 'var(--fs-xs)' }}>{formatDate(r.addedAt)}</span> },
   ];
 
@@ -137,9 +169,14 @@ function PortalBody({ campaign, rows, reports, accentColor }) {
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--s3)', marginBottom: 'var(--s5)' }}>
         <StatTile value={campaign.reportCount} label={campaign.reportCount === 1 ? 'Report' : 'Reports'} />
         <StatTile value={(campaign.creators ?? all.length).toLocaleString()} label="Creators measured" />
-        <StatTile value={formatViews(campaign.totalViews)} label="Total views" accent />
+        <StatTile value={all.some((r) => !r.isProfile) ? formatViews(campaign.totalViews) : '-'} label="Total views" accent />
         <StatTile value={campaign.avgEr != null ? campaign.avgEr + '%' : '-'} label={ER_VIEWS_AVG} accent />
       </div>
+      {mixed && (
+        <p style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', margin: 'calc(-1 * var(--s3)) 0 var(--s5)' }}>
+          Total views and average ER count Reel reports only. Profile reports show each creator's typical views and their ER divided by followers, so they are listed below but not added in.
+        </p>
+      )}
 
       {reports.length > 1 && (
         <Collapsible id="portal-reports" title="Reports in this campaign" meta={reports.length + ' reports'}>
@@ -153,8 +190,8 @@ function PortalBody({ campaign, rows, reports, accentColor }) {
               <div className="card" style={{ padding: 'var(--s3) var(--s4)' }}>
                 <div className="rl-clip" title={labels[r.key]} style={{ fontWeight: 700 }}>{labels[r.key]}</div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', margin: '6px 0', fontSize: 'var(--fs-xs)', color: 'var(--text-2)' }}>
-                  <span>{r.creators} creators</span><span>{formatViews(r.totalViews)} views</span>
-                  <span style={{ color: 'var(--ok)', fontWeight: 600 }}>{r.avgEr != null ? r.avgEr + '%' : '-'} ER (views)</span>
+                  <span>{r.creators} creators</span>{r.totalViews != null && <span>{formatViews(r.totalViews)} views</span>}
+                  <span style={{ color: 'var(--ok)', fontWeight: 600 }}>{r.avgEr != null ? r.avgEr + '%' : '-'} ER ({r.erBasis === 'followers' ? 'followers' : 'views'})</span>
                 </div>
                 <button type="button" className="btn btn-secondary" style={{ width: '100%', height: 32, fontSize: 'var(--fs-xs)' }} onClick={() => setActive(r.key)}>View creators</button>
               </div>
@@ -165,8 +202,8 @@ function PortalBody({ campaign, rows, reports, accentColor }) {
 
       {(top || most) && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--s3)', marginBottom: 'var(--s5)' }}>
-          {top && <Highlight label="Highest engagement" row={top} value={top.er.toFixed(2) + '% · ' + formatViews(top.views) + ' views'} />}
-          {most && <Highlight label="Most views" row={most} value={formatViews(most.views) + ' views · ' + most.er.toFixed(2) + '% ER (views)'} />}
+          {top && <Highlight label="Highest engagement" row={top} value={erText(top) + ' · ' + viewsText(top)} />}
+          {most && <Highlight label="Most views" row={most} value={viewsText(most) + ' · ' + erText(most)} />}
         </div>
       )}
 
@@ -201,11 +238,14 @@ function PortalBody({ campaign, rows, reports, accentColor }) {
           <div className="card" style={{ padding: 'var(--s3) var(--s4)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginBottom: 'var(--s2)' }}>
               <span className="rl-clip" style={{ fontWeight: 700, fontSize: 'var(--fs-sm)' }}>{r.username ? '@' + r.username : 'Unresolved creator'}</span>
-              <span className="mono" style={{ fontWeight: 700, fontSize: 'var(--fs-sm)', color: 'var(--ok)', flexShrink: 0 }}>{r.er.toFixed(2)}%</span>
+              <span className="mono" style={{ fontWeight: 700, fontSize: 'var(--fs-sm)', color: 'var(--ok)', flexShrink: 0, textAlign: 'right' }}>
+                {r.er.toFixed(2)}%
+                <div style={{ fontWeight: 500, fontSize: '10px', color: 'var(--text-3)' }}>ER ({basis(r.isProfile)})</div>
+              </span>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--s2)', fontSize: 'var(--fs-xs)', color: 'var(--text-2)' }}>
               <div><div className="mono" style={{ fontWeight: 600 }}>{formatViews(r.followers)}</div>Followers</div>
-              <div><div className="mono" style={{ fontWeight: 600 }}>{formatViews(r.views)}</div>Views</div>
+              <div><div className="mono" style={{ fontWeight: 600 }}>{formatViews(r.views)}</div>{r.isProfile ? 'Avg views' : 'Views'}</div>
               <div><div className="mono" style={{ fontWeight: 600 }}>{formatViews(r.likes)}</div>Likes</div>
             </div>
             <div className="rl-clip" style={{ marginTop: 'var(--s2)', fontSize: '10px', color: 'var(--text-3)' }}>{r.label} · {formatDate(r.addedAt)}</div>

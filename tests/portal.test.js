@@ -148,6 +148,49 @@ describe('a reel checked in two reports counts once in the campaign totals', () 
   });
 });
 
+/*
+  Profile creators used to show 0 views and 0.00% in the portal, because the
+  page read reel fields a profile result does not have. They now carry their
+  real averages, and stay out of the campaign's total views, since a typical
+  views-per-Reel figure is not views of anything in this campaign.
+*/
+describe('profile reports in a portal show their own numbers', () => {
+  let data;
+  const prof = (u, avgViews, avgEr) => ({ i: 1, state: 'done', input: { url: `https://www.instagram.com/${u}` }, result: { username: u, followers: 50000, avgViews, avgEr, reelsAnalyzed: 6 } });
+
+  before(async () => {
+    const made = await pro.post('/campaigns', { name: 'Mixed test' });
+    const id = made.data.campaign.id;
+    await getDb().collection('jobs').insertMany([
+      { _id: 'rgr_mixed_reel', ownerUsername: usernameFor('pro'), type: 'reel', status: 'done', fileName: 'reels.xlsx', campaignId: id, createdAt: new Date('2026-09-01'), rows: [row('rho', 2000, 5)] },
+      { _id: 'rgr_mixed_prof', ownerUsername: usernameFor('pro'), type: 'profile', status: 'done', fileName: 'profiles.xlsx', campaignId: id, createdAt: new Date('2026-09-02'), rows: [prof('sigma', 90000, 2), prof('tau', 30000, 3)] },
+    ]);
+    const portal = await pro.post(`/campaigns/${id}/portal`, {});
+    data = (await createAgent().get(`/public/campaigns/${portal.data.portalToken}`)).data;
+  });
+
+  test('profile rows carry their real averages', () => {
+    const sigma = data.rows.find((r) => r.result.username === 'sigma');
+    assert.equal(sigma.reportType, 'profile');
+    assert.equal(sigma.result.avgViews, 90000);
+    assert.equal(sigma.result.avgEr, 2);
+  });
+
+  test('the profile report line gives its follower ER and no view total', () => {
+    const line = data.reports.find((r) => r.name === 'profiles.xlsx');
+    assert.equal(line.totalViews, null);
+    assert.equal(line.avgEr, 2.5);
+    assert.equal(line.erBasis, 'followers');
+    assert.equal(data.reports.find((r) => r.name === 'reels.xlsx').erBasis, 'views');
+  });
+
+  test('campaign totals count Reel views only', () => {
+    assert.equal(data.campaign.totalViews, 2000);
+    assert.equal(data.campaign.avgEr, 5);
+    assert.equal(data.campaign.creators, 3);
+  });
+});
+
 describe('the admin can hand out any paid feature', () => {
   test('a free account cannot make a portal until it is granted', async () => {
     const made = await free.post('/campaigns', { name: 'Free try' });
