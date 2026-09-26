@@ -110,6 +110,11 @@ const suites = [
     args: ['--test', 'tests/auth-flows.test.js'],
   },
   {
+    name: 'API: security (sign-in, payments, CSRF, headers, exports)',
+    cmd: process.execPath,
+    args: ['--test', 'tests/security.test.js'],
+  },
+  {
     // Pure logic, no database or network: the help assistant's understanding
     // and its guarantee of never saying anything confidential.
     name: 'HELP: assistant answers, confidentiality',

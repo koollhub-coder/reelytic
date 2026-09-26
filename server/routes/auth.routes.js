@@ -784,39 +784,47 @@ router.post('/reset-password', async (req, res, next) => {
 });
 
 // ---- Google Sign-In -------------------------------------------------------
-// Verifies a Google Identity Services ID token when GOOGLE_CLIENT_ID is set.
-// Falls back to a labelled DUMMY mode (mirrors the Razorpay dummy) so the
-// flow is fully demoable before Google Cloud credentials exist. To go live:
-// set GOOGLE_CLIENT_ID in .env (and VITE_GOOGLE_CLIENT_ID for the client).
+// Signs someone in only on a Google ID token that verifies against
+// GOOGLE_CLIENT_ID. The posted email is never trusted on its own: that used to
+// be a "demo mode" reached simply by leaving `credential` out, which let
+// anyone sign in as any account, admins included, by posting its email.
+//
+// A local demo without a Google project is still possible, but only when both
+// NODE_ENV is not production AND GOOGLE_SIGNIN_DEMO=1 is set on purpose.
+function googleDemoAllowed() {
+  return process.env.NODE_ENV !== 'production' && process.env.GOOGLE_SIGNIN_DEMO === '1';
+}
+
 router.post('/google', async (req, res, next) => {
   try {
     const clientId = process.env.GOOGLE_CLIENT_ID || '';
+    const credential = req.body && req.body.credential;
     let email, name, googleId;
 
-    if (clientId && req.body && req.body.credential) {
-      // Real verification path.
-      let OAuth2Client;
-      try {
-        ({ OAuth2Client } = require('google-auth-library'));
-      } catch (e) {
-        return res.status(500).json({ error: 'google-auth-library not installed on server.' });
-      }
+    if (clientId && credential) {
+      // Missing library is a deploy fault, not something to read out to a
+      // user: thrown to errorHandler, which answers with its generic line.
+      const { OAuth2Client } = require('google-auth-library');
       const client = new OAuth2Client(clientId);
-      const ticket = await client.verifyIdToken({ idToken: req.body.credential, audience: clientId });
-      const payload = ticket.getPayload();
+      let payload;
+      try {
+        const ticket = await client.verifyIdToken({ idToken: String(credential), audience: clientId });
+        payload = ticket.getPayload();
+      } catch (e) {
+        return res.status(401).json({ error: 'Google sign-in could not be verified. Please try again.' });
+      }
       if (!payload || !payload.email_verified) {
         return res.status(401).json({ error: 'Google account email not verified.' });
       }
       email = payload.email;
       name = payload.name;
       googleId = payload.sub;
-    } else {
-      // DUMMY MODE: no GOOGLE_CLIENT_ID configured. Trust the posted email so
-      // the demo works. This branch is disabled automatically once the env var
-      // is set, because a real `credential` is then required above.
+    } else if (!credential && googleDemoAllowed()) {
       email = (req.body && req.body.email) || 'demo.google.user@gmail.com';
       name = (req.body && req.body.name) || 'Google User';
       googleId = 'dummy_' + email;
+    } else {
+      return res.status(401).json({ error: 'Google sign-in could not be verified. Please try again.' });
     }
 
     const cleanEmail = String(email).trim().toLowerCase();
