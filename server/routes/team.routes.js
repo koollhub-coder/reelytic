@@ -5,6 +5,7 @@ const config = require('../config');
 const { getDb } = require('../db');
 const { requireLogin, requireChangePasswordCheck } = require('../middleware/auth');
 const { hashPassword } = require('../utils/password');
+const { startSession } = require('../utils/session');
 const { validateUsername } = require('../services/identity.service');
 const { hasFeature, getUserFeatures } = require('../services/features.service');
 const { DEFAULT_PLANS } = require('./pricing.routes');
@@ -278,9 +279,7 @@ router.post('/invite/:token/accept', async (req, res, next) => {
     await db.collection('users').insertOne(doc);
     await db.collection('teamInvites').updateOne({ token: req.params.token }, { $set: { status: 'accepted', acceptedAt: new Date() } });
 
-    req.session.username = doc.username;
-    req.session.role = doc.role;
-    req.session.createdAt = new Date().toISOString();
+    await startSession(req, doc);
 
     // Mirrors middleware/auth.js's member-merge so this first response
     // already reflects the owner's plan/credits, not the inert 'free'/0

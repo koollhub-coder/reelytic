@@ -221,3 +221,38 @@ describe('production refuses a public session secret', () => {
     assert.equal(boot('rgr-' + require('crypto').randomBytes(24).toString('hex')).status, 0);
   });
 });
+
+describe('sessions', () => {
+  const { PASSWORD } = require('./helpers/seed');
+  const sid = (agent) => decodeURIComponent((agent.cookie || '').split('=')[1] || '').split('.')[0];
+
+  test('signing in issues a new session id, even over an existing session', async () => {
+    const agent = anonymousAgent();
+    await agent.post('/auth/login', { username: usernameFor('free'), password: PASSWORD });
+    const first = sid(agent);
+    assert.ok(first);
+    const again = await agent.post('/auth/login', { username: usernameFor('pro'), password: PASSWORD, rememberMe: true });
+    assert.equal(again.status, 200);
+    assert.notEqual(sid(agent), first, 'the pre-login session id must not carry over');
+    assert.match(again.headers.get('set-cookie') || '', /Expires=/i, 'remember me still sets a lasting cookie');
+    assert.equal((await agent.get('/auth/me')).data.user.username, usernameFor('pro'));
+  });
+
+  test('changing the password signs out other devices and keeps this one', async () => {
+    const here = await loginAs('agency');
+    const elsewhere = await loginAs('agency');
+    const oldId = sid(here);
+
+    const changed = await here.post('/auth/change-password', { currentPassword: PASSWORD, newPassword: 'rgr-new-password-2' });
+    assert.equal(changed.status, 200, JSON.stringify(changed.data));
+    assert.notEqual(sid(here), oldId, 'the current session is re-issued');
+
+    assert.equal((await here.get('/auth/me')).status, 200, 'the device that changed it stays signed in');
+    const other = await elsewhere.get('/auth/me');
+    assert.equal(other.status, 401);
+    assert.equal(other.data.code, 'REVOKED');
+
+    // Put the seeded password back for anything that runs later.
+    await here.post('/auth/change-password', { currentPassword: 'rgr-new-password-2', newPassword: PASSWORD });
+  });
+});

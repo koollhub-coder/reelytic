@@ -16,8 +16,8 @@ const {
   buildGoogleAccountNoticeHtml, buildGoogleAccountNoticeText,
 } = require('../services/mailer.service');
 const { getLegalDoc } = require('../services/legal.service');
+const { startSession, rotateSession } = require('../utils/session');
 
-const REMEMBER_ME_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
 const APP_URL = config.appUrl;
 
 // Shared shape for anything we hand back to the client about the logged-in
@@ -150,25 +150,15 @@ router.post('/login', async (req, res, next) => {
     });
     await db.collection('users').updateOne({ _id: user._id }, { $set: { lastLoginAt: new Date() } });
 
-    // Set session
-    req.session.username = user.username;
-    req.session.role = user.role;
-    req.session.createdAt = new Date().toISOString();
-
     /*
       Unchecked "Remember me" makes this a true browser-session cookie (dies
       when the browser closes) instead of the app-wide 7-day default set in
-      index.js -- setting cookie.expires = false is express-session's
-      documented way to do that per-request. Checked extends it to 30 days.
-      Every other place a session gets created (OTP verify, Google sign-in)
-      is left on the 7-day default; there's no remember-me prompt on those
-      flows, so there's nothing to branch on.
+      index.js. Checked extends it to 30 days. Every other place a session
+      gets created (OTP verify, Google sign-in) is left on the 7-day default;
+      there's no remember-me prompt on those flows, so there's nothing to
+      branch on. See utils/session.js.
     */
-    if (rememberMe) {
-      req.session.cookie.maxAge = REMEMBER_ME_MAX_AGE;
-    } else {
-      req.session.cookie.expires = false;
-    }
+    await startSession(req, user, { rememberMe: !!rememberMe });
 
     res.json({ user: await publicUser(user) });
   } catch (err) {
@@ -221,10 +211,16 @@ router.post('/change-password', requireLogin, async (req, res, next) => {
     }
 
     const newHash = await hashPassword(newPassword);
+    // A new password signs out every other device, the same way a reset
+    // does. This session is re-issued with createdAt equal to the
+    // revocation time, and requireLogin only drops sessions created strictly
+    // before it, so the person changing their password stays signed in here.
+    const changedAt = new Date();
     await db.collection('users').updateOne(
       { _id: req.currentUser._id },
-      { $set: { passwordHash: newHash, mustChangePassword: false } }
+      { $set: { passwordHash: newHash, mustChangePassword: false, sessionsRevokedAt: changedAt } }
     );
+    await rotateSession(req, { createdAt: changedAt.toISOString() });
 
     res.json({ success: true, message: 'Password updated successfully' });
   } catch (err) {
@@ -506,9 +502,7 @@ router.post('/verify-otp', async (req, res, next) => {
     await db.collection('users').updateOne({ username: cleanUser }, { $set: { emailVerified: true } });
     const updated = { ...user, emailVerified: true };
 
-    req.session.username = updated.username;
-    req.session.role = updated.role;
-    req.session.createdAt = new Date().toISOString();
+    await startSession(req, updated);
 
     res.json({ user: await publicUser(updated) });
   } catch (err) {
@@ -572,9 +566,7 @@ router.post('/verify-otp-link', async (req, res, next) => {
     await db.collection('users').updateOne({ username: cleanUser }, { $set: { emailVerified: true } });
     const updated = { ...user, emailVerified: true };
 
-    req.session.username = updated.username;
-    req.session.role = updated.role;
-    req.session.createdAt = new Date().toISOString();
+    await startSession(req, updated);
 
     res.json({ user: await publicUser(updated) });
   } catch (err) {
@@ -896,9 +888,7 @@ router.post('/google', async (req, res, next) => {
       username: user.username, ip: req.ip || 'unknown', userAgent: ua, success: true, at: new Date(), via: 'google',
     });
 
-    req.session.username = user.username;
-    req.session.role = user.role;
-    req.session.createdAt = new Date().toISOString();
+    await startSession(req, user);
 
     res.json({ user: await publicUser(user) });
   } catch (err) {
