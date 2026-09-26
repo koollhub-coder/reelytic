@@ -24,8 +24,23 @@ const { getDb } = require('../db');
 
 const MAX_LOGO_BYTES = 1024 * 1024;
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
-const ALLOWED_LOGO_TYPES = ['image/png', 'image/jpeg', 'image/svg+xml', 'image/webp'];
+const LOGO_TYPE_NAMES = { 'image/png': 'PNG', 'image/jpeg': 'JPG', 'image/svg+xml': 'SVG', 'image/webp': 'WEBP' };
+const ALLOWED_LOGO_TYPES = Object.keys(LOGO_TYPE_NAMES);
 const LOGO_POSITIONS = ['left', 'center', 'right'];
+
+/*
+  The one place the logo rules live. GET /settings/report-branding sends
+  this to Settings, which shows it under the upload box and checks a file
+  against it before upload, so the page can never promise a different limit
+  than the one enforced below.
+*/
+const LOGO_LIMITS = Object.freeze({
+  maxBytes: MAX_LOGO_BYTES,
+  types: ALLOWED_LOGO_TYPES,
+  typeNames: ALLOWED_LOGO_TYPES.map((t) => LOGO_TYPE_NAMES[t]),
+});
+const LOGO_TYPE_ERROR = `Logo must be a ${LOGO_LIMITS.typeNames.slice(0, -1).join(', ')} or ${LOGO_LIMITS.typeNames.slice(-1)} file.`;
+const LOGO_SIZE_ERROR = `Logo file is too large. Use an image under ${MAX_LOGO_BYTES / (1024 * 1024)}MB.`;
 
 async function getReportBranding(username) {
   const db = getDb();
@@ -46,14 +61,14 @@ async function setReportBranding(username, { logoDataUri, accentColor, agencyNam
       if (!match) throw new Error('Logo must be an uploaded image file.');
       const [, mime, base64] = match;
       if (!ALLOWED_LOGO_TYPES.includes(mime.toLowerCase())) {
-        throw new Error('Logo must be a PNG, JPG, WEBP, or SVG file.');
+        throw new Error(LOGO_TYPE_ERROR);
       }
       // Rough byte size from base64 length -- exact enough for a UX-level
       // cap, not a security boundary (the request body size limit in
       // server/index.js is the real backstop).
       const approxBytes = Math.floor(base64.length * 0.75);
       if (approxBytes > MAX_LOGO_BYTES) {
-        throw new Error('Logo file is too large. Use an image under 1MB.');
+        throw new Error(LOGO_SIZE_ERROR);
       }
       update.logoDataUri = logoDataUri;
     }
@@ -89,4 +104,4 @@ async function setReportBranding(username, { logoDataUri, accentColor, agencyNam
   return getReportBranding(username);
 }
 
-module.exports = { getReportBranding, setReportBranding, MAX_LOGO_BYTES };
+module.exports = { getReportBranding, setReportBranding, MAX_LOGO_BYTES, LOGO_LIMITS };

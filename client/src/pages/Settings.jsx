@@ -15,9 +15,15 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { ER_VIEWS, ER_VIEWS_AVG } from '../utils/erLabels';
 
-const MAX_LOGO_BYTES = 1024 * 1024;
-const ALLOWED_LOGO_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'];
 const DEFAULT_ACCENT = '#E23E57';
+
+// "PNG, JPG, SVG or WEBP" from the server's own list.
+function listNames(names) {
+  return names.length > 1 ? `${names.slice(0, -1).join(', ')} or ${names[names.length - 1]}` : names.join('');
+}
+function formatMb(bytes) {
+  return `${+(bytes / (1024 * 1024)).toFixed(1)}MB`;
+}
 
 export function Settings() {
   const { user, refreshUser } = useAuth();
@@ -27,11 +33,15 @@ export function Settings() {
   const [branding, setBranding] = useState({ logoDataUri: null, accentColor: DEFAULT_ACCENT, agencyName: '', logoPosition: 'left', showAgencyName: true, showHighlights: true });
   const [brandingSaving, setBrandingSaving] = useState(false);
   const [logoError, setLogoError] = useState('');
+  // The server's own logo rules (branding.service.js LOGO_LIMITS), so the
+  // hint and the check below always match what the save will accept.
+  const [logoLimits, setLogoLimits] = useState(null);
   const logoInputRef = useRef(null);
 
   useEffect(() => {
     apiFetch('/settings/report-branding')
       .then((res) => {
+        if (res.logoLimits) setLogoLimits(res.logoLimits);
         const b = res.branding || {};
         setBranding({
           logoDataUri: b.logoDataUri || null,
@@ -51,12 +61,13 @@ export function Settings() {
   const handleLogoFile = (file) => {
     if (!file) return;
     setLogoError('');
-    if (!ALLOWED_LOGO_TYPES.includes(file.type)) {
-      setLogoError('Logo must be a PNG, JPG, WEBP, or SVG file.');
+    // Until the limits arrive, the server's check on save still applies.
+    if (logoLimits && !logoLimits.types.includes(file.type)) {
+      setLogoError(`Logo must be a ${listNames(logoLimits.typeNames)} file.`);
       return;
     }
-    if (file.size >MAX_LOGO_BYTES) {
-      setLogoError('Logo file is too large. Use an image under 1MB.');
+    if (logoLimits && file.size > logoLimits.maxBytes) {
+      setLogoError(`Logo file is too large. Use an image under ${formatMb(logoLimits.maxBytes)}.`);
       return;
     }
     const reader = new FileReader();
@@ -505,7 +516,7 @@ export function Settings() {
               <input
                 ref={logoInputRef}
                 type="file"
-                accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                accept={logoLimits ? logoLimits.types.join(',') : 'image/*'}
                 style={{ display: 'none' }}
                 onChange={(e) => handleLogoFile(e.target.files[0])}
               />
@@ -531,7 +542,9 @@ export function Settings() {
                 >
                   <DownloadIcon size={18} style={{ transform: 'rotate(180deg)', color: 'var(--text-3)' }} />
                   <span style={{ fontWeight: 600, fontSize: 'var(--fs-sm)', color: 'var(--text)' }}>Upload logo</span>
-                  <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>PNG, JPG or SVG · Max 2MB</span>
+                  {logoLimits && (
+                    <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>{listNames(logoLimits.typeNames)} · Max {formatMb(logoLimits.maxBytes)}</span>
+                  )}
                 </button>
               )}
               {logoError && <div className="input-error">{logoError}</div>}

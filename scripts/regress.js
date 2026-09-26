@@ -105,6 +105,11 @@ const suites = [
     args: ['--test', 'tests/er-labels.test.js'],
   },
   {
+    name: 'API: report logo limits match what Settings shows',
+    cmd: process.execPath,
+    args: ['--test', 'tests/branding-limits.test.js'],
+  },
+  {
     name: 'API: crash/restart recovery, billing idempotency',
     cmd: process.execPath,
     args: ['--test', 'tests/crash-recovery.test.js'],

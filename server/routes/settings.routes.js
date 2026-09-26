@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { requireLogin } = require('../middleware/auth');
-const { getReportBranding, setReportBranding } = require('../services/branding.service');
+const { getReportBranding, setReportBranding, LOGO_LIMITS } = require('../services/branding.service');
 const { hasFeature } = require('../services/features.service');
 
 router.get('/', requireLogin, async (req, res) => {
@@ -16,7 +16,10 @@ router.get('/', requireLogin, async (req, res) => {
 router.get('/report-branding', requireLogin, async (req, res, next) => {
   try {
     const branding = await getReportBranding(req.currentUser.effectiveUsername);
-    res.json({ branding: branding || { logoDataUri: null, accentColor: null, agencyName: null, logoPosition: 'left', showAgencyName: true, showHighlights: true } });
+    res.json({
+      branding: branding || { logoDataUri: null, accentColor: null, agencyName: null, logoPosition: 'left', showAgencyName: true, showHighlights: true },
+      logoLimits: LOGO_LIMITS,
+    });
   } catch (err) {
     next(err);
   }
