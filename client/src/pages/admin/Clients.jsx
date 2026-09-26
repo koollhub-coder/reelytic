@@ -186,7 +186,7 @@ export function Clients() {
         {c.role === 'admin' && <span className="chip" style={{ textTransform: 'uppercase', fontSize: 10 }}>Admin</span>}
       </span>
     ) },
-    { key: 'email', label: 'Email', type: 'text', accessor: (c) => c.email || '', render: (c) => <span className="mono rl-clip" title={c.email || ''} style={{ color: 'var(--text-2)', maxWidth: 200 }}>{c.email || '-'}</span> },
+    { key: 'email', label: 'Email', type: 'text', accessor: (c) => c.email || '', render: (c) => <span className="mono rl-clip" title={c.email || ''} style={{ color: 'var(--text-2)', maxWidth: 150 }}>{c.email || '-'}</span> },
     { key: 'credits', label: 'Credits', type: 'number', align: 'right', mono: true, accessor: (c) => c.credits ?? 0, render: (c) => <strong>{(c.credits ?? 0).toLocaleString()}</strong> },
     { key: 'plan', label: 'Plan', type: 'select', accessor: (c) => c.plan || 'free', render: (c) => <span className="chip accent" style={{ textTransform: 'capitalize' }}>{c.plan || 'free'}</span> },
     { key: 'status', label: 'Status', type: 'select', accessor: (c) => (c.disabled ? 'disabled' : 'active'), optionLabel: (v) => (v === 'disabled' ? 'Disabled' : 'Active'), render: (c) => <span className={`chip ${c.disabled ? 'err' : 'ok'}`}>{c.disabled ? 'Disabled' : 'Active'}</span> },
