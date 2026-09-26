@@ -536,3 +536,42 @@ test.describe('public navigation and touch charts', () => {
     });
   });
 });
+
+/*
+  The CSP only exists on the production server, so Vite-served tests never trip it. Load the real
+  build, sign in, and visit the main pages: any blocked script, style, image, font or connection
+  is a page that would be silently broken in production.
+*/
+test.describe('the content security policy does not break the app', () => {
+  const PROD = 'http://127.0.0.1:3458';
+  const fs = require('fs');
+  const path = require('path');
+  const built = fs.existsSync(path.resolve(__dirname, '../../client/dist/landing.html'));
+
+  test('landing, sign in, dashboard, history and a report load with no policy violations', async ({ page }) => {
+    test.skip(!built, 'client/dist is not built');
+    test.setTimeout(90000);
+    await page.addInitScript(() => {
+      window.__csp = [];
+      document.addEventListener('securitypolicyviolation', (e) => window.__csp.push(`${e.violatedDirective}: ${e.blockedURI || 'inline'}`));
+    });
+    const seen = [];
+    const collect = async () => { seen.push(...(await page.evaluate(() => window.__csp || []))); };
+
+    await page.goto(`${PROD}/`);
+    await page.waitForTimeout(1200);
+    await collect();
+    await page.goto(`${PROD}/login`);
+    await page.locator('#username').fill(usernameFor('pro'));
+    await page.locator('#password').fill(PASSWORD);
+    await page.locator('form button[type="submit"]').click();
+    await page.waitForURL((u) => !u.pathname.includes('/login'), { timeout: 20000 });
+    const created = await page.evaluate(async () => (await fetch('/api/jobs/demo', { method: 'POST', credentials: 'include' })).json());
+    for (const p of ['/dashboard', '/history', '/creators', '/settings', '/pricing', `/reels?job=${created.jobId}`, `/reports/${created.jobId}/branded`]) {
+      await page.goto(`${PROD}${p}`);
+      await page.waitForTimeout(1500);
+      await collect();
+    }
+    expect(seen, 'these were blocked by the content security policy').toEqual([]);
+  });
+});

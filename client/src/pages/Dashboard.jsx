@@ -115,7 +115,7 @@ function ReportSplitDonut({ reelCount, profileCount }) {
           )}
         </g>
         <text x="80" y="76" textAnchor="middle" fontSize="26" fontWeight="700" fill="var(--text)" fontFamily="var(--font-data)">{total.toLocaleString()}</text>
-        <text x="80" y="96" textAnchor="middle" fontSize="11" fill="var(--text-3)">reports</text>
+        <text x="80" y="96" textAnchor="middle" fontSize="11" fill="var(--text-3)">links</text>
       </svg>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', fontSize: '13px', color: 'var(--text-2)', flexWrap: 'wrap' }}>
