@@ -15,6 +15,11 @@ export function erLabel(type) {
   return type === 'profile' ? ER_FOLLOWERS : ER_VIEWS;
 }
 
+// Short form for running text next to a value: "4.7% ER (views)".
+export function erShort(type) {
+  return type === 'profile' ? 'ER (followers)' : 'ER (views)';
+}
+
 // The label for an average taken across a report's rows.
 export function erAvgLabel(type) {
   return type === 'profile' ? ER_FOLLOWERS : ER_VIEWS_AVG;

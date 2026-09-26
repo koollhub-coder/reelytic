@@ -27,7 +27,7 @@ import { EditSheetDialog } from '../components/EditSheetDialog';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import { formatDate, formatDateTime, formatDayKey } from '../utils/date';
-import { ER_VIEWS, ER_FOLLOWERS, erLabel, erAvgLabel } from '../utils/erLabels';
+import { ER_VIEWS, ER_FOLLOWERS, erLabel, erAvgLabel, erShort } from '../utils/erLabels';
 
 const ER_FORMULA = {
   reel: `${ER_VIEWS} = (Likes + Comments) / Views × 100`,
@@ -189,8 +189,8 @@ function buildSummaryText(insights, type) {
       : `${insights.count} profiles analyzed. Average ${formatCompactNumber(insights.avgViews)} views per Reel, ${insights.medianEr.toFixed(1)}% typical ER (followers).`,
   ];
   if (insights.hasSpread) {
-    lines.push(`Top performer: @${insights.top.name} (${formatCompactNumber(insights.top.views)} views, ${insights.top.er.toFixed(1)}% ER)`);
-    lines.push(`Lowest performer: @${insights.bottom.name} (${formatCompactNumber(insights.bottom.views)} views, ${insights.bottom.er.toFixed(1)}% ER)`);
+    lines.push(`Top performer: @${insights.top.name} (${formatCompactNumber(insights.top.views)} views, ${insights.top.er.toFixed(1)}% ${erShort(type)})`);
+    lines.push(`Lowest performer: @${insights.bottom.name} (${formatCompactNumber(insights.bottom.views)} views, ${insights.bottom.er.toFixed(1)}% ${erShort(type)})`);
   }
   return lines.join('\n');
 }
@@ -2019,7 +2019,7 @@ export function ReportEngine({ type = 'reel' }) {
                     </div>
                     <div className="mono rl-clip" title={`@${insights.top.name}`} style={{ color: 'var(--text)', fontWeight: 700, fontSize: 'var(--fs-base)' }}>@{insights.top.name}</div>
                     <div style={{ color: 'var(--ok)', fontSize: 'var(--fs-sm)', marginTop: '2px' }}>
-                      {formatCompactNumber(insights.top.views)} {insights.top.views === 1 ? 'view' : 'views'} · {insights.top.er.toFixed(1)}% ER
+                      {formatCompactNumber(insights.top.views)} {insights.top.views === 1 ? 'view' : 'views'} · {insights.top.er.toFixed(1)}% {erShort(type)}
                     </div>
                   </a>
                 )}
@@ -2036,7 +2036,7 @@ export function ReportEngine({ type = 'reel' }) {
                     </div>
                     <div className="mono rl-clip" title={`@${insights.bottom.name}`} style={{ color: 'var(--text)', fontWeight: 700, fontSize: 'var(--fs-base)' }}>@{insights.bottom.name}</div>
                     <div style={{ color: 'var(--err)', fontSize: 'var(--fs-sm)', marginTop: '2px' }}>
-                      {formatCompactNumber(insights.bottom.views)} {insights.bottom.views === 1 ? 'view' : 'views'} · {insights.bottom.er.toFixed(1)}% ER
+                      {formatCompactNumber(insights.bottom.views)} {insights.bottom.views === 1 ? 'view' : 'views'} · {insights.bottom.er.toFixed(1)}% {erShort(type)}
                     </div>
                   </a>
                 )}
@@ -2053,8 +2053,8 @@ export function ReportEngine({ type = 'reel' }) {
                     <TrendingUpIcon size={12} style={{ color: 'var(--warn)' }} />{erAvgLabel(type)}
                   </div>
                   <div className="mono" style={{ color: 'var(--warn)', fontWeight: 700, fontSize: 'var(--fs-base)' }}>{insights.medianEr.toFixed(1)}%</div>
-                  <div style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)', marginTop: '2px' }}>Typical ER</div>
-                  <BarSparkline values={insights.erList} color="var(--warn)" formatValue={(v) => `${v.toFixed(1)}% ER`} />
+                  <div style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)', marginTop: '2px' }}>Typical {erShort(type)}</div>
+                  <BarSparkline values={insights.erList} color="var(--warn)" formatValue={(v) => `${v.toFixed(1)}% ${erShort(type)}`} />
                 </div>
               </div>
               </Collapsible>

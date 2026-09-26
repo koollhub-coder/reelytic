@@ -629,12 +629,12 @@ export function Settings() {
                   <div style={{ border: '1px solid #E4E1DA', borderRadius: '6px', padding: '6px 8px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '9px', color: '#8B8F98', textTransform: 'uppercase' }}><TrendingUpIcon size={10} style={{ color: '#1F9D6B' }} />Top performer</div>
                     <div style={{ fontWeight: 700, fontSize: '11px' }}>@creatorname</div>
-                    <div style={{ fontSize: '10px', color: '#1F9D6B' }}>12.5M Views · 3.42% ER</div>
+                    <div style={{ fontSize: '10px', color: '#1F9D6B' }}>12.5M Views · 3.42% ER (views)</div>
                   </div>
                   <div style={{ border: '1px solid #E4E1DA', borderRadius: '6px', padding: '6px 8px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '9px', color: '#8B8F98', textTransform: 'uppercase' }}><TrendingDownIcon size={10} style={{ color: '#D33131' }} />Lowest performer</div>
                     <div style={{ fontWeight: 700, fontSize: '11px' }}>@creatorname</div>
-                    <div style={{ fontSize: '10px', color: '#D33131' }}>210K Views · 0.4% ER</div>
+                    <div style={{ fontSize: '10px', color: '#D33131' }}>210K Views · 0.4% ER (views)</div>
                   </div>
                   <div style={{ border: '1px solid #E4E1DA', borderRadius: '6px', padding: '6px 8px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '9px', color: '#8B8F98', textTransform: 'uppercase' }}><EyeIcon size={10} style={{ color: branding.accentColor }} />{ER_VIEWS_AVG}</div>
