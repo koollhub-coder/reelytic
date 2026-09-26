@@ -1,0 +1,409 @@
+{
+  "label": "after",
+  "at": "2026-09-26T09:34:23.440Z",
+  "runs": 3,
+  "results": {
+    "Wi-Fi / fast": {
+      "Landing (signed out)": {
+        "cold": {
+          "ttfb": 3,
+          "fcp": 136,
+          "lcp": 180,
+          "ready": 118,
+          "load": 130,
+          "kb": 293,
+          "requests": 19,
+          "jsKb": 115
+        },
+        "warm": {
+          "ttfb": 3,
+          "fcp": 52,
+          "lcp": 52,
+          "ready": 38,
+          "load": 45,
+          "kb": 1,
+          "requests": 19,
+          "jsKb": 0
+        }
+      },
+      "Login": {
+        "cold": {
+          "ttfb": 3,
+          "fcp": 56,
+          "lcp": 124,
+          "ready": 499,
+          "load": 67,
+          "kb": 418,
+          "requests": 26,
+          "jsKb": 258
+        },
+        "warm": {
+          "ttfb": 2,
+          "fcp": 28,
+          "lcp": 60,
+          "ready": 437,
+          "load": 22,
+          "kb": 56,
+          "requests": 26,
+          "jsKb": 46
+        }
+      },
+      "Pricing": {
+        "cold": {
+          "ttfb": 3,
+          "fcp": 60,
+          "lcp": 208,
+          "ready": 507,
+          "load": 61,
+          "kb": 290,
+          "requests": 21,
+          "jsKb": 110
+        },
+        "warm": {
+          "ttfb": 3,
+          "fcp": 40,
+          "lcp": 164,
+          "ready": 453,
+          "load": 24,
+          "kb": 2,
+          "requests": 21,
+          "jsKb": 0
+        }
+      },
+      "Dashboard (signed in)": {
+        "cold": {
+          "ttfb": 2,
+          "fcp": 64,
+          "lcp": 360,
+          "ready": 504,
+          "load": 65,
+          "kb": 409,
+          "requests": 38,
+          "jsKb": 258
+        },
+        "warm": {
+          "ttfb": 3,
+          "fcp": 28,
+          "lcp": 180,
+          "ready": 440,
+          "load": 22,
+          "kb": 2,
+          "requests": 38,
+          "jsKb": 0
+        }
+      },
+      "History (signed in)": {
+        "cold": {
+          "ttfb": 3,
+          "fcp": 64,
+          "lcp": 232,
+          "ready": 498,
+          "load": 66,
+          "kb": 431,
+          "requests": 39,
+          "jsKb": 258
+        },
+        "warm": {
+          "ttfb": 4,
+          "fcp": 56,
+          "lcp": 240,
+          "ready": 473,
+          "load": 49,
+          "kb": 2,
+          "requests": 39,
+          "jsKb": 0
+        }
+      },
+      "Reel Report upload (signed in)": {
+        "cold": {
+          "ttfb": 3,
+          "fcp": 72,
+          "lcp": 268,
+          "ready": 524,
+          "load": 134,
+          "kb": 410,
+          "requests": 39,
+          "jsKb": 258
+        },
+        "warm": {
+          "ttfb": 2,
+          "fcp": 40,
+          "lcp": 240,
+          "ready": 460,
+          "load": 26,
+          "kb": 2,
+          "requests": 39,
+          "jsKb": 0
+        }
+      }
+    },
+    "4G (9 Mbps, 60 ms)": {
+      "Landing (signed out)": {
+        "cold": {
+          "ttfb": 3,
+          "fcp": 836,
+          "lcp": 1072,
+          "ready": 789,
+          "load": 1054,
+          "kb": 293,
+          "requests": 19,
+          "jsKb": 115
+        },
+        "warm": {
+          "ttfb": 1,
+          "fcp": 380,
+          "lcp": 380,
+          "ready": 352,
+          "load": 430,
+          "kb": 1,
+          "requests": 19,
+          "jsKb": 0
+        }
+      },
+      "Login": {
+        "cold": {
+          "ttfb": 3,
+          "fcp": 348,
+          "lcp": 788,
+          "ready": 1230,
+          "load": 1807,
+          "kb": 418,
+          "requests": 26,
+          "jsKb": 258
+        },
+        "warm": {
+          "ttfb": 1,
+          "fcp": 176,
+          "lcp": 816,
+          "ready": 803,
+          "load": 161,
+          "kb": 56,
+          "requests": 26,
+          "jsKb": 46
+        }
+      },
+      "Pricing": {
+        "cold": {
+          "ttfb": 3,
+          "fcp": 364,
+          "lcp": 988,
+          "ready": 1402,
+          "load": 1364,
+          "kb": 290,
+          "requests": 21,
+          "jsKb": 110
+        },
+        "warm": {
+          "ttfb": 2,
+          "fcp": 176,
+          "lcp": 792,
+          "ready": 775,
+          "load": 172,
+          "kb": 2,
+          "requests": 21,
+          "jsKb": 0
+        }
+      },
+      "Dashboard (signed in)": {
+        "cold": {
+          "ttfb": 3,
+          "fcp": 344,
+          "lcp": 1364,
+          "ready": 1348,
+          "load": 976,
+          "kb": 409,
+          "requests": 38,
+          "jsKb": 258
+        },
+        "warm": {
+          "ttfb": 2,
+          "fcp": 264,
+          "lcp": 632,
+          "ready": 1070,
+          "load": 241,
+          "kb": 2,
+          "requests": 38,
+          "jsKb": 0
+        }
+      },
+      "History (signed in)": {
+        "cold": {
+          "ttfb": 3,
+          "fcp": 360,
+          "lcp": 1340,
+          "ready": 1315,
+          "load": 960,
+          "kb": 431,
+          "requests": 39,
+          "jsKb": 258
+        },
+        "warm": {
+          "ttfb": 2,
+          "fcp": 264,
+          "lcp": 780,
+          "ready": 789,
+          "load": 260,
+          "kb": 2,
+          "requests": 29,
+          "jsKb": 0
+        }
+      },
+      "Reel Report upload (signed in)": {
+        "cold": {
+          "ttfb": 3,
+          "fcp": 348,
+          "lcp": 1148,
+          "ready": 1124,
+          "load": 971,
+          "kb": 403,
+          "requests": 38,
+          "jsKb": 251
+        },
+        "warm": {
+          "ttfb": 1,
+          "fcp": 196,
+          "lcp": 948,
+          "ready": 927,
+          "load": 193,
+          "kb": 2,
+          "requests": 39,
+          "jsKb": 0
+        }
+      }
+    },
+    "Slow 4G (1.6 Mbps, 150 ms)": {
+      "Landing (signed out)": {
+        "cold": {
+          "ttfb": 3,
+          "fcp": 1136,
+          "lcp": 1820,
+          "ready": 1087,
+          "load": 1883,
+          "kb": 293,
+          "requests": 19,
+          "jsKb": 115
+        },
+        "warm": {
+          "ttfb": 2,
+          "fcp": 400,
+          "lcp": 400,
+          "ready": 367,
+          "load": 526,
+          "kb": 1,
+          "requests": 19,
+          "jsKb": 0
+        }
+      },
+      "Login": {
+        "cold": {
+          "ttfb": 4,
+          "fcp": 808,
+          "lcp": 1776,
+          "ready": 1781,
+          "load": 1219,
+          "kb": 214,
+          "requests": 19,
+          "jsKb": 113
+        },
+        "warm": {
+          "ttfb": 1,
+          "fcp": 284,
+          "lcp": 1048,
+          "ready": 1028,
+          "load": 279,
+          "kb": 50,
+          "requests": 23,
+          "jsKb": 0
+        }
+      },
+      "Pricing": {
+        "cold": {
+          "ttfb": 3,
+          "fcp": 780,
+          "lcp": 800,
+          "ready": 1950,
+          "load": 1185,
+          "kb": 220,
+          "requests": 18,
+          "jsKb": 110
+        },
+        "warm": {
+          "ttfb": 1,
+          "fcp": 292,
+          "lcp": 1120,
+          "ready": 1087,
+          "load": 285,
+          "kb": 71,
+          "requests": 24,
+          "jsKb": 0
+        }
+      },
+      "Dashboard (signed in)": {
+        "cold": {
+          "ttfb": 3,
+          "fcp": 828,
+          "lcp": 2380,
+          "ready": 2350,
+          "load": 1487,
+          "kb": 334,
+          "requests": 24,
+          "jsKb": 182
+        },
+        "warm": {
+          "ttfb": 31,
+          "fcp": 468,
+          "lcp": 1172,
+          "ready": 1135,
+          "load": 450,
+          "kb": 38,
+          "requests": 42,
+          "jsKb": 37
+        }
+      },
+      "History (signed in)": {
+        "cold": {
+          "ttfb": 3,
+          "fcp": 768,
+          "lcp": 2380,
+          "ready": 2358,
+          "load": 1328,
+          "kb": 282,
+          "requests": 28,
+          "jsKb": 108
+        },
+        "warm": {
+          "ttfb": 26,
+          "fcp": 344,
+          "lcp": 1048,
+          "ready": 1042,
+          "load": 338,
+          "kb": 15,
+          "requests": 37,
+          "jsKb": 9
+        }
+      },
+      "Reel Report upload (signed in)": {
+        "cold": {
+          "ttfb": 3,
+          "fcp": 804,
+          "lcp": 2276,
+          "ready": 2249,
+          "load": 1368,
+          "kb": 306,
+          "requests": 36,
+          "jsKb": 154
+        },
+        "warm": {
+          "ttfb": 1,
+          "fcp": 444,
+          "lcp": 1648,
+          "ready": 1617,
+          "load": 428,
+          "kb": 2,
+          "requests": 38,
+          "jsKb": 0
+        }
+      }
+    }
+  }
+}

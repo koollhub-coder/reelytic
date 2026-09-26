@@ -1,0 +1,182 @@
+{
+  "label": "after",
+  "at": "2026-09-26T09:50:36.819Z",
+  "n": 15,
+  "endpoints": {
+    "GET /auth/me": {
+      "status": 200,
+      "bytes": 344,
+      "wireBytes": 344,
+      "encoding": "none",
+      "median": 79,
+      "p95": 105,
+      "min": 59
+    },
+    "GET /me/stats?days=14 (dashboard)": {
+      "status": 200,
+      "bytes": 2203,
+      "wireBytes": 398,
+      "encoding": "br",
+      "median": 115,
+      "p95": 371,
+      "min": 74
+    },
+    "GET /jobs (history, 100 reports)": {
+      "status": 200,
+      "bytes": 20517,
+      "wireBytes": 1115,
+      "encoding": "br",
+      "median": 139,
+      "p95": 187,
+      "min": 112
+    },
+    "GET /jobs?limit=10": {
+      "status": 200,
+      "bytes": 3435,
+      "wireBytes": 429,
+      "encoding": "br",
+      "median": 134,
+      "p95": 151,
+      "min": 85
+    },
+    "GET /jobs/:id (open a report)": {
+      "status": 200,
+      "bytes": 76165,
+      "wireBytes": 7771,
+      "encoding": "br",
+      "median": 136,
+      "p95": 310,
+      "min": 109
+    },
+    "GET /jobs/:id/rows (results page)": {
+      "status": 200,
+      "bytes": 9415,
+      "wireBytes": 1181,
+      "encoding": "br",
+      "median": 106,
+      "p95": 126,
+      "min": 82
+    },
+    "GET /campaigns": {
+      "status": 200,
+      "bytes": 1817,
+      "wireBytes": 1817,
+      "encoding": "none",
+      "median": 135,
+      "p95": 184,
+      "min": 116
+    },
+    "GET /creators?limit=50": {
+      "status": 200,
+      "bytes": 24975,
+      "wireBytes": 2042,
+      "encoding": "br",
+      "median": 216,
+      "p95": 346,
+      "min": 170
+    },
+    "GET /creators/summary": {
+      "status": 200,
+      "bytes": 72,
+      "wireBytes": 72,
+      "encoding": "none",
+      "median": 103,
+      "p95": 121,
+      "min": 92
+    },
+    "GET /settings/report-branding": {
+      "status": 200,
+      "bytes": 136,
+      "wireBytes": 136,
+      "encoding": "none",
+      "median": 96,
+      "p95": 119,
+      "min": 76
+    },
+    "GET /pricing/plans (public)": {
+      "status": 200,
+      "bytes": 1667,
+      "wireBytes": 1667,
+      "encoding": "none",
+      "median": 36,
+      "p95": 51,
+      "min": 25
+    },
+    "GET /help/facts (public)": {
+      "status": 200,
+      "bytes": 59,
+      "wireBytes": 59,
+      "encoding": "none",
+      "median": 15,
+      "p95": 21,
+      "min": 2
+    },
+    "GET /public/campaigns/:token (client portal)": {
+      "status": 200,
+      "bytes": 259679,
+      "wireBytes": 23694,
+      "encoding": "br",
+      "median": 165,
+      "p95": 224,
+      "min": 140
+    },
+    "GET /admin/clients": {
+      "status": 200,
+      "bytes": 2249,
+      "wireBytes": 421,
+      "encoding": "br",
+      "median": 93,
+      "p95": 125,
+      "min": 66
+    },
+    "GET /admin/ledger?limit=1000": {
+      "status": 200,
+      "bytes": 245295,
+      "wireBytes": 12008,
+      "encoding": "br",
+      "median": 239,
+      "p95": 291,
+      "min": 212
+    },
+    "GET /admin/sessions?limit=1000": {
+      "status": 200,
+      "bytes": 219549,
+      "wireBytes": 9424,
+      "encoding": "br",
+      "median": 223,
+      "p95": 263,
+      "min": 198
+    },
+    "GET /admin/platform-credits": {
+      "status": 200,
+      "bytes": 442,
+      "wireBytes": 442,
+      "encoding": "none",
+      "median": 64,
+      "p95": 74,
+      "min": 46
+    }
+  },
+  "scenarios": {
+    "Open Dashboard (me + stats + jobs, parallel)": {
+      "median": 138,
+      "p95": 150
+    },
+    "Open History (me + jobs + campaigns, parallel)": {
+      "median": 133,
+      "p95": 153
+    },
+    "Open Creators (me + list + summary + campaigns, parallel)": {
+      "median": 213,
+      "p95": 261
+    },
+    "16 simultaneous dashboard+history calls": {
+      "median": 912,
+      "p95": 998
+    },
+    "Run a 60-link report (scraper stubbed, engine bookkeeping only)": {
+      "median": 5869,
+      "p95": 5959
+    }
+  }
+}

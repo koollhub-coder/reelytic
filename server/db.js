@@ -282,7 +282,11 @@ async function connectDb() {
   try {
     const client = new MongoClient(config.mongodbUri, {
       serverSelectionTimeoutMS: 2000,
-      tlsAllowInvalidCertificates: true
+      tlsAllowInvalidCertificates: true,
+      // Big reads (report rows, ledgers) cross the network to Atlas compressed.
+      compressors: ['zlib'],
+      maxPoolSize: 20,
+      minPoolSize: 3
     });
     await client.connect();
     mongoClient = client;

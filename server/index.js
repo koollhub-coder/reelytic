@@ -7,6 +7,9 @@ const config = require('./config');
 const { connectDb, ensureIndexes, isUsingFallback } = require('./db');
 const { runBootstrap } = require('./bootstrap');
 const { errorHandler } = require('./middleware/errors');
+const compression = require('compression');
+const { clientStatic } = require('./middleware/clientStatic');
+const { CoalescingStore } = require('./middleware/coalescingStore');
 
 const authRoutes = require('./routes/auth.routes');
 const uploadRoutes = require('./routes/upload.routes');
@@ -38,6 +41,23 @@ async function startServer() {
     next();
   });
 
+  const clientDist = path.join(__dirname, '../client/dist');
+
+  // robots.txt / sitemap.xml are built from config.appUrl at request time (see
+  // seo.routes.js). Mounted before the client build so neither path is ever
+  // shadowed, and before the session so they cost no database trip.
+  app.use(require('./routes/seo.routes'));
+
+  // The built client, served from memory: precompressed, long-cached, and
+  // answered BEFORE body parsing and the session store, so a page or a file
+  // never waits on a database round trip. See middleware/clientStatic.js.
+  app.use(clientStatic(clientDist));
+
+  // API responses are compressed on the way out (JSON shrinks 80 to 90 percent).
+  // Only /api: everything else above is already precompressed. Answers under 2 KB are sent as they are:
+  // compressing them saves less than it costs.
+  app.use('/api', compression({ threshold: 2048 }));
+
   // verify captures the raw request bytes into req.rawBody alongside the
   // normal parsed req.body -- Razorpay's webhook signature is computed over
   // the exact raw payload, and by the time a route handler runs those bytes
@@ -51,7 +71,7 @@ async function startServer() {
   // no point pointing sessions at Mongo if the app DB already gave up on it.
   const sessionStore = isUsingFallback()
     ? new session.MemoryStore()
-    : MongoStore.create({ mongoUrl: config.mongodbUri, dbName: config.dbName, touchAfter: 24 * 3600 });
+    : new CoalescingStore(MongoStore.create({ mongoUrl: config.mongodbUri, dbName: config.dbName, touchAfter: 24 * 3600 }));
   app.use(session({
     secret: config.sessionSecret,
     resave: false,
@@ -110,22 +130,11 @@ async function startServer() {
     console.log('[Reelytic] Developer checks enabled at /api/devtools (local only, never in production).');
   }
 
-  // robots.txt / sitemap.xml, built from config.appUrl at request time --
-  // see seo.routes.js. Mounted before the static client build below so a
-  // request for either path is never shadowed.
-  app.use(require('./routes/seo.routes'));
-
-  // Static client build in production
-  const clientDist = path.join(__dirname, '../client/dist');
-  app.use(express.static(clientDist));
-
-  // SPA Fallback
+  // Reached only when there is no client build (a fresh clone running the API alone),
+  // or for an unknown /api path.
   app.get('*', (req, res) => {
-    res.sendFile(path.join(clientDist, 'index.html'), (err) => {
-      if (err) {
-        res.status(404).send('Reelytic Frontend build not found. Run npm run build.');
-      }
-    });
+    if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Not found' });
+    return res.status(404).send('Reelytic Frontend build not found. Run npm run build.');
   });
 
   app.use(errorHandler);

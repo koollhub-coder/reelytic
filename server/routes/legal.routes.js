@@ -11,6 +11,7 @@ router.get('/:type', async (req, res, next) => {
       return res.status(404).json({ error: 'Not found.' });
     }
     const doc = await getLegalDoc(type);
+    res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=3600');
     res.json({ type, ...doc });
   } catch (err) {
     next(err);

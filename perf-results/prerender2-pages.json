@@ -1,0 +1,79 @@
+{
+  "label": "prerender2",
+  "at": "2026-09-26T09:21:49.203Z",
+  "runs": 3,
+  "results": {
+    "Wi-Fi / fast": {
+      "Landing (signed out)": {
+        "cold": {
+          "ttfb": 3,
+          "fcp": 136,
+          "lcp": 184,
+          "ready": 110,
+          "load": 142,
+          "kb": 292,
+          "requests": 19,
+          "jsKb": 115
+        },
+        "warm": {
+          "ttfb": 2,
+          "fcp": 40,
+          "lcp": 40,
+          "ready": 25,
+          "load": 32,
+          "kb": 1,
+          "requests": 19,
+          "jsKb": 0
+        }
+      }
+    },
+    "4G (9 Mbps, 60 ms)": {
+      "Landing (signed out)": {
+        "cold": {
+          "ttfb": 3,
+          "fcp": 928,
+          "lcp": 1260,
+          "ready": 889,
+          "load": 1085,
+          "kb": 292,
+          "requests": 19,
+          "jsKb": 115
+        },
+        "warm": {
+          "ttfb": 1,
+          "fcp": 344,
+          "lcp": 344,
+          "ready": 313,
+          "load": 393,
+          "kb": 1,
+          "requests": 19,
+          "jsKb": 0
+        }
+      }
+    },
+    "Slow 4G (1.6 Mbps, 150 ms)": {
+      "Landing (signed out)": {
+        "cold": {
+          "ttfb": 3,
+          "fcp": 1036,
+          "lcp": 1696,
+          "ready": 996,
+          "load": 1805,
+          "kb": 292,
+          "requests": 19,
+          "jsKb": 115
+        },
+        "warm": {
+          "ttfb": 1,
+          "fcp": 416,
+          "lcp": 416,
+          "ready": 381,
+          "load": 426,
+          "kb": 1,
+          "requests": 18,
+          "jsKb": 0
+        }
+      }
+    }
+  }
+}

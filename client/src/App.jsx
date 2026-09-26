@@ -94,8 +94,29 @@ import { BrandLoader } from './components/BrandLoader';
 import './styles/base.css';
 import './styles/components.css';
 import './styles/mobile.css';
-import { DemoGuide } from './components/DemoGuide';
-import { HelpBot } from './components/HelpBot';
+// Not needed for the first paint, so they are separate chunks that load once the page is
+// already on screen (the tour and the help assistant are large, and most visits use neither at once).
+const DemoGuide = lazy(() => import('./components/DemoGuide').then((m) => ({ default: m.DemoGuide })));
+const HelpBot = lazy(() => import('./components/HelpBot').then((m) => ({ default: m.HelpBot })));
+
+// True once the browser has nothing more urgent to do (or after a short wait), so the
+// first paint and the page's own data are never delayed by these extras.
+function useWhenIdle(timeoutMs = 1500) {
+  const [ready, setReady] = React.useState(false);
+  React.useEffect(() => {
+    let id;
+    if (typeof window.requestIdleCallback === 'function') id = window.requestIdleCallback(() => setReady(true), { timeout: timeoutMs });
+    else id = window.setTimeout(() => setReady(true), 600);
+    return () => { if (typeof window.cancelIdleCallback === 'function' && typeof id === 'number') window.cancelIdleCallback(id); else window.clearTimeout(id); };
+  }, [timeoutMs]);
+  return ready;
+}
+
+function IdleHelpBot() {
+  const ready = useWhenIdle();
+  if (!ready) return null;
+  return <Suspense fallback={null}><HelpBot /></Suspense>;
+}
 
 /*
   Renders the guided tour only for a signed-in user, and keys its progress to
@@ -113,7 +134,7 @@ function TourHost() {
   const { pathname } = useLocation();
   if (loading || !user) return null;
   if (NO_TOUR_ROUTES.includes(pathname) || pathname.startsWith('/share/') || pathname.startsWith('/portal/')) return null;
-  return <DemoGuide username={user.username} />;
+  return <Suspense fallback={null}><DemoGuide username={user.username} /></Suspense>;
 }
 
 function ProtectedRoute({ children }) {
@@ -175,6 +196,9 @@ function AlreadySignedIn() {
 
 function PublicRoute({ children }) {
   const { user, loading } = useAuth();
+  // The landing page reads fine signed in or out (its buttons adapt once the answer arrives),
+  // so it is shown immediately instead of waiting on a round trip to the server first.
+  if (loading && window.location.pathname === '/') return children;
   if (loading) return <BrandLoader variant="full" message="Loading your workspace..." />;
   // A logged-in user landing on /login or /signup (bookmark, shared link,
   // etc) sees an explicit "continue as X, or switch accounts" screen instead
@@ -184,13 +208,15 @@ function PublicRoute({ children }) {
   return children;
 }
 
-export function App() {
+// The router is a parameter so the very same tree can be rendered to HTML at build time (see
+// scripts/prerender-landing.mjs) and then hydrated in the browser.
+export function App({ Router = BrowserRouter, routerProps = {} } = {}) {
   return (
     <QueryClientProvider client={queryClient}>
     <ThemeProvider>
       <ToastProvider>
         <AuthProvider>
-          <BrowserRouter>
+          <Router {...routerProps}>
             <Suspense fallback={<BrandLoader variant="full" message="Loading..." />}>
               <Routes>
                 <Route path="/" element={<PublicRoute><Landing /></PublicRoute>} />
@@ -254,8 +280,8 @@ export function App() {
             {/* Static help assistant: answers from our own library, no outside
                 service. Hides itself on auth, checkout, admin and client-facing
                 pages (see shouldShow in HelpBot.jsx). */}
-            <HelpBot />
-          </BrowserRouter>
+            <IdleHelpBot />
+          </Router>
         </AuthProvider>
       </ToastProvider>
     </ThemeProvider>

@@ -5,6 +5,7 @@ const { computeReelMetrics, computeProfileMetrics, computeProfileMetricsV2 } = r
 const { recordLedgerEntry } = require('./ledger.service');
 const { recordAnalyzedCreator } = require('./creatorDb.service');
 const { estimateItemCostUsd, REEL_STANDARD_COST_USD, REEL_EXPRESS_COST_USD } = require('./costEstimate.service');
+const { settleBatchCost } = require('./ledger.service');
 const { chargeSuccess, costPerItem, getBalance } = require('./credits.service');
 const { getLearnedAvgMs, recordJobTiming, DEFAULT_AVG_MS } = require('./learnedTiming.service');
 
@@ -19,7 +20,13 @@ function isJobBusy(jobId) { return loopBusy.has(String(jobId)); }
 
 // Reels: one analytics-actor run covers this many reels, amortizing its
 // per-run start fee across the batch instead of paying it per reel (margin-critical).
-const REEL_BATCH_SIZE = Number(process.env.REEL_BATCH_SIZE || 15);
+// Measured on the real reel actor: 10 links take 6.5 s, 20 take 8.5 s, 40 take 18.6 s, so
+// one run is most efficient around 20 links, and beyond that it is faster to run several
+// runs side by side than one big one.
+const REEL_BATCH_SIZE = Number(process.env.REEL_BATCH_SIZE || 20);
+// How many of those runs go at the same time. Each is 256 to 512 MB on Apify (1 GB for the
+// follower lookup), so three at once stays well inside a free account's 8 GB.
+const REEL_CONCURRENCY = Number(process.env.REEL_CONCURRENCY || 3);
 // Profiles: usernames per post-scraper/followers-actor run.
 const PROFILE_BATCH_SIZE = Number(process.env.PROFILE_BATCH_SIZE || 5);
 // How many profile-actor batches run concurrently (rate-limit safety cap).
@@ -114,7 +121,8 @@ async function processReelBatch(batchSlice, pipelineMode) {
   try {
     // scrapeReels() already resolves /share/ links and aligns its response
     // back to `urls` order/length (null for anything that didn't come back).
-    matched = await scrapeReels(urls);
+    // deferCost: get the results now; the exact cost is settled and recorded a few seconds later (see below).
+    matched = await scrapeReels(urls, { deferCost: true });
   } catch (err) {
     const msg = err.message || 'Scraping failed';
     for (const { index } of needFetch) results.push({ index, state: 'failed', error: msg });
@@ -132,7 +140,7 @@ async function processReelBatch(batchSlice, pipelineMode) {
   // path is treated as $0, matching every real run measured so far).
   const followersFn = pipelineMode === 'express' ? scrapeFollowersBatchExpress : scrapeFollowersBatchWithCost;
   const followersMap = creatorUsernames.length
-    ? await followersFn(creatorUsernames).catch(() => new Map())
+    ? await followersFn(creatorUsernames, { deferCost: true }).catch(() => new Map())
     : new Map();
 
   // Per-item cost: REAL spend for this exact batch on both halves -- the
@@ -153,6 +161,18 @@ async function processReelBatch(batchSlice, pipelineMode) {
     : 0;
   const itemCostUsd = analyticsPerItemUsd + followerPerItemUsd;
 
+  // When the exact cost was deferred, record the flat estimate now and let the real figure
+  // replace it as soon as Apify has settled it. Nobody waits for it any more.
+  const costDeferred = !!(matched.costPromise || followersMap.costPromise);
+  if (costDeferred) {
+    results.settlement = {
+      urls: needFetch.map(({ row }) => row.input.url),
+      n: needFetch.length,
+      reel: matched.costPromise || Promise.resolve(matched.runCostUsd),
+      followers: followersMap.costPromise || Promise.resolve(followersMap.usageTotalUsd || 0),
+    };
+  }
+
   needFetch.forEach(({ index, row }, i) => {
     const rawItem = matched[i];
     if (!rawItem) {
@@ -162,10 +182,40 @@ async function processReelBatch(batchSlice, pipelineMode) {
     const followerInfo = rawItem.ownerUsername ? (followersMap.get(rawItem.ownerUsername.toLowerCase()) || null) : null;
     const result = computeReelMetrics(rawItem, followerInfo);
     setCache(row.input.url, 'reel', result).catch(() => { });
-    results.push({ index, state: 'done', result, fromCache: false, costUsd: itemCostUsd });
+    results.push({ index, state: 'done', result, fromCache: false, costUsd: costDeferred ? undefined : itemCostUsd });
   });
 
   return results;
+}
+
+/*
+  A wave of reel batches, run side by side. The links are split into batches of
+  REEL_BATCH_SIZE and every batch is fetched at once; results are then handed back in link
+  order, so the row-by-row bookkeeping that follows is exactly as it was.
+*/
+async function processReelWave(batchSlice, reelPipelineMode) {
+  if (batchSlice.length <= REEL_BATCH_SIZE) {
+    const only = await processReelBatch(batchSlice, reelPipelineMode);
+    only.settlements = only.settlement ? [only.settlement] : [];
+    return only;
+  }
+  const parts = [];
+  for (let i = 0; i < batchSlice.length; i += REEL_BATCH_SIZE) parts.push(batchSlice.slice(i, i + REEL_BATCH_SIZE));
+  const done = await Promise.all(parts.map((part) => processReelBatch(part, reelPipelineMode)));
+  const merged = done.flat().sort((a, b) => a.index - b.index);
+  merged.settlements = done.map((d) => d.settlement).filter(Boolean);
+  return merged;
+}
+
+// Once Apify has settled a batch's real cost, write it over the estimate on the ledger. Runs
+// in the background; if it fails the estimate simply stays, and nothing else is affected.
+function settleCostInBackground(jobId, settlement) {
+  Promise.all([settlement.reel, settlement.followers])
+    .then(([reelUsd, followUsd]) => {
+      if (reelUsd == null || followUsd == null || !(settlement.n > 0)) return null;
+      return settleBatchCost({ jobId, urls: settlement.urls, perItemUsd: (reelUsd + followUsd) / settlement.n });
+    })
+    .catch((err) => console.warn('[JobEngine] could not settle batch cost:', err.message));
 }
 
 /*
@@ -313,7 +363,7 @@ async function processJobLoop(jobId) {
   let job = await jobsColl.findOne({ _id: queryId(jobId) });
   if (!job) return;
 
-  const batchSize = job.type === 'reel' ? REEL_BATCH_SIZE : PROFILE_BATCH_SIZE * PROFILE_CONCURRENCY;
+  const batchSize = job.type === 'reel' ? REEL_BATCH_SIZE * REEL_CONCURRENCY : PROFILE_BATCH_SIZE * PROFILE_CONCURRENCY;
   // Pinned on the job doc at creation (upload.routes.js), not re-read here --
   // keeps one report internally consistent even if paused/resumed across an
   // admin toggle flip. Older jobs predating this field default to legacy.
@@ -351,7 +401,7 @@ async function processJobLoop(jobId) {
 
     const batchStart = Date.now();
     const batchResults = job.type === 'reel'
-      ? await processReelBatch(batchSlice, reelPipelineMode)
+      ? await processReelWave(batchSlice, reelPipelineMode)
       : await processProfileBatch(batchSlice, pipelineMode);
     const totalBatchMs = Date.now() - batchStart;
 
@@ -371,6 +421,83 @@ async function processJobLoop(jobId) {
       incomplete, never a whole batch's -- and even that one row is made
       safe to replay by the charge gate below, not just made rarer.
     */
+    /*
+      THE DATABASE WORK THAT DOES NOT DEPEND ON OTHER ROWS runs side by side.
+
+      For every successful link the engine records a ledger entry, charges the credit and
+      updates the creator database; failed and invalid links record a ledger entry. Those
+      writes concern one link each and never look at any other, but they used to run one
+      link at a time, four database round trips per link, one link after the next. On
+      Atlas that alone was about 225 ms per link (13.5 s for 60 links) before any scraping
+      was counted. They now run eight at a time.
+
+      Nothing about the safety story changes. Per link the order is still ledger first,
+      then charge, then creator database, and the charge is still gated on the ledger
+      insert winning (the unique index on submittedLinks), so a link can never be billed
+      twice. What is still sequential, and still in link order, is the row's own commit
+      below (row state, cursor, counts): the part that decides where a resumed report
+      picks up.
+    */
+    const bookkeeping = new Map();
+    {
+      let next = 0;
+      const worker = async () => {
+        while (next < batchResults.length) {
+          const res = batchResults[next++];
+          const url = rows[res.index].input.url;
+          if (res.state === 'done') {
+            /*
+              The ledger insert is the idempotency gate, not the credit charge
+              itself -- see the partial unique index on submittedLinks (db.js).
+              recordLedgerEntry() reports whether ITS OWN insert actually won (a
+              genuinely new success for this job+url) or lost to an existing
+              record. Charging is gated on winning that race: a row replayed
+              after a crash gets re-scraped (wasted Apify spend, unavoidable
+              without changing the batching above) but is only ever billed
+              once, because the second insert attempt for the same job+url
+              fails at the database, not by hoping the timing works out.
+            */
+            const outcome = await recordLedgerEntry({
+              username: job.ownerUsername, type: job.type, jobId, url, result: 'success',
+              resolvedUsername: res.result && res.result.username, metrics: res.result,
+              pipelineMode: batchPipelineMode,
+              // Reel: res.costUsd carries the real per-batch analytics spend
+              // (see processReelBatch) -- only fall back to the flat estimate
+              // if it's somehow missing. Profile: still the flat estimate.
+              estimatedCostUsd: res.costUsd != null ? res.costUsd : itemCostUsd,
+              // Only reels currently carry a real per-run figure, so anything
+              // without res.costUsd is an estimate and must not claim otherwise.
+              costSource: res.costUsd != null ? 'measured' : 'estimated',
+              fromCache: res.fromCache,
+              cachedAt: res.cachedAt || null,
+            });
+            if (outcome.inserted) {
+              await chargeSuccess(job.ownerUsername, job.type)
+                .catch((e) => console.warn(`[JobEngine] charge failed for ${url}:`, e.message));
+              // Gated the same way charging is: only a genuinely new success
+              // updates the creator database. recordAnalyzedCreator increments
+              // running totals ($inc), so a crash-replay hitting this same row
+              // again (outcome.duplicate below) must not run it a second
+              // time -- that would double-count this one row's metrics into
+              // the creator's averages.
+              await recordAnalyzedCreator({ ownerUsername: job.ownerUsername, type: job.type, jobId, result: res.result })
+                .catch((e) => console.warn(`[JobEngine] creator-db update failed for ${url}:`, e.message));
+            }
+            bookkeeping.set(res.index, outcome);
+          } else if (res.state === 'failed' || res.state === 'invalid') {
+            await recordLedgerEntry({ username: job.ownerUsername, type: job.type, jobId, url, result: res.state });
+          }
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(8, batchResults.length) }, worker));
+    }
+
+    /*
+      Each row is committed to Mongo (row state, cursor, counts) in link order before the
+      next one, instead of the whole batch being written back in one shot at the end.
+      The charge gate above is what makes a replayed row safe, so a crash still cannot
+      bill anyone twice.
+    */
     for (const res of batchResults) {
       const row = rows[res.index];
       row.state = res.state;
@@ -384,58 +511,20 @@ async function processJobLoop(jobId) {
         row.error = null;
         counts.success++;
 
-        /*
-          The ledger insert is the idempotency gate, not the credit charge
-          itself -- see the partial unique index on submittedLinks (db.js).
-          recordLedgerEntry() reports whether ITS OWN insert actually won (a
-          genuinely new success for this job+url) or lost to an existing
-          record. Charging is gated on winning that race: a row replayed
-          after a crash gets re-scraped (wasted Apify spend, unavoidable
-          without changing the batching above) but is only ever billed
-          once, because the second insert attempt for the same job+url
-          fails at the database, not by hoping the timing works out.
-        */
-        const ledgerOutcome = await recordLedgerEntry({
-          username: job.ownerUsername, type: job.type, jobId, url: row.input.url, result: 'success',
-          resolvedUsername: res.result && res.result.username, metrics: res.result,
-          pipelineMode: batchPipelineMode,
-          // Reel: res.costUsd carries the real per-batch analytics spend
-          // (see processReelBatch) -- only fall back to the flat estimate
-          // if it's somehow missing. Profile: still the flat estimate.
-          estimatedCostUsd: res.costUsd != null ? res.costUsd : itemCostUsd,
-          // Only reels currently carry a real per-run figure, so anything
-          // without res.costUsd is an estimate and must not claim otherwise.
-          costSource: res.costUsd != null ? 'measured' : 'estimated',
-          fromCache: res.fromCache,
-          cachedAt: res.cachedAt || null,
-        });
-
-        if (ledgerOutcome.inserted) {
-          await chargeSuccess(job.ownerUsername, job.type)
-            .catch((e) => console.warn(`[JobEngine] charge failed for ${row.input.url}:`, e.message));
+        const ledgerOutcome = bookkeeping.get(res.index);
+        if (ledgerOutcome && ledgerOutcome.inserted) {
           counts.creditsSpent = (counts.creditsSpent || 0) + costPerItem(job.type);
-          // Gated the same way charging is: only a genuinely new success
-          // updates the creator database. recordAnalyzedCreator increments
-          // running totals ($inc), so a crash-replay hitting this same row
-          // again (ledgerOutcome.duplicate below) must not run it a second
-          // time -- that would double-count this one row's metrics into
-          // the creator's averages.
-          await recordAnalyzedCreator({ ownerUsername: job.ownerUsername, type: job.type, jobId, result: res.result })
-            .catch((e) => console.warn(`[JobEngine] creator-db update failed for ${row.input.url}:`, e.message));
-        } else if (ledgerOutcome.duplicate) {
+        } else if (ledgerOutcome && ledgerOutcome.duplicate) {
           console.warn(`[JobEngine] Job ${jobId} row ${row.input.url} was already billed -- skipping duplicate charge on replay.`);
         }
         duplicateUrlMap.set(row.input.url, res.result);
       } else if (res.state === 'failed') {
         row.error = res.error;
         counts.failed++;
-        await recordLedgerEntry({ username: job.ownerUsername, type: job.type, jobId, url: row.input.url, result: 'failed' });
       } else if (res.state === 'duplicate') {
         // Never scraped, never charged -- just a free preview of the row it duplicates.
         row.result = duplicateUrlMap.get(row.input.url) || row.result;
         row.fromCache = true;
-      } else if (res.state === 'invalid') {
-        await recordLedgerEntry({ username: job.ownerUsername, type: job.type, jobId, url: row.input.url, result: 'invalid' });
       } else if (res.state === 'already-done') {
         // Already counted (success/credits/ledger) in an earlier pass -- row stays as-is.
         row.state = 'done';
@@ -449,6 +538,8 @@ async function processJobLoop(jobId) {
         { $set: { [`rows.${res.index}`]: row, cursor, counts, updatedAt: new Date() } }
       );
     }
+
+    for (const settlement of (batchResults.settlements || [])) settleCostInBackground(jobId, settlement);
 
     const batchAvg = batchSlice.length > 0 ? totalBatchMs / batchSlice.length : 1500;
     avgRowMs = Math.round((avgRowMs * 0.7) + (batchAvg * 0.3));

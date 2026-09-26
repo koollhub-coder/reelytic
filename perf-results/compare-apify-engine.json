@@ -1,0 +1,20 @@
+{
+  "label": "compare",
+  "at": "2026-09-26T09:27:38.448Z",
+  "experiments": {
+    "30 links, old way (2 batches of 15, one after another)": {
+      "ms": 76107,
+      "usd": 0.14150000000000001
+    },
+    "30 links, new way (2 batches of 15 at once, cost settled later)": {
+      "ms": 22122,
+      "costSettledExtraMs": 4318,
+      "usd": 0.159
+    },
+    "60 links, new way (3 batches of 20 at once, cost settled later)": {
+      "ms": 36260,
+      "costSettledExtraMs": 4283,
+      "usd": 0.302
+    }
+  }
+}

@@ -1,0 +1,114 @@
+{
+  "label": "before",
+  "at": "2026-09-26T08:52:25.738Z",
+  "experiments": {
+    "reel actor, today (2s polling + fixed 6s cost wait)": {
+      "totalMs": 19186,
+      "startedMs": 1568,
+      "finishedMs": 11095,
+      "costSettledMs": 18438,
+      "actorRunMs": 7159,
+      "usd": 0.027000000000000003,
+      "usdAtOnce": null,
+      "memoryMb": 256,
+      "items": 10
+    },
+    "reel actor, long-poll, no fixed wait": {
+      "totalMs": 5531,
+      "startedMs": 4274,
+      "finishedMs": 4274,
+      "costSettledMs": null,
+      "actorRunMs": 3595,
+      "usd": 0.027000000000000003,
+      "usdAtOnce": 0.002,
+      "memoryMb": 256,
+      "items": 10
+    },
+    "reel actor, long-poll, memory 1024 MB": {
+      "totalMs": 6313,
+      "startedMs": 5105,
+      "finishedMs": 5105,
+      "costSettledMs": null,
+      "actorRunMs": 4484,
+      "usd": 0.027000000000000003,
+      "usdAtOnce": 0.002,
+      "memoryMb": 512,
+      "items": 10
+    },
+    "reel actor, long-poll, memory 2048 MB": {
+      "totalMs": 11756,
+      "startedMs": 10572,
+      "finishedMs": 10572,
+      "costSettledMs": null,
+      "actorRunMs": 9955,
+      "usd": 0.027000000000000003,
+      "usdAtOnce": 0.0245,
+      "memoryMb": 512,
+      "items": 10
+    },
+    "reel actor, long-poll, memory 4096 MB": {
+      "totalMs": 5990,
+      "startedMs": 4839,
+      "finishedMs": 4839,
+      "costSettledMs": null,
+      "actorRunMs": 4239,
+      "usd": 0.027000000000000003,
+      "usdAtOnce": 0.002,
+      "memoryMb": 512,
+      "items": 10
+    },
+    "reel actor, long-poll, 5 urls": {
+      "totalMs": 5813,
+      "startedMs": 4548,
+      "finishedMs": 4548,
+      "costSettledMs": null,
+      "actorRunMs": 3835,
+      "usd": 0.0145,
+      "usdAtOnce": 0.002,
+      "memoryMb": 256,
+      "items": 5
+    },
+    "2 batches of 5, in parallel (wall clock)": {
+      "totalMs": 7093
+    },
+    "followers actor, today": {
+      "totalMs": 17632,
+      "startedMs": 579,
+      "finishedMs": 10051,
+      "costSettledMs": 17293,
+      "actorRunMs": 8543,
+      "usd": 0.008799999999999999,
+      "usdAtOnce": null,
+      "memoryMb": 1024,
+      "items": 3
+    },
+    "followers actor, long-poll": {
+      "totalMs": 8959,
+      "startedMs": 7771,
+      "finishedMs": 7771,
+      "costSettledMs": null,
+      "actorRunMs": 7095,
+      "usd": 0.008799999999999999,
+      "usdAtOnce": 0,
+      "memoryMb": 1024,
+      "items": 3
+    }
+  },
+  "followerAgreement": [
+    {
+      "user": "parul_fitlife",
+      "fromReelActor": null,
+      "fromFollowerActor": 5960
+    },
+    {
+      "user": "moreprithvi77",
+      "fromReelActor": null,
+      "fromFollowerActor": 2501
+    },
+    {
+      "user": "__kalash.__",
+      "fromReelActor": null,
+      "fromFollowerActor": 1126
+    }
+  ]
+}

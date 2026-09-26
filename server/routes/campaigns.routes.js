@@ -38,7 +38,79 @@ function validateAvatarDataUri(avatarUrl) {
   return avatarUrl;
 }
 
-function computeRollup(jobs) {
+/*
+  One small summary per report, computed where the data lives.
+
+  The campaign list used to load EVERY report the account owns, rows and all
+  (a 200-row report is hundreds of kilobytes), pull it across the network, and add
+  the rows up here. For an account with a few dozen reports that was tens of
+  megabytes to draw a list of campaign names and four numbers. The database now
+  adds up each report's rows itself and sends back only the totals.
+*/
+function summarizeJobLocally(job) {
+  let views = 0;
+  let weighted = 0;
+  for (const row of job.rows || []) {
+    if (row.state !== 'done' || !row.result) continue;
+    const v = Number(row.result.views ?? row.result.avgViews ?? 0);
+    const er = Number(row.result.er ?? row.result.avgEr ?? 0);
+    views += v;
+    weighted += er * v;
+  }
+  return {
+    campaignId: job.campaignId || null,
+    createdAt: job.createdAt || null,
+    total: (job.counts && job.counts.total) || 0,
+    success: (job.counts && job.counts.success) || 0,
+    views,
+    weighted,
+  };
+}
+
+async function loadJobSummaries(db, ownerUsername) {
+  const jobs = db.collection('jobs');
+  if (typeof jobs.aggregate === 'function') {
+    const rows = await jobs.aggregate([
+      { $match: { ownerUsername } },
+      {
+        $project: {
+          campaignId: 1,
+          createdAt: 1,
+          total: { $ifNull: ['$counts.total', 0] },
+          success: { $ifNull: ['$counts.success', 0] },
+          sums: {
+            $reduce: {
+              input: { $ifNull: ['$rows', []] },
+              initialValue: { v: 0, w: 0 },
+              in: {
+                $let: {
+                  vars: {
+                    ok: { $and: [{ $eq: ['$$this.state', 'done'] }, { $ne: [{ $ifNull: ['$$this.result', null] }, null] }] },
+                    views: { $convert: { input: { $ifNull: ['$$this.result.views', '$$this.result.avgViews'] }, to: 'double', onError: 0, onNull: 0 } },
+                    er: { $convert: { input: { $ifNull: ['$$this.result.er', '$$this.result.avgEr'] }, to: 'double', onError: 0, onNull: 0 } },
+                  },
+                  in: {
+                    $cond: [
+                      '$$ok',
+                      { v: { $add: ['$$value.v', '$$views'] }, w: { $add: ['$$value.w', { $multiply: ['$$er', '$$views'] }] } },
+                      '$$value',
+                    ],
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    ]).toArray();
+    return rows.map((r) => ({ campaignId: r.campaignId || null, createdAt: r.createdAt || null, total: r.total, success: r.success, views: r.sums.v, weighted: r.sums.w }));
+  }
+  // The local JSON fallback has no aggregation, so it sums in memory (dev only).
+  const all = await jobs.find({ ownerUsername }).toArray();
+  return all.map(summarizeJobLocally);
+}
+
+function computeRollup(summaries) {
   let totalLinks = 0;
   let successCount = 0;
   let totalViews = 0;
@@ -46,16 +118,11 @@ function computeRollup(jobs) {
   let earliestAt = null;
   let latestAt = null;
 
-  for (const job of jobs) {
-    totalLinks += (job.counts && job.counts.total) || 0;
-    successCount += (job.counts && job.counts.success) || 0;
-    for (const row of job.rows || []) {
-      if (row.state !== 'done' || !row.result) continue;
-      const views = Number(row.result.views ?? row.result.avgViews ?? 0);
-      const er = Number(row.result.er ?? row.result.avgEr ?? 0);
-      totalViews += views;
-      weightedErSum += er * views;
-    }
+  for (const job of summaries) {
+    totalLinks += job.total;
+    successCount += job.success;
+    totalViews += job.views;
+    weightedErSum += job.weighted;
     const created = job.createdAt ? new Date(job.createdAt).getTime() : null;
     if (created != null) {
       if (earliestAt == null || created < earliestAt) earliestAt = created;
@@ -64,7 +131,7 @@ function computeRollup(jobs) {
   }
 
   return {
-    reportCount: jobs.length,
+    reportCount: summaries.length,
     totalLinks,
     successCount,
     totalViews,
@@ -79,8 +146,10 @@ router.get('/', requireLogin, requireChangePasswordCheck, async (req, res, next)
     const db = getDb();
     const ownerUsername = req.currentUser.role === 'admin' && req.query.user ? req.query.user : req.currentUser.effectiveUsername;
 
-    const campaigns = await db.collection('campaigns').find({ ownerUsername }).sort({ createdAt: -1 }).toArray();
-    const jobs = await db.collection('jobs').find({ ownerUsername }).toArray();
+    const [campaigns, jobs] = await Promise.all([
+      db.collection('campaigns').find({ ownerUsername }).sort({ createdAt: -1 }).toArray(),
+      loadJobSummaries(db, ownerUsername),
+    ]);
 
     const jobsByCampaign = new Map();
     const uncategorized = [];

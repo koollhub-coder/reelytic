@@ -61,6 +61,15 @@ const suites = [
     stripEnv: ['VITE_APP_URL', 'VITE_GOOGLE_CLIENT_ID', 'NODE_ENV'],
   },
   {
+    // The build above replaces client/dist, so the prerendered landing page and the Brotli and
+    // gzip copies the server sends (see server/middleware/clientStatic.js) have to be written
+    // again. Also proves both steps still work.
+    name: 'BUILD: prerendered landing page + precompressed assets',
+    cmd: process.execPath,
+    args: [path.resolve(__dirname, '..', 'client', 'scripts', 'postbuild.mjs')],
+    cwd: path.resolve(__dirname, '..', 'client'),
+  },
+  {
     name: 'API: entitlements, tiers, ownership',
     cmd: process.execPath,
     args: ['--test', 'tests/entitlements.test.js'],
@@ -79,6 +88,11 @@ const suites = [
     name: 'API: team members, sample report, owner rename',
     cmd: process.execPath,
     args: ['--test', 'tests/team.test.js'],
+  },
+  {
+    name: 'PERF: static serving, compression, session sharing, cost settling',
+    cmd: process.execPath,
+    args: ['--test', 'tests/perf.test.js'],
   },
   {
     name: 'API: client portal per-report breakdown, admin feature overrides',

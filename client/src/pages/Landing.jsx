@@ -156,10 +156,36 @@ function ResourcesMenu() {
   );
 }
 
+// A real link (so it works before any JavaScript has run, on the prerendered page) that still
+// navigates inside the app once the JavaScript is there.
+function CtaLink({ to, navigate, className, style, children, onNavigate }) {
+  return (
+    <a
+      href={to}
+      className={className}
+      style={style}
+      onClick={(e) => {
+        if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+        e.preventDefault();
+        if (onNavigate) onNavigate();
+        navigate(to);
+      }}
+    >
+      {children}
+    </a>
+  );
+}
+
 export function Landing() {
   const navigate = useNavigate();
-  const { theme, toggleTheme } = useTheme();
+  const { theme: storedTheme, toggleTheme } = useTheme();
   const { user, logout } = useAuth();
+  // The saved theme is only known in the browser. Reading it during the first render would make the
+  // browser's markup differ from the prerendered markup (a sun where the page had a moon), so the
+  // icon follows it from the second render on.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+  const theme = mounted ? storedTheme : 'light';
   // The nav's right-hand action group (Pricing/Resources/theme/Login/Get
   // started) is a separate inner flex container from .landing-nav itself,
   // so .landing-nav's own flex-wrap never reached it -- on a 375px phone
@@ -203,12 +229,8 @@ export function Landing() {
             />
           ) : (
             <>
-              <button className="btn btn-secondary" onClick={() => navigate('/login')}>
-                Log in
-              </button>
-              <button className="btn btn-primary" onClick={() => navigate('/signup')}>
-                Get started
-              </button>
+              <CtaLink to="/login" navigate={navigate} className="btn btn-secondary">Log in</CtaLink>
+              <CtaLink to="/signup" navigate={navigate} className="btn btn-primary">Get started</CtaLink>
             </>
           )}
         </div>
@@ -263,9 +285,9 @@ export function Landing() {
                 self-serve signup (Signup.jsx already exists and grants 10
                 free credits, no card) -- it just wasn't linked from the
                 landing page before now. */}
-            <button className="btn btn-primary" style={{ height: '44px', padding: '0 var(--s6)', fontSize: 'var(--fs-md)' }} onClick={() => navigate(user ? '/reels' : '/signup')}>
+            <CtaLink to={user ? '/reels' : '/signup'} navigate={navigate} className="btn btn-primary" style={{ height: '44px', padding: '0 var(--s6)', fontSize: 'var(--fs-md)' }}>
               {user ? 'Go to your workspace →' : 'Start free, no card required →'}
-            </button>
+            </CtaLink>
             <a
               href="#how-it-works"
               className="btn btn-secondary"
@@ -532,9 +554,9 @@ export function Landing() {
             <div className="landing-cta-card-title">Ready to save hours of manual work?</div>
             <div className="landing-cta-card-desc">Upload your first sheet and get your report in minutes.</div>
           </div>
-          <button className="btn btn-primary landing-cta-card-btn" onClick={() => navigate(user ? '/reels' : '/signup')}>
+          <CtaLink to={user ? '/reels' : '/signup'} navigate={navigate} className="btn btn-primary landing-cta-card-btn">
             {user ? 'Go to your workspace →' : 'Start free, no card required →'}
-          </button>
+          </CtaLink>
         </div>
       </div>
 
@@ -579,9 +601,9 @@ export function Landing() {
             : 'Upload your first sheet and see how Reelytic turns it into a report you can hand to a client.'}
         </p>
         <div style={{ display: 'flex', gap: 'var(--s3)', justifyContent: 'center', flexWrap: 'wrap' }}>
-          <button className="btn btn-primary" style={{ height: '44px', padding: '0 var(--s7)', fontSize: 'var(--fs-md)' }} onClick={() => navigate(user ? '/reels' : '/signup')}>
+          <CtaLink to={user ? '/reels' : '/signup'} navigate={navigate} className="btn btn-primary" style={{ height: '44px', padding: '0 var(--s7)', fontSize: 'var(--fs-md)' }}>
             {user ? 'Go to your workspace →' : 'Get started free →'}
-          </button>
+          </CtaLink>
           {!user && (
             <a href="#how-it-works" className="btn btn-secondary" style={{ height: '44px', padding: '0 var(--s6)', fontSize: 'var(--fs-md)' }}>
               See how it works

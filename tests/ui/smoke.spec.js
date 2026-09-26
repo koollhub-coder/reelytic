@@ -427,3 +427,62 @@ test.describe('phone width', () => {
     }
   });
 });
+
+/*
+  The production build, served the way it is in production: by the real server, not Vite's dev
+  server. Covers what only exists in a build: the prerendered landing page and React hydrating it
+  without complaint, precompressed files, and long cache lifetimes on hashed assets.
+*/
+test.describe('production build is fast and correct', () => {
+  const PROD = 'http://127.0.0.1:3458';
+  const fs = require('fs');
+  const path = require('path');
+  const dist = path.resolve(__dirname, '../../client/dist');
+  const built = fs.existsSync(path.join(dist, 'landing.html'));
+
+  test('the landing page arrives as finished, compressed HTML and hydrates cleanly', async ({ page }) => {
+    test.skip(!built, 'client/dist has no prerendered landing page; build first (the regression run does)');
+    const res = await page.request.get(`${PROD}/`, { headers: { 'Accept-Encoding': 'br' } });
+    expect(res.status()).toBe(200);
+    expect(res.headers()['content-encoding']).toBe('br');
+    expect(res.headers()['cache-control']).toBe('no-cache');
+    expect(await res.text()).toContain('data-prerendered="landing"');
+
+    // in a real browser: painted, hydrated with no console errors (the gate in beforeEach fails the test on any)
+    await page.goto(`${PROD}/`);
+    await expect(page.locator('.hero-title')).toBeVisible();
+    // the calls to action are real links, working before and after hydration
+    const cta = page.locator('a.btn.btn-primary', { hasText: 'Get started' }).first();
+    await expect(cta).toHaveAttribute('href', '/signup');
+    await page.waitForFunction(() => !document.getElementById('app-splash'), null, { timeout: 15000 });
+    await cta.click();
+    await page.waitForURL('**/signup');
+  });
+
+  test('hashed files are cached for a year and sent compressed; the shell is always revalidated', async ({ page }) => {
+    test.skip(!built, 'client/dist has no prerendered landing page; build first (the regression run does)');
+    const html = await (await page.request.get(`${PROD}/login`)).text();
+    const asset = html.match(/\/assets\/index-[^"']+\.js/);
+    expect(asset, 'the shell should reference the main bundle').toBeTruthy();
+    const js = await page.request.get(`${PROD}${asset[0]}`, { headers: { 'Accept-Encoding': 'br' } });
+    expect(js.headers()['cache-control']).toContain('immutable');
+    expect(js.headers()['cache-control']).toContain('max-age=31536000');
+    expect(js.headers()['content-encoding']).toBe('br');
+    const shell = await page.request.get(`${PROD}/login`);
+    expect(shell.headers()['cache-control']).toBe('no-cache');
+    // an unknown API path is a JSON 404, never the app shell
+    const missing = await page.request.get(`${PROD}/api/does-not-exist`);
+    expect(missing.status()).toBe(404);
+    expect(missing.headers()['content-type']).toContain('application/json');
+  });
+
+  test('API answers are compressed', async ({ page }) => {
+    // a long public document (over the 2 KB threshold below which answers are sent as they are)
+    const res = await page.request.get(`${PROD}/api/legal/terms`, { headers: { 'Accept-Encoding': 'gzip' } });
+    expect(res.status()).toBe(200);
+    expect(res.headers()['content-encoding']).toBe('gzip');
+    // and a short one is not worth compressing
+    const short = await page.request.get(`${PROD}/api/help/facts`, { headers: { 'Accept-Encoding': 'gzip' } });
+    expect(short.headers()['content-encoding']).toBeUndefined();
+  });
+});

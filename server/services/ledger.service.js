@@ -100,4 +100,21 @@ async function recordLedgerEntry({ username, type, jobId, url, result, resolvedU
   return { inserted, duplicate };
 }
 
-module.exports = { recordLedgerEntry };
+/*
+  Replaces the estimated cost on a finished batch's ledger rows with the real figure once
+  Apify has settled it. Reel batches no longer wait several seconds for that figure before
+  moving on; they record an estimate at once and this upgrades it moments later. Only rows
+  still marked 'estimated' are touched, so it can never overwrite a cache hit or a figure
+  that was already measured.
+*/
+async function settleBatchCost({ jobId, urls, perItemUsd }) {
+  if (!jobId || !Array.isArray(urls) || urls.length === 0 || perItemUsd == null || !Number.isFinite(perItemUsd)) return 0;
+  const db = getDb();
+  const res = await db.collection('submittedLinks').updateMany(
+    { jobId, url: { $in: urls }, result: 'success', costSource: 'estimated' },
+    { $set: { estimatedCostUsd: perItemUsd, costSource: 'measured' } },
+  );
+  return res.modifiedCount || 0;
+}
+
+module.exports = { recordLedgerEntry, settleBatchCost };

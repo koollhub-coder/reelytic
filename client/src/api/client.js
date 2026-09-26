@@ -23,10 +23,19 @@ export async function apiFetch(endpoint, options = {}) {
     headers['Content-Type'] = 'application/json';
   }
 
-  const res = await fetch(`/api${endpoint}`, {
-    ...options,
-    headers
-  });
+  // A first-load GET the page already started (see the inline script in index.html) is used once, if fresh.
+  let res = null;
+  const early = window.__early && window.__early[endpoint];
+  if (early && (!options.method || options.method === 'GET')) {
+    delete window.__early[endpoint];
+    if (Date.now() - early.t < 15000) res = await early.p;
+  }
+  if (!res) {
+    res = await fetch(`/api${endpoint}`, {
+      ...options,
+      headers
+    });
+  }
 
   if (res.status === 401) {
     const data = await res.json().catch(() => ({}));

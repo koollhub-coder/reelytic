@@ -7,7 +7,7 @@ const { hashPassword, generateTempPassword } = require('../utils/password');
 const { parseUserAgent } = require('../utils/ua');
 const config = require('../config');
 const { DEFAULT_PLANS } = require('./pricing.routes');
-const { FEATURE_KEYS } = require('../services/features.service');
+const { FEATURE_KEYS, invalidatePlansCache } = require('../services/features.service');
 const { defaultsForNewUser, adjustCredits, setCredits, getBalance } = require('../services/credits.service');
 const { generateClientLedgerExcel, generateClientLedgerCsv } = require('../services/export.service');
 const { getProfilePipelineMode, setProfilePipelineMode, PROFILE_PIPELINE_INFO, getV2FetchDepth, setV2FetchDepth } = require('../services/profilePipeline.service');
@@ -304,6 +304,7 @@ router.put('/pricing-plans', requireAdmin, async (req, res, next) => {
     const db = getDb();
     if (plans.length === 0) {
       await db.collection('settings').deleteOne({ key: 'pricingPlans' });
+      invalidatePlansCache();
       return res.json({ ok: true, plans: DEFAULT_PLANS, reset: true });
     }
     for (const p of plans) {
@@ -316,6 +317,7 @@ router.put('/pricing-plans', requireAdmin, async (req, res, next) => {
       { $set: { key: 'pricingPlans', value: plans } },
       { upsert: true }
     );
+    invalidatePlansCache();
     res.json({ ok: true, plans });
   } catch (err) {
     next(err);

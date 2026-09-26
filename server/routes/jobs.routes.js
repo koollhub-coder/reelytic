@@ -81,6 +81,10 @@ router.get('/', requireLogin, requireChangePasswordCheck, async (req, res, next)
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
+      // The list draws a row per report and needs none of the report's own rows,
+      // which are the bulk of each document. Leaving them out is the difference
+      // between reading kilobytes and reading tens of megabytes.
+      .project({ rows: 0 })
       .toArray();
 
     const slim = jobs.map(j => ({

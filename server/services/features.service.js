@@ -20,10 +20,29 @@ const { DEFAULT_PLANS } = require('../routes/pricing.routes');
 
 const FEATURE_KEYS = ['reportBranding', 'shareableLinks', 'pdfExport', 'creatorDatabase', 'teamSeats', 'clientPortal'];
 
+/*
+  Read on every /auth/me (so every page load) and every feature check. The plans
+  change a few times a year, so they are kept in memory for 20 seconds, and the
+  admin's save clears them at once (invalidatePlansCache), so an edit shows
+  immediately rather than after a wait.
+*/
+const PLANS_TTL_MS = 20 * 1000;
+let plansCache = null;
+let plansLoading = null;
+
+function invalidatePlansCache() { plansCache = null; }
+
 async function getPlans() {
-  const db = getDb();
-  const doc = await db.collection('settings').findOne({ key: 'pricingPlans' });
-  return (doc && doc.value && doc.value.length > 0) ? doc.value : DEFAULT_PLANS;
+  if (plansCache && Date.now() - plansCache.at < PLANS_TTL_MS) return plansCache.value;
+  if (plansLoading) return plansLoading;
+  plansLoading = (async () => {
+    const db = getDb();
+    const doc = await db.collection('settings').findOne({ key: 'pricingPlans' });
+    const value = (doc && doc.value && doc.value.length > 0) ? doc.value : DEFAULT_PLANS;
+    plansCache = { at: Date.now(), value };
+    return value;
+  })().finally(() => { plansLoading = null; });
+  return plansLoading;
 }
 
 // `plans` is optional -- pass it when the caller already has it (see
@@ -57,4 +76,4 @@ async function getUserFeatures(user) {
   return Object.fromEntries(entries);
 }
 
-module.exports = { hasFeature, getUserFeatures, FEATURE_KEYS };
+module.exports = { hasFeature, getUserFeatures, FEATURE_KEYS, invalidatePlansCache };

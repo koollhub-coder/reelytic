@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { apiFetch } from '../api/client';
 import { usePlanCreditsTotal } from '../hooks/usePlanCreditsTotal';
+import { prefetchRoute, prefetchLikelyRoutes } from '../utils/prefetch';
 import {
   SunIcon, MoonIcon, MenuIcon, ReelIcon, ProfileIcon, DashboardIcon, HistoryIcon,
   HelpIcon, SettingsIcon, CreditCardIcon, ActivityIcon, UsersIcon, ListIcon,
@@ -37,6 +38,8 @@ export function Shell() {
   const { theme, toggleTheme } = useTheme();
   const planCreditsTotal = usePlanCreditsTotal(user);
   const [mobileOpen, setMobileOpen] = useState(false);
+  // Once the page is up, quietly fetch the code for the pages people go to next.
+  useEffect(() => { prefetchLikelyRoutes(location.pathname); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   // Desktop-only preference, persisted across sessions like theme already
   // is. Mobile's drawer shares this same <aside> markup (see the render
@@ -294,6 +297,9 @@ export function Shell() {
                   <Tooltip key={item.path} content={effectiveCollapsed ? item.label : null} position="right" style={{ display: 'flex', width: '100%' }}>
                     <button
                       onClick={() => { navigate(item.path); setMobileOpen(false); }}
+                      onMouseEnter={() => prefetchRoute(item.path)}
+                      onFocus={() => prefetchRoute(item.path)}
+                      onTouchStart={() => prefetchRoute(item.path)}
                       style={{
                         position: 'relative',
                         display: 'flex',
@@ -352,6 +358,9 @@ export function Shell() {
                     <Tooltip key={item.path} content={effectiveCollapsed ? item.label : null} position="right" style={{ display: 'flex', width: '100%' }}>
                     <button
                       onClick={() => { navigate(item.path); setMobileOpen(false); }}
+                      onMouseEnter={() => prefetchRoute(item.path)}
+                      onFocus={() => prefetchRoute(item.path)}
+                      onTouchStart={() => prefetchRoute(item.path)}
                       style={{
                         display: 'flex',
                         alignItems: 'center',

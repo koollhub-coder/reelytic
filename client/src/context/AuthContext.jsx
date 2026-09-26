@@ -8,7 +8,12 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    apiFetch('/auth/me')
+    // The page already asked (see the inline script in index.html) while the bundle was
+    // downloading. Use that answer if it worked; otherwise ask the normal way, which also
+    // handles the redirect for an expired session.
+    const early = typeof window !== 'undefined' ? window.__earlyAuth : null;
+    if (typeof window !== 'undefined') window.__earlyAuth = null;
+    (early ? early.then((data) => (data && data.user ? data : apiFetch('/auth/me'))) : apiFetch('/auth/me'))
       .then(data => {
         setUser(data.user);
       })

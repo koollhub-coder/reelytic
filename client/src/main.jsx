@@ -34,11 +34,23 @@ window.addEventListener('vite:preloadError', (event) => {
   window.location.reload();
 });
 
-ReactDOM.createRoot(document.getElementById('root')).render(
+const rootEl = document.getElementById('root');
+const app = (
   <React.StrictMode>
     <App />
   </React.StrictMode>
 );
+/*
+  The landing page ships as finished HTML (see scripts/prerender-landing.mjs), so it is on
+  screen before any JavaScript arrives. React then hydrates it: it attaches to the markup that
+  is already there instead of rebuilding it, so nothing flashes or moves. Every other page
+  renders normally.
+*/
+if (rootEl.dataset.prerendered === 'landing' && window.location.pathname === '/') {
+  ReactDOM.hydrateRoot(rootEl, app);
+} else {
+  ReactDOM.createRoot(rootEl).render(app);
+}
 
 // Hand off from the HTML boot splash (see index.html) to the app. Waits for
 // the frame after React's first paint before fading, so the splash never

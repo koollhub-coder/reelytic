@@ -1,13 +1,33 @@
 const { getDb } = require('../db');
 
+/*
+  Overlapping identical reads share one database round trip. A page opens with
+  three or four API calls at once (who am I, my stats, my reports), and each of
+  them used to look the same account up separately. Only calls that are in
+  flight AT THE SAME TIME share; nothing is remembered afterwards, so a read
+  that starts after a write always sees that write.
+*/
+const inflight = new Map();
+function coalesce(key, fn) {
+  const running = inflight.get(key);
+  if (running) return running;
+  const p = fn().finally(() => inflight.delete(key));
+  inflight.set(key, p);
+  return p;
+}
+const findUser = (db, username) => coalesce('user:' + username, () => db.collection('users').findOne({ username }));
+
 async function requireLogin(req, res, next) {
   if (!req.session || !req.session.username) {
     return res.status(401).json({ error: 'Authentication required', code: 'UNAUTHENTICATED' });
   }
+  // Most routes are mounted as requireLogin, requireChangePasswordCheck, and the
+  // second of those calls this again. It used to repeat the whole account lookup.
+  if (req.currentUser && req.currentUser.username === req.session.username) return next();
 
   try {
     const db = getDb();
-    const user = await db.collection('users').findOne({ username: req.session.username });
+    const user = await findUser(db, req.session.username);
 
     if (!user || user.disabled) {
       req.session.destroy(() => {});
@@ -46,7 +66,7 @@ async function requireLogin(req, res, next) {
     }
 
     if (user.teamOwnerUsername) {
-      const owner = await db.collection('users').findOne({ username: user.teamOwnerUsername });
+      const owner = await findUser(db, user.teamOwnerUsername);
       if (!owner || owner.disabled) {
         req.session.destroy(() => {});
         return res.status(401).json({ error: 'This team account is no longer available.', code: 'REVOKED' });

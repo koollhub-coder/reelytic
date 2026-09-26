@@ -79,6 +79,9 @@ router.get('/plans', async (req, res, next) => {
         // IMPORTANT: must check length > 0, an empty array [] is truthy in JS
         // and would bypass the fallback, leaving the pricing page blank.
         const plans = (doc && doc.value && doc.value.length > 0) ? doc.value : DEFAULT_PLANS;
+        // Public and the same for everyone: the browser may reuse it for a few seconds instead of asking
+        // on every page. Short on purpose, so an admin's price change still shows almost at once.
+        res.setHeader('Cache-Control', 'public, max-age=20, stale-while-revalidate=120');
         res.json({ plans });
     } catch (err) {
         next(err);
