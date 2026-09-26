@@ -27,6 +27,8 @@ test.describe.configure({ mode: 'serial' });
 const VIEWPORTS = [
   { name: 'desktop', width: 1280, height: 800 },
   { name: 'phone', width: 390, height: 844 },
+  // the narrowest phones still in use; a layout that fits here fits every wider one
+  { name: 'small', width: 360, height: 740 },
 ];
 const THEMES = ['dark', 'light'];
 

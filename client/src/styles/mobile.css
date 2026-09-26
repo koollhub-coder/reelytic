@@ -595,6 +595,6 @@
      or it shrinks to its label and sits at a different width from its neighbours. */
   .rl-summary-actions > * > .btn { width: 100%; }
   /* Same height and size on every button, and a lone last button spans the row. */
-  .rl-summary-actions .btn { min-width: 0; white-space: nowrap; text-align: center; height: 44px; min-height: 44px; padding: 0 8px; font-size: 13px; display: inline-flex; align-items: center; justify-content: center; }
+  .rl-summary-actions .btn { min-width: 0; white-space: normal; overflow-wrap: anywhere; text-align: center; line-height: 1.2; height: auto; min-height: 44px; padding: 6px 8px; font-size: 13px; display: inline-flex; align-items: center; justify-content: center; }
   .rl-summary-actions > :nth-child(even):last-child { grid-column: 1 / -1; }
 }

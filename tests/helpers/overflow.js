@@ -75,19 +75,31 @@ function findOverflow() {
       if (Math.max(...hs) - Math.min(...hs) > 2) bad.push('buttons ' + name(parent) + ' "' + parent.textContent.trim().slice(0, 40) + '" sit in one row at different heights');
     });
   });
-  document.querySelectorAll('.btn').forEach((b) => {
-    if (!visible(b) || b.closest('[data-allow-wrap]')) return;
-    // A button built as a title plus a hint is meant to be two lines.
-    if ([...b.children].some((c) => c.textContent.trim() && getComputedStyle(c).display === 'block')) return;
-    const tops = new Set();
+  // Text may never spill past the edge of the control that holds it (a button, chip, tab or badge).
+  document.querySelectorAll('button, .btn, .chip, [class*="badge"], [role="tab"], .rl-tabs > *').forEach((b) => {
+    if (!visible(b) || b.closest('[aria-hidden="true"], .sr-only')) return;
+    const cs = getComputedStyle(b);
+    if (cs.overflowX === 'hidden' && cs.textOverflow === 'ellipsis') return;
+    const box = b.getBoundingClientRect();
     const walker = document.createTreeWalker(b, NodeFilter.SHOW_TEXT);
     for (let n = walker.nextNode(); n; n = walker.nextNode()) {
       if (!n.textContent.trim()) continue;
       const range = document.createRange();
       range.selectNodeContents(n);
-      [...range.getClientRects()].forEach((r) => tops.add(Math.round((r.top + r.height / 2) / 10)));
+      const r = range.getBoundingClientRect();
+      if (r.width === 0) continue;
+      // Text that a clipping ancestor inside the control hides on purpose (an ellipsis, or a label that only opens on hover) is not a spill.
+      let clipped = false;
+      for (let p = n.parentElement; p && p !== b.parentElement; p = p.parentElement) {
+        const ox = getComputedStyle(p).overflowX;
+        if (ox === 'hidden' || ox === 'clip') { clipped = true; break; }
+      }
+      if (clipped) continue;
+      if (r.right > box.right + 1 || r.left < box.left - 1) {
+        bad.push('spill ' + name(b) + ' "' + b.textContent.trim().slice(0, 40) + '" has text running out of its own box');
+        break;
+      }
     }
-    if (tops.size > 1) bad.push('wrap button "' + b.textContent.trim().slice(0, 40) + '" label breaks onto a second line');
   });
 
   // 2. A card grid whose last row is only partly filled leaves a hole.
