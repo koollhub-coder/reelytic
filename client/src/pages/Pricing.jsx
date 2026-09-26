@@ -262,7 +262,7 @@ export function Pricing() {
                         </div>
                         <div>
                             <p style={{ fontWeight: 600, marginBottom: 4 }}>Can I change plans later?</p>
-                            <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)' }}>Yes, upgrade or downgrade anytime from Settings. Changes apply from your next billing cycle.</p>
+                            <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)' }}>Yes. Pick a different plan on this page whenever you need to.</p>
                         </div>
                     </div>
                 </div>
