@@ -14,5 +14,11 @@ ENV VITE_APP_URL=$VITE_APP_URL
 COPY . .
 RUN npm install
 RUN npm run build
+
+# Set only after the build: npm install skips devDependencies under
+# NODE_ENV=production, and Vite (a client devDependency) is needed above.
+# From here on the server runs as production: secure cookies, HSTS, the
+# session-secret check in server/config.js, no test or dev seams.
+ENV NODE_ENV=production
 EXPOSE 3000
 CMD ["npm", "start"]

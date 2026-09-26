@@ -10,11 +10,28 @@ for (const env of requiredEnv) {
   }
 }
 
+/*
+  The session secret signs every login cookie. The fallback below, and the
+  sample value in .env.example, are public in this repo, so a production
+  server running on either would accept cookies anyone can forge. Refuse to
+  start instead.
+*/
+const DEFAULT_SESSION_SECRET = 'reelytic_default_secret_key_change_me';
+const KNOWN_PUBLIC_SECRETS = new Set([DEFAULT_SESSION_SECRET, 'reelytic_super_secret_key_12345']);
+
+if (process.env.NODE_ENV === 'production') {
+  const secret = process.env.SESSION_SECRET || '';
+  if (!secret || KNOWN_PUBLIC_SECRETS.has(secret)) {
+    console.error('[Reelytic Config Error] SESSION_SECRET must be set to a long random value in production (it is missing or a known default).');
+    process.exit(1);
+  }
+}
+
 module.exports = {
   port: parseInt(process.env.PORT || '3000', 10),
   mongodbUri: process.env.MONGODB_URI,
   dbName: process.env.MONGODB_DB_NAME || 'reelytic',
-  sessionSecret: process.env.SESSION_SECRET || 'reelytic_default_secret_key_change_me',
+  sessionSecret: process.env.SESSION_SECRET || DEFAULT_SESSION_SECRET,
   apifyApiKey: process.env.APIFY_API_KEY || '',
   timezone: process.env.APP_TIMEZONE || 'Asia/Kolkata',
   cacheTtlDays: parseInt(process.env.CACHE_TTL_DAYS || '7', 10),

@@ -199,3 +199,25 @@ describe('robots.txt names the real private paths', () => {
     assert.match(text, /^Disallow: \/portal\/$/m);
   });
 });
+
+describe('production refuses a public session secret', () => {
+  const { spawnSync } = require('child_process');
+  const path = require('path');
+  const boot = (secret) => spawnSync(process.execPath, ['-e', "require('./server/config')"], {
+    cwd: path.resolve(__dirname, '..'),
+    env: { ...process.env, NODE_ENV: 'production', SESSION_SECRET: secret },
+    encoding: 'utf8',
+  });
+
+  test('missing or default secrets stop the server from starting', () => {
+    for (const secret of ['', 'reelytic_default_secret_key_change_me', 'reelytic_super_secret_key_12345']) {
+      const run = boot(secret);
+      assert.equal(run.status, 1, `secret "${secret}" must be refused`);
+      assert.match(run.stderr, /SESSION_SECRET/);
+    }
+  });
+
+  test('a real secret starts normally', () => {
+    assert.equal(boot('rgr-' + require('crypto').randomBytes(24).toString('hex')).status, 0);
+  });
+});

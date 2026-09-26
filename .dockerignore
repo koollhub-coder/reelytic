@@ -1,0 +1,25 @@
+# Secrets. Render passes env vars in; nothing local belongs in the image.
+.env
+.env.*
+!.env.example
+client/.env
+client/.env.*
+
+# Installed and built inside the image.
+node_modules
+client/node_modules
+client/dist
+.npm
+
+# Local data, test output and tooling.
+data-store.json
+server/data-store.json
+uploads
+audit-shots
+audit-screenshots
+perf-results
+test-results
+playwright-report
+reelytic-project.tar.gz
+.git
+.claude
