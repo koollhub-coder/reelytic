@@ -49,7 +49,10 @@ router.get('/robots.txt', (req, res) => {
       'Disallow: /billing',
       'Disallow: /checkout',
       'Disallow: /admin',
-      'Disallow: /reports/',
+      // Shared reports and client portals are private to whoever holds the
+      // link; they also send X-Robots-Tag: noindex (middleware/security.js).
+      'Disallow: /share/',
+      'Disallow: /portal/',
       'Disallow: /api/',
       `Sitemap: ${config.appUrl}/sitemap.xml`,
     ].join('\n')

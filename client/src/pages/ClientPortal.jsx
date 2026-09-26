@@ -7,6 +7,7 @@ import { Tooltip } from '../components/Tooltip';
 import { DataTable } from '../components/DataTable';
 import { Collapsible } from '../components/Collapsible';
 import { DownloadIcon } from '../components/Icon';
+import { useDocumentMeta } from '../hooks/useDocumentMeta';
 
 function formatViews(n) {
   if (n == null) return '-';
@@ -221,6 +222,8 @@ function PortalBody({ campaign, rows, reports, accentColor }) {
 */
 export function ClientPortal() {
   const { token } = useParams();
+  // Private to whoever holds the link, same as a shared report.
+  useDocumentMeta({ title: 'Client portal', path: `/portal/${token}`, noindex: true });
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [theme, setTheme] = useState('light');

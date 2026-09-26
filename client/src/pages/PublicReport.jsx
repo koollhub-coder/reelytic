@@ -6,6 +6,7 @@ import { BrandLoader } from '../components/BrandLoader';
 import { ReportThemeStyles, ReportSheet, ThemeToggle } from '../components/ReportSheet';
 import { ProBadge } from '../components/Premium';
 import { Tooltip } from '../components/Tooltip';
+import { useDocumentMeta } from '../hooks/useDocumentMeta';
 
 // The read-only view behind a "Get shareable link" URL (see BrandedReport.jsx
 // and jobs.routes.js POST /:id/share). No login, no session -- whoever holds
@@ -15,6 +16,9 @@ import { Tooltip } from '../components/Tooltip';
 // slim, display-only fields ReportSheet needs (see public.routes.js).
 export function PublicReport() {
   const { token } = useParams();
+  // Private to whoever holds the link: never indexed, and the canonical is
+  // this page rather than the homepage.
+  useDocumentMeta({ title: 'Shared report', path: `/share/${token}`, noindex: true });
   const { addToast } = useToast();
   const [job, setJob] = useState(null);
   const [branding, setBranding] = useState(null);
