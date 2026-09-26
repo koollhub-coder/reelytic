@@ -38,9 +38,13 @@ function StatTile({ value, label, accent }) {
 }
 
 
+// Text starting with = + - @ tab or CR can run as a formula in Excel or
+// Sheets, so it gets a leading apostrophe. Same rule as safeCell in
+// server/services/export.service.js; numbers and number-only text are left as they are.
 function csvCell(v) {
-  const s = String(v == null ? '' : v);
-  return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  let s = String(v == null ? '' : v);
+  if (typeof v === 'string' && /^[=+\-@\t\r]/.test(s) && !/^[+-]?(\d[\d,]*(\.\d+)?|\.\d+)(e[+-]?\d+)?%?$/i.test(s)) s = "'" + s;
+  return /[",\n\r\t]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
 
 // Everything under the campaign header: the rollup, a per-report breakdown so a

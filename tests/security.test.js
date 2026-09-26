@@ -256,3 +256,53 @@ describe('sessions', () => {
     await here.post('/auth/change-password', { currentPassword: 'rgr-new-password-2', newPassword: PASSWORD });
   });
 });
+
+describe('exports cannot smuggle spreadsheet formulas', () => {
+  const ExcelJS = require('exceljs');
+  const exporter = require('../server/services/export.service');
+  const evil = '=HYPERLINK("http://evil.example","click")';
+  const job = {
+    type: 'reel',
+    fileName: '+cmd|calc',
+    createdAt: new Date(),
+    originalColumns: [{ name: 'Note', renamedTo: '@Note' }, { name: 'Delta', renamedTo: 'Delta' }],
+    rows: [{
+      state: 'done',
+      input: { url: 'https://www.instagram.com/reel/AAA/', original: { Note: evil, Delta: '-5' } },
+      result: { username: '-creator', views: 1000, likes: 50, comments: 5, er: 5.5, followers: 2000 },
+    }],
+  };
+
+  test('CSV: formula-like text is prefixed, numbers and number-only text are not', () => {
+    const csv = exporter.generateCsvExport(job);
+    assert.ok(csv.includes(`"'${evil.replace(/"/g, '""')}"`), csv);
+    assert.ok(csv.includes('"\'@Note"'));
+    assert.ok(csv.includes('"\'-creator"'));
+    assert.ok(csv.includes('"-5"'), 'a plain negative number stays as it is');
+    assert.ok(csv.includes('"1000"'));
+  });
+
+  test('XLSX: every exporter writes formula-like text as prefixed text', async () => {
+    const books = [
+      await exporter.generateExcelExport(job),
+      await exporter.generateSharedReportExcel({ job, branding: { agencyName: '=evil()' } }),
+      await exporter.generateClientLedgerExcel('rgr_x', [{ at: new Date(), type: 'reel', result: 'success', resolvedUsername: '@who', url: evil, metrics: { views: 10 } }]),
+    ];
+    for (const buf of books) {
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(buf);
+      wb.eachSheet((sheet) => sheet.eachRow((row) => row.eachCell((cell) => {
+        const v = cell.value;
+        if (v && typeof v === 'object' && v.formula) assert.fail(`formula cell ${cell.address}`);
+        if (typeof v === 'string') assert.doesNotMatch(v, /^[=+@\t\r]|^-(?!\d)/, `unsafe text in ${cell.address}: ${v}`);
+      })));
+    }
+  });
+
+  test('creator database CSV and admin ledger CSV are covered too', () => {
+    const creators = exporter.generateCreatorsCsv([{ name: '=1+1', username: 'x' }]);
+    assert.ok(creators.includes('"\'=1+1"'));
+    const ledger = exporter.generateClientLedgerCsv('rgr_x', [{ at: new Date(), type: 'reel', result: 'success', resolvedUsername: '+x', url: 'u', metrics: {} }]);
+    assert.ok(ledger.includes('"\'+x"'));
+  });
+});

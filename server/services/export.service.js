@@ -3,6 +3,41 @@ const ExcelJS = require('exceljs');
 const ER_FORMULA_NOTE = 'ER = (Likes + Comments) / Views x 100';
 
 /*
+  Spreadsheet formula injection. Column names and cell values from an
+  uploaded sheet, creator names and file names all end up in these exports,
+  and a text cell starting with =, +, -, @, tab or carriage return can run as
+  a formula when the file is opened in Excel or Sheets (or once someone
+  edits the cell). Such text gets a leading apostrophe so it stays text.
+  Real numbers are untouched, and so is text that is only a number ("-5",
+  "+3.2%"), which cannot be a formula.
+*/
+const FORMULA_START = /^[=+\-@\t\r]/;
+const PLAIN_NUMBER = /^[+-]?(\d[\d,]*(\.\d+)?|\.\d+)(e[+-]?\d+)?%?$/i;
+
+function safeCell(value) {
+  if (typeof value !== 'string' || !FORMULA_START.test(value) || PLAIN_NUMBER.test(value)) return value;
+  return `'${value}`;
+}
+
+// Applied to every finished workbook just before it is written, so no
+// exporter can forget it.
+function neutraliseFormulas(workbook) {
+  workbook.eachSheet((sheet) => {
+    sheet.eachRow({ includeEmpty: false }, (row) => {
+      row.eachCell({ includeEmpty: false }, (cell) => {
+        if (typeof cell.value === 'string') {
+          const safe = safeCell(cell.value);
+          if (safe !== cell.value) cell.value = safe;
+        }
+      });
+    });
+  });
+  return workbook;
+}
+
+const csvRow = (vals) => vals.map((v) => `"${String(safeCell(v)).replace(/"/g, '""')}"`).join(',') + '\n';
+
+/*
   Creator handle for a spreadsheet cell, or a plain statement that it is not
   known.
 
@@ -210,7 +245,7 @@ async function generateExcelExport(job) {
     breakdownSheet.views = [{ state: 'frozen', ySplit: 1 }];
   }
 
-  return await workbook.xlsx.writeBuffer();
+  return await neutraliseFormulas(workbook).xlsx.writeBuffer();
 }
 
 function generateCsvExport(job) {
@@ -222,7 +257,6 @@ function generateCsvExport(job) {
     ? ['SR No.', ...origCols.map(c => c.renamedTo || c.name), 'Username', 'Profile URL', 'Reel URL', 'Followers', 'Views', 'Likes', 'Comments', 'Shares', 'Reposts', 'Saves', 'ER (%)']
     : ['SR No.', ...origCols.map(c => c.renamedTo || c.name), 'Username', 'Profile URL', 'Followers', 'Average Views', 'Average ER (%)'];
 
-  const csvRow = (vals) => vals.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',') + '\n';
 
   let csv = csvRow(headers);
   let sr = 0;
@@ -251,7 +285,6 @@ function generateCsvExport(job) {
 // straight off the stored totals, same math searchAnalyzedCreators uses.
 function generateCreatorsCsv(rows) {
   const headers = ['Name', 'Username', 'Gender (estimated)', 'Profile Link', 'Followers', 'Times Analyzed', 'Reel Avg Views', 'Reel Avg ER (%)', 'Profile Avg Views', 'Profile Avg ER (%)', 'First Analyzed', 'Last Analyzed'];
-  const csvRow = (vals) => vals.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',') + '\n';
 
   let csv = csvRow(headers);
   for (const row of rows) {
@@ -330,7 +363,7 @@ async function generateClientLedgerExcel(username, entries) {
   autoFitColumns(sheet);
   sheet.views = [{ state: 'frozen', ySplit: headerRowIndex }];
 
-  return await workbook.xlsx.writeBuffer();
+  return await neutraliseFormulas(workbook).xlsx.writeBuffer();
 }
 
 /*
@@ -392,11 +425,10 @@ async function generateSharedReportExcel({ job, branding }) {
   autoFitColumns(sheet);
   sheet.views = [{ state: 'frozen', ySplit: headerRowIndex }];
 
-  return await workbook.xlsx.writeBuffer();
+  return await neutraliseFormulas(workbook).xlsx.writeBuffer();
 }
 
 function generateClientLedgerCsv(username, entries) {
-  const csvRow = (vals) => vals.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',') + '\n';
   let csv = csvRow(clientLedgerHeaders());
   entries.forEach((entry, idx) => { csv += csvRow(clientLedgerRow(entry, idx)); });
   csv += '\n';
