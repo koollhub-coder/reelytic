@@ -10,6 +10,7 @@ const { errorHandler } = require('./middleware/errors');
 const compression = require('compression');
 const { clientStatic } = require('./middleware/clientStatic');
 const { CoalescingStore } = require('./middleware/coalescingStore');
+const { securityHeaders, noindexPrivateLinks, crossSiteGuard } = require('./middleware/security');
 
 const authRoutes = require('./routes/auth.routes');
 const uploadRoutes = require('./routes/upload.routes');
@@ -33,15 +34,12 @@ async function startServer() {
   // caller forge X-Forwarded-For and dodge the limit entirely.
   app.set('trust proxy', 1);
 
-  // Security Headers
-  app.use((req, res, next) => {
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('X-Frame-Options', 'DENY');
-    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-    next();
-  });
-
   const clientDist = path.join(__dirname, '../client/dist');
+
+  // Security headers (CSP, HSTS in production, framing, sniffing) on every
+  // response, and noindex on private share/portal links. See middleware/security.js.
+  app.use(securityHeaders(clientDist));
+  app.use(noindexPrivateLinks);
 
   // robots.txt / sitemap.xml are built from config.appUrl at request time (see
   // seo.routes.js). Mounted before the client build so neither path is ever
@@ -58,13 +56,19 @@ async function startServer() {
   // compressing them saves less than it costs.
   app.use('/api', compression({ threshold: 2048 }));
 
+  // Refuses state-changing API calls another site's page makes. Before body
+  // parsing so a refused request costs nothing.
+  app.use('/api', crossSiteGuard);
+
   // verify captures the raw request bytes into req.rawBody alongside the
   // normal parsed req.body -- Razorpay's webhook signature is computed over
   // the exact raw payload, and by the time a route handler runs those bytes
   // are otherwise gone (express.json() only keeps the parsed object). Every
   // other route is unaffected: req.body still parses exactly as before.
   app.use(express.json({ limit: '2mb', verify: (req, res, buf) => { req.rawBody = buf; } }));
-  app.use(express.urlencoded({ extended: true, limit: '2mb' }));
+  // No urlencoded parser: every client call sends JSON (or multipart for
+  // uploads), and an HTML form posting from another site is exactly the
+  // request shape a form-encoded parser would have accepted.
 
   // Session configuration with bulletproof store fallback
   // Session store mirrors whatever connectDb() actually landed on:
@@ -86,6 +90,9 @@ async function startServer() {
       // by the browser entirely on the plain-http localhost dev server.
       secure: process.env.NODE_ENV === 'production',
       httpOnly: true,
+      // Kept off requests another site starts (form posts, fetches), while
+      // still sent when someone follows a link to the app.
+      sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000
     }
   }));

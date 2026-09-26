@@ -120,3 +120,82 @@ describe('the server decides what a plan costs', () => {
     assert.equal((await db.collection('users').findOne({ username })).credits, before + 2000);
   });
 });
+
+describe('cross-site requests cannot act for a signed-in user', () => {
+  const evil = { Origin: 'https://evil.example', 'Sec-Fetch-Site': 'cross-site' };
+
+  test('the session cookie is SameSite=Lax', async () => {
+    const agent = anonymousAgent();
+    const res = await agent.post('/auth/login', { username: usernameFor('pro'), password: require('./helpers/seed').PASSWORD });
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get('set-cookie') || '', /SameSite=Lax/i);
+  });
+
+  test('a form-encoded cross-site post to /api/team/invite is refused', async () => {
+    const owner = await loginAs('pro');
+    const email = `${usernameFor('csrf')}@regression.test`;
+    const form = new URLSearchParams({ email });
+    const res = await owner.post('/team/invite', form, { headers: evil });
+    assert.equal(res.status, 403);
+    assert.equal(res.data.code, 'CROSS_SITE');
+
+    // Without the browser's cross-site labels the form body is still not
+    // understood: nothing parses form encoding any more.
+    const plain = await owner.post('/team/invite', form);
+    assert.notEqual(plain.status, 200);
+
+    const invite = await getDb().collection('teamInvites').findOne({ email });
+    assert.equal(invite, null, 'no invite may be created by a form post');
+  });
+
+  test('the app\'s own same-origin JSON calls still work', async () => {
+    const user = await loginAs('pro');
+    const res = await user.post('/auth/tour-seen', {}, { headers: { 'Sec-Fetch-Site': 'same-origin' } });
+    assert.equal(res.status, 200);
+  });
+
+  test('the Razorpay webhook is exempt', async () => {
+    const res = await anonymousAgent().post('/billing/webhook', { event: 'x' }, { headers: evil });
+    assert.notEqual(res.status, 403);
+  });
+});
+
+describe('security headers and private links', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const { BASE_URL } = require('./helpers/server');
+  const raw = (p) => fetch(BASE_URL + p, { redirect: 'manual' });
+
+  test('every page carries a CSP that allows each inline script by hash, not unsafe-inline', async (t) => {
+    const indexPath = path.resolve(__dirname, '..', 'client', 'dist', 'index.html');
+    if (!fs.existsSync(indexPath)) return t.skip('no client build');
+    const { inlineScriptHashes } = require('../server/middleware/security');
+    const res = await raw('/login');
+    const csp = res.headers.get('content-security-policy') || '';
+    const scriptSrc = (csp.split(';').find((d) => d.trim().startsWith('script-src')) || '');
+    assert.doesNotMatch(scriptSrc, /unsafe-inline|unsafe-eval/);
+    const hashes = inlineScriptHashes(path.dirname(indexPath));
+    assert.ok(hashes.length > 0);
+    for (const h of hashes) assert.ok(scriptSrc.includes(h), `missing ${h}`);
+    assert.match(csp, /frame-ancestors 'none'/);
+    assert.equal(res.headers.get('x-frame-options'), 'DENY');
+  });
+
+  test('share and portal pages and the public API say noindex', async () => {
+    for (const p of ['/share/abc123', '/portal/abc123', '/api/public/reports/abc123']) {
+      const res = await raw(p);
+      assert.equal(res.headers.get('x-robots-tag'), 'noindex, nofollow', p);
+    }
+    const home = await raw('/pricing');
+    assert.equal(home.headers.get('x-robots-tag'), null);
+  });
+});
+
+describe('robots.txt names the real private paths', () => {
+  test('disallows /share/ and /portal/', async () => {
+    const { BASE_URL } = require('./helpers/server');
+    const text = await (await fetch(`${BASE_URL}/robots.txt`)).text();
+    assert.match(text, /^Disallow: \/share\/$/m);
+    assert.match(text, /^Disallow: \/portal\/$/m);
+  });
+});
