@@ -80,8 +80,21 @@ async function publicUser(user) {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// Simple in-memory login rate limit map
+// Simple in-memory login rate limit maps. Both count FAILED attempts only, so
+// a busy office signing in correctly from one address is never slowed.
 const loginAttempts = new Map(); // ip_username -> { count, resetAt }
+// Per address across every username: the per-account limit alone let one IP
+// try a common password against thousands of accounts.
+const loginIpFailures = new Map(); // ip -> { count, resetAt }
+const LOGIN_IP_MAX_FAILURES = 30;
+const LOGIN_IP_WINDOW_MS = 15 * 60 * 1000;
+
+setInterval(() => {
+  const now = Date.now();
+  for (const map of [loginAttempts, loginIpFailures]) {
+    for (const [key, rec] of map) if (rec.resetAt < now) map.delete(key);
+  }
+}, 5 * 60 * 1000).unref();
 
 router.post('/login', async (req, res, next) => {
   try {
@@ -96,7 +109,9 @@ router.post('/login', async (req, res, next) => {
 
     const now = Date.now();
     const attemptRecord = loginAttempts.get(rateKey);
-    if (attemptRecord && attemptRecord.resetAt > now && attemptRecord.count >= 10) {
+    const ipRecord = loginIpFailures.get(ip);
+    if ((attemptRecord && attemptRecord.resetAt > now && attemptRecord.count >= 10)
+      || (ipRecord && ipRecord.resetAt > now && ipRecord.count >= LOGIN_IP_MAX_FAILURES)) {
       return res.status(429).json({ error: 'Too many attempts. Try again in a few minutes.' });
     }
 
@@ -131,6 +146,11 @@ router.post('/login', async (req, res, next) => {
         loginAttempts.set(rateKey, { count: 1, resetAt: now + 10 * 60 * 1000 });
       } else {
         attemptRecord.count++;
+      }
+      if (!ipRecord || ipRecord.resetAt < now) {
+        loginIpFailures.set(ip, { count: 1, resetAt: now + LOGIN_IP_WINDOW_MS });
+      } else {
+        ipRecord.count++;
       }
 
       return res.status(401).json({ error: 'That username and password don\'t match.' });
