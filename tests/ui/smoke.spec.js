@@ -9,6 +9,7 @@ process.env.MONGODB_DB_NAME = process.env.TEST_DB_NAME || 'reelytic_test';
 const { test, expect } = require('@playwright/test');
 const { seed, teardown, closeConnection, usernameFor, PASSWORD } = require('../helpers/seed');
 const { getDb } = require('../../server/db');
+const { findOverflow } = require('../helpers/overflow');
 
 /*
   Browser smoke tests: the failures the API layer is blind to.
@@ -300,5 +301,129 @@ test.describe('admin health', () => {
     await signIn(page, 'admin');
     await page.goto('/admin/health');
     await expect(page.locator('h1')).toContainText(/health/i);
+  });
+});
+
+test.describe('help assistant', () => {
+  test('a signed-in customer can open it, get an answer that knows their account, and be taken to a page', async ({ page }) => {
+    await signIn(page, 'pro');
+    await page.goto('/dashboard');
+    await page.locator('[data-help-launcher]').click();
+    await expect(page.locator('.rl-help-panel')).toBeVisible();
+
+    await page.locator('.rl-help-input').fill('how many credits do i have');
+    await page.locator('.rl-help-send').click();
+    await expect(page.locator('.rl-help-row:not(.user) .rl-help-bubble').last()).toContainText(/credits/i, { timeout: 5000 });
+
+    await page.locator('.rl-help-input').fill('take me to history');
+    await page.locator('.rl-help-send').click();
+    await page.waitForURL('**/history', { timeout: 5000 });
+    await expect(page.locator('.rl-help-panel')).toBeVisible();
+
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.rl-help-panel')).toHaveCount(0);
+  });
+
+  test('it stays out of the way on sign-in and on client-facing pages', async ({ page }) => {
+    await page.goto('/login');
+    await expect(page.locator('[data-help-launcher]')).toHaveCount(0);
+    await signIn(page, 'pro');
+    await page.goto('/admin/health');
+    await expect(page.locator('[data-help-launcher]')).toHaveCount(0);
+  });
+});
+
+test.describe('shared tables and row menus', () => {
+  const SHOTS = process.env.SHOT_DIR || '';
+
+  async function checkMenu(page, theme) {
+    await page.evaluate((t) => localStorage.setItem('reelytic-theme', t), theme);
+    await page.reload();
+    await expect(page.locator('.rl-dt table').first()).toBeVisible({ timeout: 15000 });
+    await page.locator('.rl-rowmenu-btn').first().click();
+    const menu = page.locator('.rl-rowmenu');
+    await expect(menu).toBeVisible();
+    // Opens right under its button with items aligned left, never a tall empty gap.
+    const box = await menu.boundingBox();
+    const items = await menu.locator('.rl-rowmenu-item').count();
+    expect(box.height).toBeLessThan(items * 44 + 24);
+    const align = await menu.locator('.rl-rowmenu-item').first().evaluate((el) => getComputedStyle(el).textAlign);
+    expect(['left', 'start']).toContain(align);
+    const bg = await menu.evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(bg).not.toBe('rgba(0, 0, 0, 0)');
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/rowmenu-${theme}.png` });
+    await page.keyboard.press('Escape');
+    await expect(menu).toHaveCount(0);
+  }
+
+  test('history table row menu is clean in light and dark, and compare table renders', async ({ page }) => {
+    await signIn(page, 'pro');
+    await page.evaluate(async () => { await fetch('/api/jobs/demo', { method: 'POST', credentials: 'include' }); });
+    await page.goto('/history');
+    await checkMenu(page, 'light');
+    await checkMenu(page, 'dark');
+  });
+
+  test('admin tables use the shared table and menu', async ({ page }) => {
+    await signIn(page, 'admin');
+    await page.goto('/admin/clients');
+    await checkMenu(page, 'light');
+    for (const path of ['/admin/sessions', '/admin/ledger']) {
+      await page.goto(path);
+      await expect(page.locator('table.data-table').first()).toBeVisible({ timeout: 15000 });
+    }
+  });
+});
+
+test.describe('text stays inside its box', () => {
+
+  test('report highlights, history and dashboard keep long handles inside their cards', async ({ page }) => {
+    await signIn(page, 'pro');
+    const created = await page.evaluate(async () => {
+      const r = await fetch('/api/jobs/demo', { method: 'POST', credentials: 'include' });
+      return r.json();
+    });
+    await page.goto(`/reels?job=${created.jobId}`);
+    await expect(page.locator('.rl-dt table').first()).toBeVisible({ timeout: 20000 });
+    // A handle far longer than any card is wide, in both performer tiles.
+    await page.evaluate(() => {
+      const long = '@' + 'a_very_long_creator_handle_'.repeat(4);
+      document.querySelectorAll('a.card .mono').forEach((el) => { el.textContent = long; });
+    });
+    // The safety net itself: a card of ordinary markup holding an unbroken 100-character
+    // string must wrap, not spill. (Works whether or not this demo report has highlight tiles.)
+    await page.evaluate(() => {
+      const host = document.createElement('div');
+      host.id = 'overflow-probe';
+      host.style.cssText = 'display:flex;gap:8px;width:260px';
+      host.innerHTML = '<div class="card" style="flex:1"><div class="mono">' + 'x'.repeat(100) + '</div></div>';
+      document.querySelector('.rl-dt').before(host);
+    });
+    expect(await page.evaluate(findOverflow)).toEqual([]);
+    await page.evaluate(() => document.getElementById('overflow-probe').remove());
+    for (const path of ['/history', '/dashboard', '/creators', '/settings']) {
+      await page.goto(path);
+      await page.waitForTimeout(1500);
+      expect(await page.evaluate(findOverflow), path).toEqual([]);
+    }
+  });
+});
+
+test.describe('phone width', () => {
+  test('no page scrolls sideways at 390px', async ({ page }) => {
+    test.setTimeout(120000); // eight cold page loads
+    await page.setViewportSize({ width: 390, height: 844 });
+    await signIn(page, 'pro');
+    const created = await page.evaluate(async () => {
+      const r = await fetch('/api/jobs/demo', { method: 'POST', credentials: 'include' });
+      return r.json();
+    });
+    const paths = ['/dashboard', '/history', '/creators', '/settings', '/pricing', '/reels', '/profiles', `/reels?job=${created.jobId}`];
+    for (const path of paths) {
+      await page.goto(path);
+      await page.waitForTimeout(1500);
+      const { sw, w } = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, w: window.innerWidth }));
+      expect(sw, `${path} is ${sw}px wide in a ${w}px window`).toBeLessThanOrEqual(w + 1);
+    }
   });
 });

@@ -126,7 +126,12 @@ export function Settings() {
     }
   };
 
-  const displayName = user?.username;
+  // One name, once. The second line is only worth showing when it says something
+  // new: an admin whose username, name and email are all "admin" used to read
+  // "admin ADMIN admin" down the header.
+  const displayName = user?.name || user?.username;
+  const secondLine = user?.email && user.email !== displayName && user.email !== user?.username ? user.email : null;
+  const isAdmin = user?.role === 'admin';
   const initial = (displayName || '?').charAt(0).toUpperCase();
 
   return (
@@ -161,15 +166,17 @@ export function Settings() {
           <div style={{ minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span style={{ fontWeight: 700, fontSize: 'var(--fs-sm)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '160px' }}>{displayName}</span>
-              {user?.role === 'admin' && <span className="chip" style={{ fontSize: '10px', fontWeight: 700 }}>ADMIN</span>}
+              {isAdmin && <span className="chip" style={{ fontSize: '10px', fontWeight: 700 }}>ADMIN</span>}
             </div>
-            <div style={{ color: 'var(--text-3)', fontSize: 'var(--fs-xs)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '200px' }}>
-              {user?.email || user?.username}
-            </div>
+            {secondLine && (
+              <div style={{ color: 'var(--text-3)', fontSize: 'var(--fs-xs)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '200px' }}>
+                {secondLine}
+              </div>
+            )}
           </div>
-          <span className="chip accent" style={{ textTransform: 'capitalize', padding: '5px 12px', fontWeight: 600, flexShrink: 0 }}>{user?.plan || 'free'} Plan</span>
+          {!isAdmin && <span className="chip accent" style={{ textTransform: 'capitalize', padding: '5px 12px', fontWeight: 600, flexShrink: 0 }}>{user?.plan || 'free'} Plan</span>}
           <span className="chip ok" style={{ padding: '5px 12px', fontWeight: 600, flexShrink: 0 }}>
-            {user?.plan === 'unlimited' ? '∞' : (user?.credits ?? 0).toLocaleString()} credits
+            {(user?.credits ?? 0).toLocaleString()} credits
           </span>
         </div>
       </div>
@@ -265,7 +272,7 @@ export function Settings() {
             </div>
             <div className="rl-info-row">
               <span className="rl-info-label">Credits</span>
-              <span className="rl-info-value mono">{user?.plan === 'unlimited' ? 'Unlimited' : (user?.credits ?? 0).toLocaleString()}</span>
+              <span className="rl-info-value mono">{(user?.credits ?? 0).toLocaleString()}</span>
             </div>
             {user?.role === 'admin' && (
               <div className="rl-info-row">
@@ -286,7 +293,7 @@ export function Settings() {
             <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-md)', fontWeight: 700 }}>Security</h3>
           </div>
           <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-xs)', marginBottom: 'var(--s3)' }}>Update your password and keep your account secure.</p>
-          <form onSubmit={handlePasswordChange}>
+          <form onSubmit={handlePasswordChange} style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
             <div className="input-group">
               <label className="input-label">Current password</label>
               <PasswordInput value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} />
@@ -295,7 +302,7 @@ export function Settings() {
               <label className="input-label">New password</label>
               <PasswordInput value={newPassword} onChange={e => setNewPassword(e.target.value)} showStrength={true} autoComplete="new-password" />
             </div>
-            <button type="submit" className="btn btn-primary" disabled={loading} style={{ width: '100%' }}>
+            <button type="submit" className="btn btn-primary" disabled={loading} style={{ width: '100%', marginTop: 'auto' }}>
               {loading ? 'Updating...' : 'Update Password'}
             </button>
           </form>
@@ -358,9 +365,13 @@ export function Settings() {
 
       {showTour && <WelcomeTour onDone={() => setShowTour(false)} username={user?.username} />}
 
-      <div style={{ marginBottom: 'var(--s4)' }}>
-        <TeamCard user={user} />
-      </div>
+      {/* Admin accounts have no team: anyone linked to one inherits nothing (see
+          middleware/auth.js), so the card would only show a meaningless "2 of 1". */}
+      {!isAdmin && (
+        <div style={{ marginBottom: 'var(--s4)' }}>
+          <TeamCard user={user} />
+        </div>
+      )}
 
       {/* Report Branding: full-width, primary section (per its outsized
           effect on client-facing reports) -- no longer competing for grid

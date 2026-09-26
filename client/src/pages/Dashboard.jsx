@@ -10,9 +10,11 @@ import { ActivityChart } from '../components/ActivityChart';
 import { Tooltip, TooltipRows } from '../components/Tooltip';
 import { usePlanCreditsTotal } from '../hooks/usePlanCreditsTotal';
 import { formatDate, formatDayKey } from '../utils/date';
+import { displayName, reportPath } from '../utils/reports';
+import { RowMenu } from '../components/RowMenu';
 import {
   ReelIcon, ProfileIcon, LayersIcon, TrendingUpIcon, PlusIcon, CalendarIcon,
-  EyeIcon, DownloadIcon, ArrowUpRightIcon, SuccessIcon, ClockIcon, StarIcon,
+  DownloadIcon, ArrowUpRightIcon, SuccessIcon, ClockIcon, StarIcon,
 } from '../components/Icon';
 
 // Matches server/routes/me.routes.js's ALLOWED_RANGE_DAYS exactly -- an
@@ -43,41 +45,27 @@ const STATUS_LABELS = {
 // floating out of the box" bug. Measured against real rendered content
 // (icon+margin 56 + label ~14 + value 37 + trend 22 + 40 padding) rather
 // than kept at the spec number.
-const METRIC_CARD_H = 176;
-const ANALYTICS_CARD_H = 292;
-const LOWER_CARD_H = 400;
 
 /*
-  Metric tile: icon+label/value pinned to the top, the trend line pinned to
-  the BOTTOM via margin-top:auto inside a flex column -- so the trend always
-  sits on the same baseline across all four cards regardless of how long the
-  label text runs, instead of trailing wherever the content above happens to
-  end.
-
-  `trend` is a real percentage from /api/me/stats (current 14-day window vs
-  the previous one), or null when there's no previous-period data to compare
-  against (division by zero has no percentage) -- never a placeholder value.
+  One headline number. Icon beside the label and value, so the card is only as
+  tall as its content and never has an empty band underneath. The comparison
+  with the previous period is an operator's number, so it only appears when a
+  trend is passed (admins).
 */
 function MetricCard({ icon, tone, label, value, trend, tooltip, periodDays }) {
   const toneColor = tone === 'ok' ? 'var(--ok)' : tone === 'warn' ? 'var(--warn)' : tone === 'info' ? 'var(--info)' : 'var(--accent)';
   const toneSoft = tone === 'ok' ? 'var(--ok-soft)' : tone === 'warn' ? 'var(--warn-soft)' : tone === 'info' ? 'var(--info-soft)' : 'var(--accent-soft)';
   return (
-    <div className="card rl-metric-card" style={{ height: `${METRIC_CARD_H}px`, padding: '20px', display: 'flex', flexDirection: 'column' }}>
-      <div className="rl-metric-card-icon" style={{
-        width: '44px', height: '44px', borderRadius: '12px', flexShrink: 0,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: toneSoft, color: toneColor, marginBottom: '12px',
-      }}>
-        {icon}
-      </div>
-      <Tooltip content={tooltip}>
-        <div className="rl-metric-card-label" style={{ fontSize: '12px', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600, cursor: tooltip ? 'help' : 'default', width: 'fit-content' }}>{label}</div>
-      </Tooltip>
-      <div className="rl-metric-card-value" style={{ fontFamily: 'var(--font-data)', fontSize: '32px', fontWeight: 700, marginTop: '2px', lineHeight: 1.1 }}>{value}</div>
-      <div style={{ marginTop: 'auto', paddingTop: '8px' }}>
+    <div className="card rl-mc">
+      <div className="rl-mc-icon" style={{ background: toneSoft, color: toneColor }}>{icon}</div>
+      <div style={{ minWidth: 0 }}>
+        <Tooltip content={tooltip}>
+          <div className="rl-mc-label" style={{ cursor: tooltip ? 'help' : 'default' }}>{label}</div>
+        </Tooltip>
+        <div className="rl-mc-value">{value}</div>
         {trend !== null && trend !== undefined && (
           <Tooltip content={`Compared with the previous ${periodDays}-day period`}>
-            <div className="rl-metric-card-trend" style={{ fontSize: '12px', fontWeight: 600, color: trend >= 0 ? 'var(--ok)' : 'var(--err)', width: 'fit-content', cursor: 'help' }}>
+            <div className="rl-mc-trend" style={{ color: trend >= 0 ? 'var(--ok)' : 'var(--err)' }}>
               {trend >= 0 ? '↑' : '↓'} {Math.abs(trend)}% <span className="rl-hide-mobile" style={{ color: 'var(--text-3)', fontWeight: 400 }}>vs previous {periodDays} days</span>
             </div>
           </Tooltip>
@@ -191,23 +179,6 @@ function InsightRow({ icon, tone, title, detail }) {
   );
 }
 
-// Compact icon button, used for the two row actions in Recent Reports --
-// same width/height/border regardless of which icon, tooltip instead of the
-// native title= this used to carry.
-function IconButton({ tooltip, ...props }) {
-  return (
-    <Tooltip content={tooltip}>
-      <button
-        type="button"
-        style={{ width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: '1px solid var(--border-strong)', borderRadius: 'var(--r-sm)', color: 'var(--text-2)', cursor: 'pointer', transition: 'background 150ms ease' }}
-        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--surface-2)'; }}
-        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-        {...props}
-      />
-    </Tooltip>
-  );
-}
-
 export function Dashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -296,53 +267,45 @@ export function Dashboard() {
       : { type: 'Profile', pct: Math.round((data.profileCount / totalReports) * 100) })
     : null;
 
+  const recent = (data.recentJobs || []).slice(0, 6);
+
   return (
     <div>
-      {/* Header: greeting + subtitle left, a real range picker and the two
-          report actions right. The picker drives /me/stats?days= (see
-          RANGE_OPTIONS above and the server's ALLOWED_RANGE_DAYS) -- 14 is
-          still what a visitor lands on, but it's an actual filter now, not
-          a label promising one. All three controls share the same 48px
-          height. */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--s4)', marginBottom: 'var(--s5)' }}>
+      {/* Header: who and what, then the two things a person comes here to do.
+          The date range is not a header control (it changes the numbers below,
+          not the page), so it lives with those numbers instead. */}
+      <div className="rl-page-head">
         <div>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 600 }}>
-            {greeting}, {user?.username} <span aria-hidden="true">👋</span>
-          </h1>
-          <p style={{ color: 'var(--text-2)', fontSize: '14px' }}>Here's what's happening in your Reelytic workspace.</p>
+          <h1>{greeting}, {user?.name ? String(user.name).split(' ')[0] : user?.username}</h1>
+          <p>Here's what's happening in your Reelytic workspace.</p>
         </div>
-        <div className="rl-dashboard-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <CalendarIcon size={14} style={{ color: 'var(--text-3)', flexShrink: 0 }} />
-            <Select
-              value={String(days)}
-              onChange={(v) => setDays(Number(v))}
-              options={RANGE_OPTIONS}
-              disabled={refreshing}
-              style={{ height: '48px', minWidth: '150px', fontSize: '13px' }}
-            />
-            {refreshing && <MiniBrandSpinner />}
-            {dateRangeLabel && (
-              <span className="rl-hide-mobile" style={{ fontSize: '12px', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>({dateRangeLabel})</span>
-            )}
-          </div>
-          <button type="button" className="btn btn-primary" onClick={() => navigate('/reels')} style={{ gap: '8px', height: '48px', padding: '0 20px' }}>
+        <div className="rl-page-head-actions rl-dashboard-header-actions">
+          <button type="button" className="btn btn-primary" onClick={() => navigate('/reels')} style={{ gap: '8px' }}>
             <PlusIcon size={16} />New Reel Report
           </button>
-          <button type="button" className="btn btn-secondary" onClick={() => navigate('/profiles')} style={{ gap: '8px', height: '48px', padding: '0 20px' }}>
+          <button type="button" className="btn btn-secondary" onClick={() => navigate('/profiles')} style={{ gap: '8px' }}>
             <PlusIcon size={16} />New Profile Report
           </button>
         </div>
       </div>
 
-      {/* Mobile only: one prominent "total processed + trend" summary,
-          matching the reference design's top card -- real data already
-          computed below (data.totalCount, trends.totalCount), nothing
-          invented. This sits ABOVE the 4-metric grid rather than replacing
-          it: the reference shows this one number most prominently, but the
-          per-type breakdown and success rate it doesn't show are still
-          real, previously-required information that stays, restructured
-          rather than removed. */}
+      <div className="rl-section-head">
+        <h2>Overview</h2>
+        <div className="rl-section-tools">
+          {dateRangeLabel && <span className="rl-hide-mobile" style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{dateRangeLabel}</span>}
+          {refreshing && <MiniBrandSpinner />}
+          <Select
+            value={String(days)}
+            onChange={(v) => setDays(Number(v))}
+            options={RANGE_OPTIONS}
+            disabled={refreshing}
+            style={{ minWidth: '150px' }}
+          />
+        </div>
+      </div>
+
+      {/* Mobile only: one prominent "total processed + trend" summary. Admin
+          only, since the comparison is an operator's number. */}
       {trends.totalCount !== null && trends.totalCount !== undefined && (
         <div className="rl-mobile-only card" style={{ padding: 'var(--s4)', marginBottom: '16px', flexDirection: 'column' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
@@ -357,41 +320,34 @@ export function Dashboard() {
         </div>
       )}
 
-      {/* 4 equal metric cards -- see METRIC_CARD_H, all identical height regardless of content. */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '16px' }} className="rl-dashboard-metrics">
+      <div className="rl-dashboard-metrics rl-metric-grid">
         <MetricCard
-          icon={<ReelIcon size={20} />} tone="accent" label="Reel Reports"
+          icon={<ReelIcon size={20} />} tone="accent" label="Reel reports"
           value={data.reelCount.toLocaleString()} trend={trends.reelCount} periodDays={days}
           tooltip={`Reel links processed in the last ${days} days`}
         />
         <MetricCard
-          icon={<ProfileIcon size={20} />} tone="ok" label="Profile Reports"
+          icon={<ProfileIcon size={20} />} tone="ok" label="Profile reports"
           value={data.profileCount.toLocaleString()} trend={trends.profileCount} periodDays={days}
           tooltip={`Profile links processed in the last ${days} days`}
         />
         <MetricCard
-          icon={<LayersIcon size={20} />} tone="info" label="Total Processed"
+          icon={<LayersIcon size={20} />} tone="info" label="Total processed"
           value={data.totalCount.toLocaleString()} trend={trends.totalCount} periodDays={days}
           tooltip="Total reel and profile links processed during the selected period"
         />
         <MetricCard
-          icon={<TrendingUpIcon size={20} />} tone="warn" label="Success Rate"
-          value={`${data.successRate}%`} trend={trends.successRate} periodDays={days}
+          icon={<TrendingUpIcon size={20} />} tone="warn" label="Success rate"
+          value={data.totalCount > 0 ? `${data.successRate}%` : '-'} trend={trends.successRate} periodDays={days}
           tooltip="Percentage of submitted links successfully processed"
         />
       </div>
 
       {!hasReports ? (
-        <div className="card" style={{ textAlign: 'center', padding: 'var(--s7)', marginBottom: 'var(--s4)' }}>
+        <div className="card" style={{ textAlign: 'center', padding: 'var(--s7)' }}>
           <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 700, marginBottom: 'var(--s2)' }}>No reports yet</div>
           <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)', marginBottom: 'var(--s4)' }}>Run your first Reel or Profile report to start seeing workspace activity.</p>
           <div style={{ display: 'flex', gap: 'var(--s3)', justifyContent: 'center', flexWrap: 'wrap' }}>
-            {/* A drawn PlusIcon, not a literal "+" character -- same reason
-                the header's two report buttons above already use it: a
-                plain glyph renders at whatever weight the visitor's font
-                happens to pick, which is exactly why it read as a
-                different, less-finished button than its header twin doing
-                the identical action. */}
             <button type="button" className="btn btn-primary" onClick={() => navigate('/reels')} style={{ gap: 'var(--s2)' }}>
               <PlusIcon size={15} />New Reel Report
             </button>
@@ -402,24 +358,24 @@ export function Dashboard() {
         </div>
       ) : (
         <>
-          {/* Activity (58%) + Report type split (42%) -- fixed, identical
-              height (ANALYTICS_CARD_H) rather than "however tall the
-              content is," with the donut's content vertically centered so
-              a naturally shorter card never reads as leftover dead space. */}
-          <div style={{ display: 'grid', gridTemplateColumns: '7fr 5fr', gap: '16px', marginBottom: '16px' }} className="rl-dashboard-analytics">
-            <div className="card" style={{ height: `${ANALYTICS_CARD_H}px`, display: 'flex', flexDirection: 'column' }}>
-              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 600, marginBottom: 'var(--s3)' }}>
-                Activity (last {days} days)
-              </h3>
+          {/* Activity (58%) + Report type split (42%). Heights follow their
+              content, never a fixed number, so there is no empty band at the
+              bottom of a card. */}
+          <div className="rl-dashboard-analytics rl-two-col">
+            <div className="card">
+              <div className="rl-card-head">
+                <h3>Activity</h3>
+                {hasActivity && (
+                  <div className="rl-legend">
+                    <span><i style={{ background: 'var(--accent)' }} />Reels</span>
+                    <span><i style={{ background: 'var(--ok)' }} />Profiles</span>
+                  </div>
+                )}
+              </div>
               {!hasActivity ? (
-                <div style={{ color: 'var(--text-3)', textAlign: 'center', padding: 'var(--s6)' }}>No activity in this window yet.</div>
+                <div style={{ color: 'var(--text-3)', textAlign: 'center', padding: 'var(--s6) var(--s4)' }}>No activity in this window yet. Try a longer range.</div>
               ) : (
                 <>
-                  {/* Three icon-badge stats: same shape as the reference
-                      design, and the same information the old plain-text
-                      row had (nothing added, nothing dropped) -- just
-                      restructured so it reads clearly at any width instead
-                      of one wrapping text line. */}
                   <div className="rl-activity-stats" style={{ display: 'flex', gap: 'var(--s3)', marginBottom: 'var(--s4)' }}>
                     <div className="rl-activity-stat">
                       <span className="rl-activity-stat-icon" style={{ background: 'var(--info-soft)', color: 'var(--info)' }}><LayersIcon size={14} /></span>
@@ -445,51 +401,38 @@ export function Dashboard() {
                       </div>
                     )}
                   </div>
-
-                  <div style={{ display: 'flex', gap: 'var(--s4)', marginBottom: 'var(--s3)', fontSize: '12px', color: 'var(--text-2)' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: 'var(--accent)', display: 'inline-block' }} />Reel reports
-                    </span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: 'var(--ok)', display: 'inline-block' }} />Profile reports
-                    </span>
-                  </div>
-
-                  <div style={{ flex: 1, minHeight: 0 }}>
-                    <ActivityChart data={daily} height={ANALYTICS_CARD_H - 130} />
-                  </div>
+                  <ActivityChart data={daily} height={230} />
                 </>
               )}
             </div>
 
-            <div className="card" style={{ height: `${ANALYTICS_CARD_H}px`, display: 'flex', flexDirection: 'column' }}>
-              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 600, marginBottom: 'var(--s3)' }}>Report type split</h3>
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
+            <div className="card">
+              <div className="rl-card-head"><h3>Report type split</h3></div>
+              <div style={{ display: 'flex', alignItems: 'center', minHeight: 200 }}>
                 <ReportSplitDonut reelCount={data.reelCount} profileCount={data.profileCount} />
               </div>
             </div>
           </div>
 
-          {/* Recent reports (58%) + Quick insights (42%) -- same fixed-height reasoning. */}
-          <div style={{ display: 'grid', gridTemplateColumns: '7fr 5fr', gap: '16px' }} className="rl-dashboard-lower">
-            <div className="card" style={{ height: `${LOWER_CARD_H}px`, padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-              <div style={{ padding: 'var(--s4)', borderBottom: '1px solid var(--border)' }}>
-                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 600 }}>Recent reports</h3>
+          {/* Recent reports (58%) + Quick insights (42%). */}
+          <div className="rl-dashboard-lower rl-two-col">
+            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+              <div className="rl-card-head" style={{ padding: 'var(--s4) var(--s4) var(--s3)' }}>
+                <h3>Recent reports</h3>
+                <button type="button" onClick={() => navigate('/history')} className="rl-text-link" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: 'var(--fs-sm)' }}>
+                  View all <ArrowUpRightIcon size={13} />
+                </button>
               </div>
-              {(!data.recentJobs || data.recentJobs.length === 0) ? (
+              {recent.length === 0 ? (
                 <div style={{ color: 'var(--text-3)', textAlign: 'center', padding: 'var(--s5)' }}>No reports yet.</div>
               ) : (
                 <>
-                  {/* Mobile: icon + filename + status + date as one compact
-                      row per report, instead of the 5-column desktop table
-                      squeezed into a horizontal scroll -- same pattern
-                      already used for History's own report list. */}
-                  <div className="rl-mobile-only" style={{ flexDirection: 'column', flex: 1, overflowY: 'auto' }}>
-                    {data.recentJobs.map((j) => {
+                  {/* Phone: one compact row per report. */}
+                  <div className="rl-mobile-only" style={{ flexDirection: 'column' }}>
+                    {recent.map((j) => {
                       const statusInfo = STATUS_LABELS[j.status] || { label: j.status, chip: '' };
-                      const canDownload = j.status === 'done' && (j.counts?.success || 0) > 0;
                       return (
-                        <div key={j.id} style={{ display: 'flex', alignItems: 'center', gap: 'var(--s3)', padding: 'var(--s3) var(--s4)', borderBottom: '1px solid var(--border)' }}>
+                        <div key={j.id} style={{ display: 'flex', alignItems: 'center', gap: 'var(--s3)', padding: 'var(--s3) var(--s4)', borderTop: '1px solid var(--border)' }}>
                           <div style={{
                             width: '36px', height: '36px', borderRadius: 'var(--r-md)', flexShrink: 0,
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -499,79 +442,55 @@ export function Dashboard() {
                             {j.type === 'reel' ? <ReelIcon size={16} /> : <ProfileIcon size={16} />}
                           </div>
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontWeight: 600, fontSize: 'var(--fs-sm)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {j.fileName || 'Pasted links'}
-                            </div>
+                            <div style={{ fontWeight: 600, fontSize: 'var(--fs-sm)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName(j)}</div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px', flexWrap: 'wrap' }}>
-                              <span className={`chip ${j.type === 'reel' ? 'accent' : 'ok'}`} style={{ fontSize: '10px', textTransform: 'uppercase' }}>{j.type}</span>
                               <span className={`chip ${statusInfo.chip}`} style={{ fontSize: '10px' }}>{statusInfo.label}</span>
-                              <span className="mono" style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>
-                                {formatDate(j.createdAt)}{j.counts?.total ? ` · ${j.counts.total} links` : ''}
-                              </span>
+                              <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>{formatDate(j.createdAt)}{j.counts?.total ? ` · ${j.counts.total} ${j.counts.total === 1 ? 'link' : 'links'}` : ''}</span>
                             </div>
                           </div>
-                          <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
-                            <IconButton tooltip="View report" onClick={() => navigate(j.type === 'reel' ? '/reels' : '/profiles')}>
-                              <EyeIcon size={14} />
-                            </IconButton>
-                            {canDownload && (
-                              <Tooltip content="Download report">
-                                <a
-                                  href={`/api/export/${j.id}.xlsx`}
-                                  download
-                                  style={{ width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: '1px solid var(--border-strong)', borderRadius: 'var(--r-sm)', color: 'var(--text-2)' }}
-                                >
-                                  <DownloadIcon size={14} />
-                                </a>
-                              </Tooltip>
-                            )}
-                          </div>
+                          <button type="button" className="btn btn-secondary" style={{ height: 32, padding: '0 12px', fontSize: 'var(--fs-sm)' }} onClick={() => navigate(reportPath(j))}>
+                            {j.status === 'done' ? 'View' : 'Resume'}
+                          </button>
                         </div>
                       );
                     })}
                   </div>
 
-                  <div className="rl-table-scroll rl-hide-mobile" style={{ flex: 1 }}>
-                    <table className="data-table rl-dashboard-table">
+                  <div className="data-table-container rl-hide-mobile" style={{ border: 0, borderRadius: 0, borderTop: '1px solid var(--border)' }}>
+                    <table className="data-table rl-dt-table">
                       <thead>
                         <tr>
-                          <th>Type</th>
-                          <th>File</th>
+                          <th>Report</th>
                           <th>Status</th>
-                          <th>Date</th>
-                          <th style={{ textAlign: 'right' }}>Actions</th>
+                          <th>Created</th>
+                          <th style={{ textAlign: 'right', width: 132 }} />
                         </tr>
                       </thead>
                       <tbody>
-                        {data.recentJobs.map((j) => {
+                        {recent.map((j) => {
                           const statusInfo = STATUS_LABELS[j.status] || { label: j.status, chip: '' };
                           const canDownload = j.status === 'done' && (j.counts?.success || 0) > 0;
                           return (
                             <tr key={j.id}>
-                              <td><span className={`chip ${j.type === 'reel' ? 'accent' : 'ok'}`} style={{ textTransform: 'uppercase' }}>{j.type}</span></td>
-                              <td style={{ color: 'var(--text-2)', maxWidth: '90px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                <Tooltip content={j.fileName || 'Pasted links'}>
-                                  <span>{j.fileName || 'Pasted links'}</span>
-                                </Tooltip>
+                              <td style={{ maxWidth: 0, width: '44%' }}>
+                                <div className="rl-cell-title" title={displayName(j)} style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName(j)}</div>
+                                <div className="rl-cell-sub">{j.type === 'reel' ? 'Reel' : 'Profile'}{j.counts?.total ? ` · ${j.counts.total} ${j.counts.total === 1 ? 'link' : 'links'}` : ''}</div>
                               </td>
                               <td><span className={`chip ${statusInfo.chip}`}>{statusInfo.label}</span></td>
-                              <td className="mono" style={{ color: 'var(--text-3)' }}>{formatDate(j.createdAt)}</td>
+                              <td style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)', whiteSpace: 'nowrap' }}>{formatDate(j.createdAt)}</td>
                               <td style={{ textAlign: 'right' }}>
-                                <div style={{ display: 'inline-flex', gap: '4px' }}>
-                                  <IconButton tooltip="View report" onClick={() => navigate(j.type === 'reel' ? '/reels' : '/profiles')}>
-                                    <EyeIcon size={14} />
-                                  </IconButton>
-                                  {canDownload && (
-                                    <Tooltip content="Download report">
-                                      <a
-                                        href={`/api/export/${j.id}.xlsx`}
-                                        download
-                                        style={{ width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: '1px solid var(--border-strong)', borderRadius: 'var(--r-sm)', color: 'var(--text-2)' }}
-                                      >
-                                        <DownloadIcon size={14} />
-                                      </a>
-                                    </Tooltip>
-                                  )}
+                                <div className="rl-actions">
+                                  <button type="button" className="btn btn-secondary rl-actions-primary" onClick={() => navigate(reportPath(j))}>
+                                    {j.status === 'done' ? 'View' : 'Resume'}
+                                  </button>
+                                  <span className="rl-actions-slot">
+                                    {canDownload && (
+                                      <RowMenu items={[
+                                        { label: 'Download Excel (.xlsx)', icon: DownloadIcon, href: `/api/export/${j.id}.xlsx`, download: true },
+                                        { label: 'Download CSV', icon: DownloadIcon, href: `/api/export/${j.id}.csv`, download: true },
+                                      ]} />
+                                    )}
+                                  </span>
                                 </div>
                               </td>
                             </tr>
@@ -580,31 +499,24 @@ export function Dashboard() {
                       </tbody>
                     </table>
                   </div>
-                  <div style={{ padding: 'var(--s3) var(--s4)', borderTop: '1px solid var(--border)' }}>
-                    <button type="button" onClick={() => navigate('/history')} className="rl-text-link" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: 'var(--fs-sm)' }}>
-                      View all reports <ArrowUpRightIcon size={13} />
-                    </button>
-                  </div>
                 </>
               )}
             </div>
 
-            <div className="card" style={{ height: `${LOWER_CARD_H}px`, display: 'flex', flexDirection: 'column' }}>
-              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 600, marginBottom: 'var(--s4)' }}>Quick insights</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--s4)', flex: 1, justifyContent: 'space-between' }}>
+            <div className="card">
+              <div className="rl-card-head"><h3>Quick insights</h3></div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--s4)', flex: 1 }}>
                 {data.totalCount === 0 && !reportMix && (
                   <InsightRow
                     icon={<TrendingUpIcon size={16} />}
                     tone="info"
                     title="No insights yet"
-                    detail={`Run a Reel or Profile report and this panel fills in with your success rate, busiest day, and report mix.`}
+                    detail="Run a Reel or Profile report and this panel fills in with your success rate, busiest day, and report mix."
                   />
                 )}
-                {/* A "100% success rate, 0/0 processed" row is not an
-                    insight for a brand-new or empty-window account -- it's
-                    a division-by-zero default reading as a real stat. Only
-                    worth showing once something has actually been
-                    processed to have a rate over. */}
+                {/* A "100% success rate, 0/0 processed" row is not an insight
+                    for an empty window -- it is a division-by-zero default
+                    reading as a real stat. */}
                 {data.totalCount > 0 && (
                   <InsightRow
                     icon={<TrendingUpIcon size={16} />}
@@ -621,14 +533,6 @@ export function Dashboard() {
                     detail={`${formatDayKey(busiestDay.date)} with ${busiestDay.total} report${busiestDay.total === 1 ? '' : 's'}.`}
                   />
                 )}
-                {hasActivity && (
-                  <InsightRow
-                    icon={<ClockIcon size={16} />}
-                    tone="info"
-                    title="Processing activity"
-                    detail={`${activeDays} of the last ${days} days had activity, ${periodTotal.toLocaleString()} processed in total.`}
-                  />
-                )}
                 {reportMix && (
                   <InsightRow
                     icon={<SuccessIcon size={16} />}
@@ -637,29 +541,25 @@ export function Dashboard() {
                     detail={`${reportMix.type} reports make up ${reportMix.pct}% of your workspace.`}
                   />
                 )}
-                {user?.plan === 'unlimited' ? (
-                  <InsightRow icon={<StarIcon size={16} />} tone="accent" title="Credits" detail="Unlimited plan, no credit limit." />
-                ) : (
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                    <Tooltip content="Credits available before your current plan limit is reached">
-                      <div style={{
-                        width: '34px', height: '34px', borderRadius: '50%', flexShrink: 0,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        background: 'var(--accent-soft)', color: 'var(--accent)', cursor: 'help',
-                      }}>
-                        <StarIcon size={16} />
-                      </div>
-                    </Tooltip>
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '8px' }}>Credits</div>
-                      {planCreditsTotal ? (
-                        <CreditsBar remaining={user?.credits ?? 0} total={planCreditsTotal} />
-                      ) : (
-                        <div style={{ fontSize: '12px', color: 'var(--text-2)' }}>{(user?.credits ?? 0).toLocaleString()} credits remaining.</div>
-                      )}
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', marginTop: 'auto', paddingTop: 'var(--s3)', borderTop: '1px solid var(--border)' }}>
+                  <Tooltip content="Credits available before your current plan limit is reached">
+                    <div style={{
+                      width: '34px', height: '34px', borderRadius: '50%', flexShrink: 0,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      background: 'var(--accent-soft)', color: 'var(--accent)', cursor: 'help',
+                    }}>
+                      <StarIcon size={16} />
                     </div>
+                  </Tooltip>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '8px' }}>Credits</div>
+                    {planCreditsTotal && (user?.credits ?? 0) <= planCreditsTotal ? (
+                      <CreditsBar remaining={user?.credits ?? 0} total={planCreditsTotal} />
+                    ) : (
+                      <div style={{ fontSize: '12px', color: 'var(--text-2)' }}>{(user?.credits ?? 0).toLocaleString()} credits remaining.</div>
+                    )}
                   </div>
-                )}
+                </div>
               </div>
             </div>
           </div>

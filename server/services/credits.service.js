@@ -16,8 +16,9 @@ const CREDIT_COST = {
 // Credits handed to a brand-new self-signup (free tier).
 const FREE_SIGNUP_CREDITS = 10;
 
-// Admins get an effectively-unlimited pool so internal runs are never blocked.
-const ADMIN_CREDITS = 1000000;
+// Admins have no stored pool. Their balance is what Apify's remaining monthly
+// allowance can fund, worked out live (see platformCredits.service.js). Nobody
+// has an unlimited balance.
 
 function costPerItem(type) {
   return CREDIT_COST[type] || 1;
@@ -34,8 +35,8 @@ function costForRun(type, itemCount) {
 // self-signed-up or an agency admin provisioned them.
 function defaultsForNewUser(role = 'client') {
   return {
-    plan: role === 'admin' ? 'unlimited' : 'free',
-    credits: role === 'admin' ? ADMIN_CREDITS : FREE_SIGNUP_CREDITS,
+    plan: role === 'admin' ? 'admin' : 'free',
+    credits: role === 'admin' ? 0 : FREE_SIGNUP_CREDITS,
     hasSeenTour: role === 'admin',
   };
 }
@@ -109,12 +110,17 @@ async function backfillCredits() {
       );
     }
   }
+  // Retire the old fixed placeholder pool. An admin's balance is derived live from
+  // Apify's allowance, and a stored 0 also makes any debit against it a no-op.
+  await db.collection('users').updateMany(
+    { role: 'admin', $or: [{ plan: { $ne: 'admin' } }, { credits: { $ne: 0 } }] },
+    { $set: { plan: 'admin', credits: 0 } }
+  );
 }
 
 module.exports = {
   CREDIT_COST,
   FREE_SIGNUP_CREDITS,
-  ADMIN_CREDITS,
   costPerItem,
   costForRun,
   defaultsForNewUser,

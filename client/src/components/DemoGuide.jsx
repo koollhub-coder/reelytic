@@ -276,21 +276,67 @@ function placeCard(rect, vp, cardH) {
   return { style: bestCorner.style, width: CARD_W };
 }
 
+/*
+  WHEN THE TOUR SHOWS ITSELF (why it feels smooth now)
+
+  The tour used to draw its dim layer and card the instant a step began, and to
+  hunt for its target on a 200ms timer. On a slow phone or connection that meant
+  a dimmed page with a spinner still turning underneath, a highlight that
+  arrived seconds after the card, and dead moments between steps where the
+  screen was dark and empty. It read as cheap because it was showing itself
+  before the app was ready.
+
+  Now what is on screen is always one complete, consistent snapshot: a step, its
+  highlight and its card, all measured against a page that has finished
+  loading and stopped moving. Rules:
+
+    - Nothing is shown while the page is still loading (a loader or skeleton is
+      on screen). The dim layer, card and highlight fade in together once the
+      page has settled. A stuck spinner can hold this back for 8 seconds at
+      most, so it can never hide the tour for good.
+    - Between two steps on the same page the previous snapshot stays put until
+      the next one is measured and steady (a couple of frames), then the
+      highlight glides to its new home and the card swaps. There is never an
+      empty dimmed screen between steps.
+    - Changing page hides the snapshot immediately; the new page's snapshot
+      fades in when it is ready.
+    - Measuring runs every frame until steady instead of every 200ms, so a step
+      lands in tens of milliseconds, not several hundred.
+    - The pages later steps need are fetched quietly in the background as soon
+      as the tour starts, so travelling to them is instant.
+*/
+
+const BUSY_MAX_MS = 8000;   // a spinner that never ends must not hide the tour forever
+const GIVE_UP_MS = 4500;    // target never appeared: show the card docked so it can still be read
+const QUIET_MS = 160;       // the page must stay free of loaders this long: one loader often hands over to the next
+const SETTLE_FRAMES = 2;    // the target must hold still for this many frames before we trust it
+const FOLLOW_MS = 180;      // once shown, how often to re-measure in case the page reflows
+
+// True while any loader or skeleton is on screen, which is how every page in
+// this app says "I am still loading".
+const pageIsBusy = () => !!document.querySelector('.rl-loader-mark, .rl-skel');
+
+const sameRect = (a, b) => (!a && !b) || (!!a && !!b
+  && Math.abs(a.top - b.top) < 1 && Math.abs(a.left - b.left) < 1
+  && Math.abs(a.width - b.width) < 1 && Math.abs(a.height - b.height) < 1);
+
 export function DemoGuide({ username }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [state, setState] = useState(() => readState(username));
-  const [rect, setRect] = useState(null);
-  // Set when a step's target never turned up. Without it, a step whose anchor
-  // is missing waits for a measurement that will never arrive and shows
-  // nothing at all: the dim layer sits there with no card and no way forward,
-  // which is what a free account hit on the share step because the locked
-  // version of that button carried no tour anchor.
-  const [gaveUp, setGaveUp] = useState(false);
+  // The snapshot currently on screen: { step, needsTravel, path, rect, gaveUp }.
+  // Display is driven by this, never by the requested step, so what the person
+  // sees is always internally consistent.
+  const [shown, setShown] = useState(null);
+  const [busy, setBusy] = useState(false);
+  // Set the moment someone presses a "take me there" button, so the tour fades
+  // away with the click instead of lingering over the page it is leaving.
+  const [leaving, setLeaving] = useState(false);
   const [vp, setVp] = useState(() => ({ w: window.innerWidth, h: window.innerHeight }));
   const [cardH, setCardH] = useState(220);
   const cardRef = useRef(null);
   const raised = useRef(null);
+  const lastRing = useRef(null);
 
   const step = state ? state.step : -1;
   const current = step >= 0 && step < STEPS.length ? STEPS[step] : null;
@@ -322,7 +368,7 @@ export function DemoGuide({ username }) {
   const needsTravel = !!current && !onRightPage;
 
   /*
-    What this step is pointing at right now.
+    What the requested step is pointing at right now.
 
     A step has two anchors: the one it highlights once you are on the right
     page, and (optionally) the control that gets you there. Resolving both
@@ -332,6 +378,10 @@ export function DemoGuide({ username }) {
   const activeTarget = current
     ? (needsTravel ? (current.announceTarget || null) : (current.target || null))
     : null;
+
+  const shownStep = shown ? STEPS[shown.step] : null;
+  const rect = shown ? shown.rect : null;
+  const visible = !!shown && !busy && !leaving && shown.path === location.pathname;
 
   // Derived here rather than at render time because the card-measuring layout
   // effect below needs the width in its dependencies, and hooks cannot read a
@@ -364,7 +414,7 @@ export function DemoGuide({ username }) {
     release();
     clearDemoGuide(username);
     setState(null);
-    setRect(null);
+    setShown(null);
     if (back && back !== window.location.pathname + window.location.search) {
       navigate(back);
     } else if (!back) {
@@ -372,12 +422,10 @@ export function DemoGuide({ username }) {
     }
   }, [release, username, state, navigate]);
 
-  // Swap immediately. The new step's card is a fresh element (see its key)
-  // so it plays its own entrance animation, which is what makes the change
-  // read as a transition rather than a jump.
+  // The old snapshot stays on screen until the next one is measured, so this
+  // only records where the person is now; it never blanks the screen.
   const goTo = useCallback((n) => {
     release();
-    setRect(null);
     if (n >= STEPS.length || n < 0) { end(); return; }
     setState((prev) => {
       const next = { ...(prev || {}), step: n };
@@ -402,6 +450,7 @@ export function DemoGuide({ username }) {
     so the two can chase each other and lock the renderer up. Measuring only
     when the content or the viewport actually changed removes the cycle.
   */
+  const shownKey = shown ? `${shown.step}-${shown.needsTravel ? 't' : 'p'}` : '';
   useLayoutEffect(() => {
     const el = cardRef.current;
     if (!el) return;
@@ -411,7 +460,7 @@ export function DemoGuide({ username }) {
     // vertical clamp needs the real height. It is derived from the target and
     // the viewport only, never from cardH, so this cannot feed back on itself.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, needsTravel, isMobile, vp.w, vp.h, cardWidth]);
+  }, [shownKey, isMobile, vp.w, vp.h, cardWidth]);
 
   /*
     Freeze the page for the duration of the tour.
@@ -441,102 +490,174 @@ export function DemoGuide({ username }) {
     };
   }, [current]);
 
-  // Track the target: raise it above the dim layer, scroll it into view once,
-  // and measure it. Polls because the element usually belongs to a page that
-  // is still mounting.
+  /*
+    Warm the pages later steps travel to, so "Show me..." does not also pay for
+    a code download on top of the page's own data.
+
+    Only while a card is on screen and being read, and one file at a time. The
+    first version started them all the moment the tour began, which on a slow
+    connection competed with the page the person was actually waiting for and
+    made things slower, not faster. These are the same modules App.jsx
+    lazy-loads, so this only warms the cache.
+  */
+  // Lets the rest of the app (the help bubble) stay out of the way while the
+  // tour is on screen.
+  const touring = !!current;
   useEffect(() => {
-    if (!current) return undefined;
-    // Fresh step, fresh chance to find its anchor.
-    setGaveUp(false);
+    if (!touring) return undefined;
+    document.documentElement.setAttribute('data-tour-active', '');
+    return () => document.documentElement.removeAttribute('data-tour-active');
+  }, [touring]);
 
-    // Nothing to point at (the closing step, or a travel card with no anchor
-    // of its own): no measuring to wait for, so show it straight away.
-    if (!activeTarget) {
-      setRect(null);
-      return undefined;
-    }
-
-    /*
-      Measure on a plain interval, and nothing else.
-
-      An earlier version also tracked, in component state, whether the card
-      was allowed to be visible yet, and drove that from these measurements.
-      Placement depends on the card, the card depends on the measurement, and
-      the two chased each other every frame: transitions restarted from zero
-      forever and the main thread never settled, so the card stayed invisible
-      and the page locked up. The reveal is a CSS animation now (see the
-      card's key and rl-tour-pop) and this loop only reports geometry.
-    */
-    let scrolls = 0;
-    const tick = () => {
-      const el = document.querySelector(activeTarget);
-      if (el) {
-        if (raised.current !== el) {
-          release();
-          el.classList.add('rl-tour-raised');
-          raised.current = el;
-        }
-        const r = el.getBoundingClientRect();
-        const tall = r.height >= window.innerHeight * 0.8;
-        /*
-          Scroll with a purpose, rather than just centring the target.
-
-          Centring looks tidy but spends the whole viewport on the target,
-          which on a laptop-height window left no room above or below for the
-          card and forced it to overlap the very thing it points at. So we
-          work out the highest position that still leaves a card-sized gap
-          underneath, and put the target there: as close to centred as we can
-          afford, and no lower.
-        */
-        // Up to two corrections per step. One is not always enough: a page
-        // that finishes loading its data after we have scrolled re-renders and
-        // drops the scroll position back to the top, leaving the target parked
-        // off screen. Two is enough to recover from that, and bounded so the
-        // loop can never fight the page.
-        const done = scrolls;
-        if (done < 2) {
-          const headroom = isMobileRef.current ? 68 : EDGE;
-          const latest = window.innerHeight - BAR - cardHRef.current - GAP - r.height;
-          // A target taller than the screen can never be framed, but it still
-          // has to be brought into view: skipping the scroll entirely left the
-          // Settings branding card sitting below the fold, highlighted and
-          // completely invisible.
-          const wantTop = (!tall && latest >= headroom)
-            ? Math.min(Math.max(headroom, (window.innerHeight - r.height) / 2), latest)
-            : headroom;
-          const delta = r.top - wantTop;
-          // The follow-up correction uses a slacker threshold so normal
-          // settling never counts as drift worth re-scrolling for.
-          if (Math.abs(delta) > (done === 0 ? 4 : 24)) {
-            scrolls += 1;
-            // Instant, not smooth. The card and ring are positioned from this
-            // measurement, so animating the page underneath them means every
-            // frame is measured against a position that has already moved on.
-            // We jump the page before the step is ever shown, so there is
-            // nothing to see mid-flight anyway.
-            window.scrollBy(0, delta);
-            return;
-          }
-        }
-        setRect((prev) => {
-          if (prev && Math.abs(prev.top - r.top) < 1 && Math.abs(prev.left - r.left) < 1
-            && Math.abs(prev.width - r.width) < 1 && Math.abs(prev.height - r.height) < 1) return prev;
-          return { top: r.top, left: r.left, width: r.width, height: r.height };
-        });
+  const reading = visible;
+  useEffect(() => {
+    if (!reading) return undefined;
+    let cancelled = false;
+    const loaders = [
+      () => import('../pages/ReportEngine'),
+      () => import('../pages/BrandedReport'),
+      () => import('../pages/Settings'),
+      () => import('../pages/Creators'),
+      () => import('../pages/History'),
+    ];
+    const run = async () => {
+      for (const load of loaders) {
+        if (cancelled) return;
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise((res) => window.setTimeout(res, 600));
+        if (cancelled) return;
+        // eslint-disable-next-line no-await-in-loop
+        try { await load(); } catch (e) { /* the real navigation will retry */ }
       }
     };
-    tick();
-    const poll = window.setInterval(tick, 200);
-    // Safety net: if the anchor has not appeared by now it is not going to.
-    // Show the card docked so the step can still be read and, crucially, so
-    // Next and End tour are still reachable.
-    const giveUp = window.setTimeout(() => setGaveUp(true), 2500);
+    run();
+    return () => { cancelled = true; };
+  }, [reading]);
+
+  /*
+    The measuring loop, and the only thing that ever puts a snapshot on screen.
+
+    Runs every animation frame until the target has held still for a couple of
+    frames, then commits. After that it keeps watching at a relaxed pace so a
+    page that reflows late (data arriving, fonts settling) carries the
+    highlight with it instead of leaving it behind.
+  */
+  useEffect(() => {
+    if (!current) return undefined;
+    const startedAt = performance.now();
+    let raf = 0;
+    let stopped = false;
+    let scrolls = 0;
+    let held = 0;
+    let lastKey = '';
+    let committed = false;
+    let lastFollow = 0;
+    let lastBusy = startedAt - QUIET_MS;   // not loading at the start means no wait at all
+    const path = location.pathname;
+
+    const commit = (r, gaveUp) => {
+      committed = true;
+      setLeaving(false);
+      setShown((prev) => {
+        if (prev && prev.step === step && prev.needsTravel === needsTravel && prev.path === path
+          && sameRect(prev.rect, r) && prev.gaveUp === !!gaveUp) return prev;
+        return { step, needsTravel, path, rect: r, gaveUp: !!gaveUp };
+      });
+    };
+
+    const frame = (now) => {
+      if (stopped) return;
+      if (pageIsBusy() && now - startedAt < BUSY_MAX_MS) lastBusy = now;
+      const loading = now - lastBusy < QUIET_MS;
+      setBusy((b) => (b === loading ? b : loading));
+      if (loading) {
+        held = 0;
+        raf = requestAnimationFrame(frame);
+        return;
+      }
+
+      // Nothing to point at (a closing step, or a travel card with no anchor of
+      // its own): the page has settled, so the card can go straight up.
+      if (!activeTarget) {
+        commit(null, false);
+        return;
+      }
+
+      const el = document.querySelector(activeTarget);
+      if (!el) {
+        if (!committed && now - startedAt > GIVE_UP_MS) commit(null, true);
+        raf = requestAnimationFrame(frame);
+        return;
+      }
+
+      if (raised.current !== el) {
+        release();
+        el.classList.add('rl-tour-raised');
+        raised.current = el;
+      }
+      const r = el.getBoundingClientRect();
+      const tall = r.height >= window.innerHeight * 0.8;
+      /*
+        Scroll with a purpose, rather than just centring the target.
+
+        Centring looks tidy but spends the whole viewport on the target, which
+        on a laptop-height window left no room above or below for the card and
+        forced it to overlap the very thing it points at. So we work out the
+        highest position that still leaves a card-sized gap underneath, and put
+        the target there: as close to centred as we can afford, and no lower.
+
+        Up to two corrections per step. One is not always enough: a page that
+        finishes loading its data after we have scrolled re-renders and drops
+        the scroll position back to the top, leaving the target parked off
+        screen. Two is enough to recover from that, and bounded so the loop can
+        never fight the page.
+      */
+      if (scrolls < 2) {
+        const headroom = isMobileRef.current ? 68 : EDGE;
+        const latest = window.innerHeight - BAR - cardHRef.current - GAP - r.height;
+        // A target taller than the screen can never be framed, but it still has
+        // to be brought into view: skipping the scroll entirely left the
+        // Settings branding card sitting below the fold, highlighted and
+        // completely invisible.
+        const wantTop = (!tall && latest >= headroom)
+          ? Math.min(Math.max(headroom, (window.innerHeight - r.height) / 2), latest)
+          : headroom;
+        const delta = r.top - wantTop;
+        // The follow-up correction uses a slacker threshold so normal settling
+        // never counts as drift worth re-scrolling for.
+        if (Math.abs(delta) > (scrolls === 0 ? 4 : 24)) {
+          scrolls += 1;
+          held = 0;
+          // Instant, not smooth: the card and ring are positioned from this
+          // measurement, so animating the page underneath them would mean every
+          // frame is measured against a position that has already moved on.
+          // The page jumps before the step is ever shown, so nothing is seen.
+          window.scrollBy(0, delta);
+          raf = requestAnimationFrame(frame);
+          return;
+        }
+      }
+
+      const box = { top: r.top, left: r.left, width: r.width, height: r.height };
+      const key = [r.top, r.left, r.width, r.height].map(Math.round).join(',');
+      if (key === lastKey) held += 1; else { held = 0; lastKey = key; }
+
+      if (!committed) {
+        if (held >= SETTLE_FRAMES) commit(box, false);
+      } else if (now - lastFollow > FOLLOW_MS) {
+        lastFollow = now;
+        commit(box, false);
+      }
+      raf = requestAnimationFrame(frame);
+    };
+
+    raf = requestAnimationFrame(frame);
     return () => {
-      window.clearInterval(poll);
-      window.clearTimeout(giveUp);
+      stopped = true;
+      cancelAnimationFrame(raf);
       release();
     };
-  }, [current, activeTarget, release, location.pathname, location.search]);
+  }, [current, activeTarget, step, needsTravel, release, location.pathname, location.search]);
 
   useEffect(() => () => release(), [release]);
 
@@ -547,6 +668,20 @@ export function DemoGuide({ username }) {
     window.addEventListener(TOUR_EVENT, sync);
     return () => window.removeEventListener(TOUR_EVENT, sync);
   }, [username]);
+
+  // Keyboard: Escape leaves, the arrow keys move. Only while the tour is
+  // actually on screen, so it never steals keys from the page underneath.
+  useEffect(() => {
+    if (!current || !visible) return undefined;
+    const onKey = (e) => {
+      if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
+      const tag = (e.target && e.target.tagName) || '';
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (e.key === 'Escape') { end(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [current, visible, end]);
 
   if (!current) return null;
 
@@ -559,24 +694,17 @@ export function DemoGuide({ username }) {
   */
   const tall = !!rect && rect.height > vp.h - EDGE * 2;
   const showRing = !!rect && !tall;
-
-  /*
-    A step that points at something renders nothing until its target has been
-    measured.
-
-    Without this the card painted on its very first frame, before any
-    measurement existed, and with no rect to work from placeCard fell through
-    to the bottom-right dock. A moment later the measurement arrived and the
-    card slid from that corner to where it actually belonged. That drift is
-    the single most amateur thing a guided tour can do, and it was visible on
-    every step. The wait is one measure tick; the card then appears already in
-    the right place and simply fades in.
-  */
-  const awaitingTarget = !!activeTarget && !rect && !gaveUp;
+  // Keep the highlight mounted (faded out) when a step has none, so it does not
+  // blink out abruptly while the dim layer stays.
+  if (showRing) lastRing.current = rect;
+  const ringBox = showRing ? rect : lastRing.current;
 
   const travel = () => {
-    const want = routeFor(current);
-    if (want) navigate(want);
+    const want = routeFor(shownStep);
+    if (want) {
+      if (location.pathname !== want.split('?')[0]) setLeaving(true);
+      navigate(want);
+    }
   };
 
   const progress = (
@@ -620,115 +748,121 @@ export function DemoGuide({ username }) {
     <>
       {/* Dim layer. Swallows every click so the only thing the user can
           interact with is the highlighted control (raised above it) and the
-          tour's own controls. */}
+          tour's own controls. Fades with the rest of the snapshot, and lets
+          clicks through while the page underneath is still loading. */}
       <div
         onClick={(e) => e.stopPropagation()}
         aria-hidden="true"
         style={{
           position: 'fixed', inset: 0, background: 'rgba(6,8,11,0.62)', zIndex: 1290,
+          opacity: visible ? 1 : 0, pointerEvents: visible ? 'auto' : 'none',
+          transition: 'opacity 260ms ease',
         }}
       />
 
-      {showRing && (
+      {ringBox && (
         <div
           aria-hidden="true"
           style={{
             position: 'fixed', zIndex: 1296, pointerEvents: 'none',
-            top: rect.top - 6, left: rect.left - 6,
-            width: rect.width + 12, height: rect.height + 12,
-            borderRadius: 10, boxShadow: '0 0 0 2px var(--accent)',
-            // Animates only while it is tracking the same target; a new step
-            // gets a new key below, so it never slides across the screen.
-            transition: 'top 260ms cubic-bezier(.4,0,.2,1), left 260ms cubic-bezier(.4,0,.2,1), width 260ms cubic-bezier(.4,0,.2,1), height 260ms cubic-bezier(.4,0,.2,1)',
+            top: ringBox.top - 6, left: ringBox.left - 6,
+            width: ringBox.width + 12, height: ringBox.height + 12,
+            borderRadius: 10,
+            boxShadow: '0 0 0 2px var(--accent), 0 0 22px 2px color-mix(in srgb, var(--accent) 35%, transparent)',
+            opacity: visible && showRing ? 1 : 0,
+            // The highlight glides from one target to the next, since it is the
+            // same element across steps on a page; it only fades in and out
+            // when the page changes or loads.
+            transition: 'top 320ms cubic-bezier(.4,0,.2,1), left 320ms cubic-bezier(.4,0,.2,1), width 320ms cubic-bezier(.4,0,.2,1), height 320ms cubic-bezier(.4,0,.2,1), opacity 260ms ease',
           }}
         />
       )}
 
-      {/* The key is what produces the transition between steps: a new step is
-          a new element, so it plays rl-tour-pop on arrival instead of the old
-          card sliding across the screen to its next position. Within a step
-          the element persists, so it eases to a new spot if the page reflows. */}
-      {!awaitingTarget && (
-      <div
-        key={`${step}-${needsTravel ? 'travel' : 'point'}`}
-        ref={cardRef}
-        role="dialog"
-        aria-label={current.title}
-        className="card rl-tour-pop"
-        style={{
-          position: 'fixed', zIndex: 1300,
-          width: isMobile ? 'auto' : cardWidth,
-          maxWidth: isMobile ? 'none' : 'calc(100vw - 32px)',
-          padding: 'var(--s5)', boxShadow: 'var(--shadow-lg)',
-          ...place,
-          /*
-            Position changes apply instantly, deliberately.
+      {/* The outer box carries position and visibility; the inner card carries
+          the arrival animation. They are separate because a finished CSS
+          animation outranks an inline opacity, which would keep a "hidden"
+          card visible. The key gives every step a fresh card, so a new step
+          pops in instead of the old card sliding to its next position. */}
+      {shown && shownStep && (
+        <div
+          style={{
+            position: 'fixed', zIndex: 1300,
+            width: isMobile ? 'auto' : cardWidth,
+            maxWidth: isMobile ? 'none' : 'calc(100vw - 32px)',
+            ...place,
+            opacity: visible ? 1 : 0,
+            pointerEvents: visible ? 'auto' : 'none',
+            // Position changes apply instantly, deliberately: the card's own
+            // height feeds its placement, so the first paint uses an estimated
+            // height and the real one lands a frame later. Eased, that reads as
+            // the card settling after it has arrived; instant, it happens
+            // inside the entrance fade and nobody sees it. Only opacity eases.
+            transition: 'opacity 240ms ease',
+          }}
+        >
+          <div
+            key={shownKey}
+            ref={cardRef}
+            role="dialog"
+            aria-label={shownStep.title}
+            className="card rl-tour-pop"
+            style={{ padding: 'var(--s5)', boxShadow: 'var(--shadow-lg)', transition: 'none' }}
+          >
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.14em', color: 'var(--accent)', marginBottom: 8 }}>
+              {CHAPTERS[shown.step].toUpperCase()}
+            </div>
 
-            The card's own height feeds its placement, so the first paint uses
-            an estimated height and the real one lands a frame later, moving it
-            a few pixels. Eased, that reads as the card settling into place
-            after it has arrived, which is the drifting look we are trying to
-            be rid of; applied instantly it happens inside the entrance fade
-            and nobody sees it. Has to be spelled out rather than simply
-            omitted, because the .card class carries `transition: all` and
-            would otherwise animate the correction anyway.
-          */
-          transition: 'none',
-        }}
-      >
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.14em', color: 'var(--accent)', marginBottom: 8 }}>
-          {CHAPTERS[step].toUpperCase()}
-        </div>
-
-        {needsTravel ? (
-          <>
-            <p style={{ fontSize: 'var(--fs-base)', lineHeight: 1.55, color: 'var(--text)', margin: '0 0 var(--s5)' }}>
-              {/* Fallbacks, not decoration: any step can end up needing travel
-                  if someone navigates away mid-tour, and a step without its
-                  own announce copy used to render a blank card above a blank
-                  button, which reads as the tour having crashed. */}
-              {current.announce || 'This step is on another page. We will take you straight there.'}
-            </p>
-            <button type="button" className="btn btn-primary" style={{ width: '100%', height: 38 }} onClick={travel}>
-              {current.announceCta || 'Take me there'}
-            </button>
-          </>
-        ) : (
-          <>
-            <div style={{ fontWeight: 700, fontSize: 'var(--fs-md)', marginBottom: 6 }}>{current.title}</div>
-            <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-2)', lineHeight: 1.55, margin: '0 0 var(--s4)' }}>
-              {current.body}
-            </p>
-            {current.hint && (
-              <p style={{ fontSize: 'var(--fs-xs)', color: 'var(--accent)', margin: '0 0 var(--s4)' }}>{current.hint}</p>
+            {shown.needsTravel ? (
+              <>
+                <p style={{ fontSize: 'var(--fs-base)', lineHeight: 1.55, color: 'var(--text)', margin: '0 0 var(--s5)' }}>
+                  {/* Fallbacks, not decoration: any step can end up needing
+                      travel if someone navigates away mid-tour, and a step
+                      without its own announce copy used to render a blank card
+                      above a blank button, which reads as the tour crashing. */}
+                  {shownStep.announce || 'This step is on another page. We will take you straight there.'}
+                </p>
+                <button type="button" className="btn btn-primary" style={{ width: '100%', height: 38 }} onClick={travel}>
+                  {shownStep.announceCta || 'Take me there'}
+                </button>
+              </>
+            ) : (
+              <>
+                <div style={{ fontWeight: 700, fontSize: 'var(--fs-md)', marginBottom: 6 }}>{shownStep.title}</div>
+                <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-2)', lineHeight: 1.55, margin: '0 0 var(--s4)' }}>
+                  {shownStep.body}
+                </p>
+                {shownStep.hint && (
+                  <p style={{ fontSize: 'var(--fs-xs)', color: 'var(--accent)', margin: '0 0 var(--s4)' }}>{shownStep.hint}</p>
+                )}
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  style={{ width: '100%', height: 38 }}
+                  onClick={() => (shownStep.final ? end() : goTo(shown.step + 1))}
+                >
+                  {shownStep.final ? 'Finish' : 'Next'}
+                </button>
+              </>
             )}
-            <button
-              type="button"
-              className="btn btn-primary"
-              style={{ width: '100%', height: 38 }}
-              onClick={() => (current.final ? end() : goTo(step + 1))}
-            >
-              {current.final ? 'Finish' : 'Next'}
-            </button>
-          </>
-        )}
 
-        {/* On a phone the floating bar would collide with the card, so the
-            same position and controls live inside it instead. */}
-        {isMobile && (
-          <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--s3)',
-            marginTop: 'var(--s4)', paddingTop: 'var(--s3)', borderTop: '1px solid var(--border)',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s3)', minWidth: 0 }}>{progress}</div>
-            {controls}
+            {/* On a phone the floating bar would collide with the card, so the
+                same position and controls live inside it instead. */}
+            {isMobile && (
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--s3)',
+                marginTop: 'var(--s4)', paddingTop: 'var(--s3)', borderTop: '1px solid var(--border)',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s3)', minWidth: 0 }}>{progress}</div>
+                {controls}
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </div>
       )}
 
       {/* The desktop tour bar. Always on screen for the whole run: position,
-          and a way out that works on the very first click. */}
+          and a way out that works on the very first click, even while the page
+          underneath is still loading. */}
       {!isMobile && (
         <div
           style={{

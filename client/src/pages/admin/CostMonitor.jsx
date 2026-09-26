@@ -4,6 +4,7 @@ import { useToast } from '../../context/ToastContext';
 import { BrandLoader } from '../../components/BrandLoader';
 import { PipelineModeBanner } from '../../components/PipelineModeBanner';
 import { Tooltip } from '../../components/Tooltip';
+import { DataTable } from '../../components/DataTable';
 
 const REFRESH_MS = 60000;
 
@@ -139,27 +140,21 @@ export function CostMonitor() {
                     <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 700 }}>Per-step rates</h3>
                     {!editModel && <button type="button" className="btn btn-secondary" onClick={startEdit}>Edit baselines</button>}
                 </div>
-                <div className="rl-table-scroll"><table className="data-table">
-                    <thead>
-                        <tr>
-                            <th>Scan step</th>
-                            <th>Unit</th>
-                            <th className="numeric">Baseline</th>
-                            <th className="numeric">Live avg (this cycle)</th>
-                            <th>Worked out from</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {data.actors.map((a) => {
-                            const drift = a.liveAvgUsd != null && a.baselineUsd > 0
-                                ? ((a.liveAvgUsd - a.baselineUsd) / a.baselineUsd) * 100
-                                : null;
-                            return (
-                                <tr key={a.id}>
-                                    <td style={{ fontWeight: 600 }}>{a.label}</td>
-                                    <td style={{ color: 'var(--text-2)' }}>{a.unit}</td>
-                                    <td className="numeric mono">{fromUsd(a.baselineUsd)}</td>
-                                    <td className="numeric mono">
+                <DataTable
+                    id="admin-cost-steps"
+                    bare
+                    rows={data.actors}
+                    getRowId={(a) => a.id}
+                    columns={[
+                        { key: 'label', label: 'Scan step', type: 'text', accessor: (a) => a.label, render: (a) => <span style={{ fontWeight: 600 }}>{a.label}</span> },
+                        { key: 'unit', label: 'Unit', type: 'select', accessor: (a) => a.unit, render: (a) => <span style={{ color: 'var(--text-2)' }}>{a.unit}</span> },
+                        { key: 'baseline', label: 'Baseline', type: 'number', align: 'right', mono: true, accessor: (a) => a.baselineUsd, render: (a) => fromUsd(a.baselineUsd) },
+                        {
+                            key: 'live', label: 'Live avg (this cycle)', type: 'number', align: 'right', mono: true, accessor: (a) => a.liveAvgUsd,
+                            render: (a) => {
+                                const drift = a.liveAvgUsd != null && a.baselineUsd > 0 ? ((a.liveAvgUsd - a.baselineUsd) / a.baselineUsd) * 100 : null;
+                                return (
+                                    <>
                                         {a.liveAvgUsd != null
                                             ? fromUsd(a.liveAvgUsd)
                                             : (
@@ -174,20 +169,22 @@ export function CostMonitor() {
                                                 {drift > 0 ? '▲' : '▼'} {Math.abs(drift).toFixed(0)}%
                                             </span>
                                         )}
-                                    </td>
-                                    {/* Showing the working. A live rate is only trustworthy if
-                                        you can see what it was divided by, and this is exactly
-                                        where the old per-run/per-item mismatch hid. */}
-                                    <td style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>
-                                        {a.liveAvgUsd != null
-                                            ? `${fromUsd(a.liveSpendUsd, 2)} over ${a.liveUnits.toLocaleString()} ${a.unit.replace('per ', '')}${a.liveUnits === 1 ? '' : 's'}`
-                                            : '-'}
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table></div>
+                                    </>
+                                );
+                            },
+                        },
+                        {
+                            key: 'from', label: 'Worked out from', sortable: false, filterable: false,
+                            render: (a) => (
+                                <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>
+                                    {a.liveAvgUsd != null
+                                        ? `${fromUsd(a.liveSpendUsd, 2)} over ${a.liveUnits.toLocaleString()} ${a.unit.replace('per ', '')}${a.liveUnits === 1 ? '' : 's'}`
+                                        : '-'}
+                                </span>
+                            ),
+                        },
+                    ]}
+                />
                 {data.liveCoverage != null && data.liveCoverage < 0.6 && (
                     <div style={{ marginTop: 'var(--s3)', padding: 'var(--s3) var(--s4)', background: 'var(--surface-2)', borderRadius: 'var(--r-md)', fontSize: 'var(--fs-xs)', color: 'var(--text-2)', lineHeight: 1.6 }}>
                         <strong style={{ color: 'var(--text)' }}>Live per-step rates are not measurable this cycle.</strong>{' '}
@@ -242,42 +239,29 @@ export function CostMonitor() {
                 <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)', marginBottom: 'var(--s4)' }}>
                     Best case = user spends all credits on reels. Worst case = all on profiles (costs more). A plan is healthy if even the worst case clears 40% margin.
                 </p>
-                <div className="rl-table-scroll"><table className="data-table">
-                    <thead>
-                        <tr>
-                            <th>Plan</th>
-                            <th className="numeric">Price</th>
-                            <th className="numeric">Worst-case cost</th>
-                            <th className="numeric">Worst-case margin</th>
-                            <th className="numeric">Best-case margin</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {data.planMargins.map((p) => (
-                            <tr key={p.id}>
-                                <td style={{ fontWeight: 600 }}>{p.name}</td>
-                                <td className="numeric mono">{fromInr(p.priceInr)}</td>
-                                <td className="numeric mono">{fromInr(p.worstCaseCostInr)}</td>
-                                <td className="numeric mono" style={{ fontWeight: 700, color: p.worstCaseMarginPct >= 40 ? 'var(--ok)' : p.worstCaseMarginPct >= 0 ? 'var(--warn)' : 'var(--err)' }}>
-                                    {p.worstCaseMarginPct != null ? `${p.worstCaseMarginPct}%` : '-'}
-                                </td>
-                                <td className="numeric mono" style={{ color: 'var(--text-2)' }}>{p.bestCaseMarginPct != null ? `${p.bestCaseMarginPct}%` : '-'}</td>
-                                <td>
-                                    {p.worstCaseMarginPct == null ? (
-                                        <span className="chip">-</span>
-                                    ) : p.worstCaseMarginPct >= 40 ? (
-                                        <span className="chip ok">Healthy</span>
-                                    ) : p.worstCaseMarginPct >= 0 ? (
-                                        <span className="chip warn">Thin</span>
-                                    ) : (
-                                        <span className="chip err">Losing money</span>
-                                    )}
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table></div>
+                <DataTable
+                    id="admin-cost-plans"
+                    bare
+                    rows={data.planMargins}
+                    getRowId={(p) => p.id}
+                    columns={[
+                        { key: 'name', label: 'Plan', type: 'text', accessor: (p) => p.name, render: (p) => <span style={{ fontWeight: 600 }}>{p.name}</span> },
+                        { key: 'price', label: 'Price', type: 'number', align: 'right', mono: true, accessor: (p) => p.priceInr, render: (p) => fromInr(p.priceInr) },
+                        { key: 'worstCost', label: 'Worst-case cost', type: 'number', align: 'right', mono: true, accessor: (p) => p.worstCaseCostInr, render: (p) => fromInr(p.worstCaseCostInr) },
+                        { key: 'worst', label: 'Worst-case margin', type: 'number', align: 'right', mono: true, accessor: (p) => p.worstCaseMarginPct, render: (p) => (
+                            <span style={{ fontWeight: 700, color: p.worstCaseMarginPct >= 40 ? 'var(--ok)' : p.worstCaseMarginPct >= 0 ? 'var(--warn)' : 'var(--err)' }}>
+                                {p.worstCaseMarginPct != null ? `${p.worstCaseMarginPct}%` : '-'}
+                            </span>
+                        ) },
+                        { key: 'best', label: 'Best-case margin', type: 'number', align: 'right', mono: true, accessor: (p) => p.bestCaseMarginPct, render: (p) => <span style={{ color: 'var(--text-2)' }}>{p.bestCaseMarginPct != null ? `${p.bestCaseMarginPct}%` : '-'}</span> },
+                        { key: 'status', label: 'Status', type: 'select', accessor: (p) => (p.worstCaseMarginPct == null ? 'unknown' : p.worstCaseMarginPct >= 40 ? 'healthy' : p.worstCaseMarginPct >= 0 ? 'thin' : 'losing'), optionLabel: (v) => ({ healthy: 'Healthy', thin: 'Thin', losing: 'Losing money', unknown: '-' }[v]), render: (p) => (
+                            p.worstCaseMarginPct == null ? <span className="chip">-</span>
+                                : p.worstCaseMarginPct >= 40 ? <span className="chip ok">Healthy</span>
+                                    : p.worstCaseMarginPct >= 0 ? <span className="chip warn">Thin</span>
+                                        : <span className="chip err">Losing money</span>
+                        ) },
+                    ]}
+                />
             </div>
         </div>
     );

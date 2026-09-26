@@ -1,86 +1,51 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../../api/client';
-import { BrandLoader } from '../../components/BrandLoader';
-import { formatDate, formatDateTime, formatDayKey } from '../../utils/date';
-import { TableSkeleton } from '../../components/TableSkeleton';
+import { DataTable } from '../../components/DataTable';
+import { formatDateTime } from '../../utils/date';
 
-const PAGE_SIZE = 50;
+// The newest entries, filtered and paged in the browser with the same table
+// every other screen uses. The full history stays in the database.
+const LOAD_LIMIT = 1000;
 
 export function SessionsLog() {
   const [sessions, setSessions] = useState([]);
   const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
-
-  const fetchSessions = (targetPage = 1) => {
-    setLoading(true);
-    apiFetch(`/admin/sessions?page=${targetPage}&limit=${PAGE_SIZE}`)
-      .then(res => {
-        setSessions(res.sessions || []);
-        setTotal(res.total || 0);
-        setPage(res.page || targetPage);
-      })
-      .catch(() => { })
-      .finally(() => setLoading(false));
-  };
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
-    fetchSessions(1);
+    apiFetch(`/admin/sessions?page=1&limit=${LOAD_LIMIT}`)
+      .then((res) => { setSessions(res.sessions || []); setTotal(res.total || 0); })
+      .catch(() => { })
+      .finally(() => setLoading(false));
   }, []);
 
-  const totalPages = Math.ceil(total / PAGE_SIZE) || 1;
+  const columns = [
+    { key: 'at', label: 'Timestamp', type: 'date', mono: true, accessor: (s) => s.at, render: (s) => <span style={{ color: 'var(--text-3)' }}>{formatDateTime(s.at)}</span> },
+    { key: 'username', label: 'Username', type: 'select', accessor: (s) => s.username, render: (s) => <span style={{ fontWeight: 600 }}>{s.username}</span> },
+    { key: 'ip', label: 'IP address', type: 'text', mono: true, accessor: (s) => s.ip || '' },
+    { key: 'userAgent', label: 'Device', type: 'text', accessor: (s) => s.userAgent || '', render: (s) => <span className="rl-clip" title={s.userAgent} style={{ color: 'var(--text-2)', maxWidth: 380 }}>{s.userAgent}</span> },
+    { key: 'success', label: 'Status', type: 'select', accessor: (s) => (s.success ? 'success' : 'failed'), optionLabel: (v) => (v === 'success' ? 'Success' : 'Failed'), render: (s) => <span className={`chip ${s.success ? 'ok' : 'err'}`}>{s.success ? 'Success' : 'Failed'}</span> },
+  ];
 
   return (
     <div>
-      <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-2xl)', fontWeight: 700, marginBottom: 'var(--s6)' }}>Sessions & Login Log</h1>
-
-      {(
-        <>
-          <div className="data-table-container" style={{ marginBottom: 'var(--s4)' }}>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Timestamp</th>
-                  <th>Username</th>
-                  <th>IP Address</th>
-                  <th>User Agent / Device</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              {loading ? <TableSkeleton rows={10} columns={5} label="Loading sessions" /> : (
-              <tbody>
-                {sessions.map((s, i) => (
-                  <tr key={i}>
-                    <td className="mono" style={{ color: 'var(--text-3)' }}>{formatDateTime(s.at)}</td>
-                    <td style={{ fontWeight: 600 }}>{s.username}</td>
-                    <td className="mono">{s.ip}</td>
-                    <td style={{ color: 'var(--text-2)' }}>{s.userAgent}</td>
-                    <td>
-                      <span className={`chip ${s.success ? 'ok' : 'err'}`}>
-                        {s.success ? 'Success' : 'Failed'}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              )}
-            </table>
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontFamily: 'var(--font-data)', fontSize: 'var(--fs-sm)', color: 'var(--text-2)' }}>
-              Showing {sessions.length} of {total.toLocaleString()} entries
-            </div>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button className="btn btn-secondary" disabled={page <= 1} onClick={() => fetchSessions(page - 1)}>Previous</button>
-              <span style={{ display: 'flex', alignItems: 'center', padding: '0 8px', fontSize: 'var(--fs-sm)', fontFamily: 'var(--font-data)' }}>
-                Page {page} of {totalPages}
-              </span>
-              <button className="btn btn-secondary" disabled={page >= totalPages} onClick={() => fetchSessions(page + 1)}>Next</button>
-            </div>
-          </div>
-        </>
-      )}
+      <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-2xl)', fontWeight: 700, marginBottom: 'var(--s2)' }}>Sessions &amp; Login Log</h1>
+      <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)', marginBottom: 'var(--s5)' }}>
+        Every sign-in attempt. {total > LOAD_LIMIT ? `Showing the newest ${LOAD_LIMIT.toLocaleString()} of ${total.toLocaleString()}.` : `${total.toLocaleString()} entries.`}
+      </p>
+      <DataTable
+        id="admin-sessions"
+        loading={loading}
+        columns={columns}
+        rows={sessions}
+        getRowId={(s) => String(s._id)}
+        defaultSort={{ key: 'at', dir: 'desc' }}
+        emptyTitle="No sign-ins recorded yet"
+        search={search}
+        searchText={(s) => `${s.username} ${s.ip || ''} ${s.userAgent || ''}`}
+        toolbar={<input type="text" className="input-field" style={{ height: 34, width: 280 }} placeholder="Search user, IP or device" value={search} onChange={(e) => setSearch(e.target.value)} />}
+      />
     </div>
   );
 }

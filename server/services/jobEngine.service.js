@@ -35,7 +35,7 @@ async function startJob(jobId) {
   // Only stamp startedAt on the very first start -- resuming from pause must
   // not reset the clock, so "processing time" on completion reflects the
   // whole run, not just the time since the last resume.
-  const update = { status: 'running', pausedReason: null };
+  const update = { status: 'running', pausedReason: null, pausedAt: null };
   if (!job.startedAt) {
     update.startedAt = new Date();
     /*
@@ -53,7 +53,7 @@ async function startJob(jobId) {
   loopBusy.add(String(jobId));
   processJobLoop(jobId).catch(err => {
     console.error(`[JobEngine] Error in job ${jobId}:`, err);
-    jobsColl.updateOne({ _id: queryId(jobId) }, { $set: { status: 'paused', pausedReason: 'error' } }).catch(() => { });
+    jobsColl.updateOne({ _id: queryId(jobId) }, { $set: { status: 'paused', pausedReason: 'error', pausedAt: new Date() } }).catch(() => { });
     activeJobs.delete(jobId);
   }).finally(() => loopBusy.delete(String(jobId)));
 }
@@ -63,7 +63,7 @@ async function pauseJob(jobId) {
   if (ctrl) ctrl.abort = true;
   activeJobs.delete(jobId);
   const db = getDb();
-  await db.collection('jobs').updateOne({ _id: queryId(jobId) }, { $set: { status: 'paused', pausedReason: 'user-paused' } });
+  await db.collection('jobs').updateOne({ _id: queryId(jobId) }, { $set: { status: 'paused', pausedReason: 'user-paused', pausedAt: new Date() } });
 }
 
 /*

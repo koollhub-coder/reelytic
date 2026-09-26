@@ -35,8 +35,12 @@ async function resolveOwnerMaxSeats(ownerUser) {
   // Admin/unlimited accounts (no matching plan row) get an effectively
   // unlimited seat count rather than the default of 1 -- 1 would otherwise
   // lock an admin-provisioned "unlimited" account out of using this at all.
-  if (ownerUser.role === 'admin' || ownerUser.plan === 'unlimited') return 999;
-  return (plan && typeof plan.maxTeamSeats === 'number') ? plan.maxTeamSeats : 1;
+  if (ownerUser.role === 'admin') return 1;
+  const planSeats = (plan && typeof plan.maxTeamSeats === 'number') ? plan.maxTeamSeats : 1;
+  // An admin switching Team seats on for one account (to try it out) must get
+  // a usable team even when that plan has no seats of its own.
+  const forced = ownerUser.featureOverrides && ownerUser.featureOverrides.teamSeats === true;
+  return forced ? Math.max(planSeats, 5) : planSeats;
 }
 
 function requireOwner(req, res) {
@@ -103,6 +107,11 @@ router.get('/', requireLogin, requireChangePasswordCheck, async (req, res, next)
 router.post('/invite', requireLogin, requireChangePasswordCheck, async (req, res, next) => {
   try {
     if (!requireOwner(req, res)) return;
+    // Members of an admin would inherit the admin's unlimited pool, which is real
+    // spend. Admins provision separate client accounts instead.
+    if (req.currentUser.role === 'admin') {
+      return res.status(403).json({ error: 'Admin accounts do not have team seats. Create a separate client account for anyone who needs access.', code: 'ADMIN_NO_TEAM' });
+    }
     if (!(await hasFeature(req.currentUser, 'teamSeats'))) {
       return res.status(403).json({ error: 'Team seats aren\'t available on your current plan. Upgrade to invite teammates.', code: 'FEATURE_LOCKED' });
     }
@@ -212,6 +221,10 @@ router.get('/invite/:token', async (req, res, next) => {
     const db = getDb();
     const invite = await db.collection('teamInvites').findOne({ token: req.params.token, status: 'pending' });
     if (!invite || new Date(invite.expiresAt).getTime() <= Date.now()) {
+      return res.status(400).json({ error: 'This invite is invalid or has expired.' });
+    }
+    const inviteOwner = await db.collection('users').findOne({ username: invite.teamOwnerUsername });
+    if (!inviteOwner || inviteOwner.role === 'admin') {
       return res.status(400).json({ error: 'This invite is invalid or has expired.' });
     }
     const owner = await db.collection('users').findOne({ username: invite.teamOwnerUsername });

@@ -147,10 +147,19 @@ router.get('/campaigns/:token', viewLimiter, async (req, res, next) => {
       { $inc: { portalViews: 1 }, $set: { portalLastViewedAt: new Date() } }
     ).catch(() => {});
 
+    jobs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     let totalViews = 0;
     let weightedErSum = 0;
     const rows = [];
-    for (const job of jobs) {
+    // One summary line per report, so a client can tell which report each
+    // creator came from and how each report performed on its own. The key is
+    // just the report's position in this response, never a database id.
+    const reports = [];
+    jobs.forEach((job, idx) => {
+      const key = String(idx + 1);
+      let jobViews = 0;
+      let jobEr = 0;
+      let jobCount = 0;
       for (const row of job.rows || []) {
         const slim = slimRow(row);
         if (!slim) continue;
@@ -158,9 +167,21 @@ router.get('/campaigns/:token', viewLimiter, async (req, res, next) => {
         const er = Number(slim.result.er ?? slim.result.avgEr ?? 0);
         totalViews += views;
         weightedErSum += er * views;
-        rows.push({ ...slim, reportName: job.fileName || null, reportType: job.type, addedAt: job.createdAt });
+        jobViews += views;
+        jobEr += er * views;
+        jobCount += 1;
+        rows.push({ ...slim, reportKey: key, reportName: job.fileName || null, reportType: job.type, addedAt: job.createdAt });
       }
-    }
+      reports.push({
+        key,
+        name: job.fileName || null,
+        type: job.type,
+        addedAt: job.createdAt,
+        creators: jobCount,
+        totalViews: jobViews,
+        avgEr: jobViews > 0 ? Math.round((jobEr / jobViews) * 100) / 100 : null,
+      });
+    });
     // Newest report's rows first, so a client re-opening a living link sees
     // whatever was most recently added at the top rather than buried below
     // an ever-growing older campaign history.
@@ -174,6 +195,7 @@ router.get('/campaigns/:token', viewLimiter, async (req, res, next) => {
         totalViews,
         avgEr: totalViews > 0 ? Math.round((weightedErSum / totalViews) * 100) / 100 : null,
       },
+      reports,
       rows,
       branding: branding || {},
     });

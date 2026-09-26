@@ -102,7 +102,7 @@ export function EditSheetDialog({ isOpen, onClose, jobId, started, onApplied }) 
   };
 
   const skipped = review ? review.duplicates + review.alreadyInReport : 0;
-  const balance = user?.plan === 'unlimited' ? null : (user?.credits ?? 0);
+  const balance = user?.credits ?? 0;
   const short = review && balance != null && review.creditsNeeded > balance;
 
   return (

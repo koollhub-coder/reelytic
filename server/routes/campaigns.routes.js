@@ -118,7 +118,8 @@ router.post('/', requireLogin, requireChangePasswordCheck, async (req, res, next
 
     let avatarUrl = null;
     try {
-      avatarUrl = validateAvatarDataUri(req.body && req.body.avatarUrl);
+      // A campaign made without a picture (the API, or a client that omits the field) is fine.
+      avatarUrl = validateAvatarDataUri(req.body && req.body.avatarUrl !== undefined ? req.body.avatarUrl : null);
     } catch (err) {
       return res.status(400).json({ error: err.message });
     }

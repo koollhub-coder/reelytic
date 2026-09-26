@@ -43,6 +43,9 @@ function dedupeHeaders(headers) {
   });
 }
 
+const LINK_RE = /instagram\.com|instagr\.am/i;
+const firstRowHasLink = (values) => values.some((v) => LINK_RE.test(cellToString(v)));
+
 async function parseSpreadsheetBuffer(buffer, filename, type = 'reel') {
   const ext = filename.split('.').pop().toLowerCase();
   let rawRows = [];
@@ -57,10 +60,17 @@ async function parseSpreadsheetBuffer(buffer, filename, type = 'reel') {
     let headers = [];
     worksheet.eachRow((row, rowNumber) => {
       const values = row.values.slice(1);
-      if (rowNumber === 1) {
+      if (rowNumber === 1 && !firstRowHasLink(values)) {
         headers = dedupeHeaders(values.map(v => cellToString(v).trim()));
         originalColumns = headers.map(h => ({ name: h, renamedTo: h }));
       } else {
+        if (rowNumber === 1) {
+          // No header row: the first line is already a link. Treating it as
+          // a heading silently dropped that link from the report, so give the
+          // link column a name and keep the row as data.
+          headers = dedupeHeaders(values.map((v) => (LINK_RE.test(cellToString(v)) ? 'URL' : '')));
+          originalColumns = headers.map(h => ({ name: h, renamedTo: h }));
+        }
         const rowObj = {};
         headers.forEach((h, idx) => {
           rowObj[h] = values[idx] !== undefined ? cellToString(values[idx]) : '';

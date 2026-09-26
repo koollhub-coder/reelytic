@@ -769,7 +769,7 @@ router.get('/:id/progress', requireLogin, requireChangePasswordCheck, async (req
 */
 router.post('/demo', requireLogin, requireChangePasswordCheck, async (req, res, next) => {
   try {
-    const job = await getOrCreateDemoJob(req.currentUser.username);
+    const job = await getOrCreateDemoJob(req.currentUser.effectiveUsername);
     res.json({ jobId: String(job._id), isDemo: true });
   } catch (err) {
     next(err);
@@ -780,7 +780,7 @@ router.post('/demo', requireLogin, requireChangePasswordCheck, async (req, res, 
 // does not sit in History forever pretending to be real work.
 router.delete('/demo', requireLogin, requireChangePasswordCheck, async (req, res, next) => {
   try {
-    await deleteDemoJob(req.currentUser.username);
+    await deleteDemoJob(req.currentUser.effectiveUsername);
     res.json({ success: true });
   } catch (err) {
     next(err);

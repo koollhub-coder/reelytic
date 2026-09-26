@@ -1057,3 +1057,192 @@ textarea.input-field {
 }
 .rl-upload-paste-name::placeholder { color: var(--text-3); }
 .rl-upload-paste-name:focus { outline: none; border-bottom-color: var(--accent); }
+
+/* ------------------------------------------------------------------
+   Shared table pieces (DataTable.jsx, RowMenu.jsx) and page headers.
+   ------------------------------------------------------------------ */
+
+.rl-page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--s3) var(--s5);
+  margin-bottom: var(--s5);
+}
+.rl-page-head h1 { font-family: var(--font-display); font-size: var(--fs-xl); font-weight: 700; line-height: 1.2; }
+.rl-page-head p { color: var(--text-2); font-size: var(--fs-sm); margin-top: 4px; }
+.rl-page-head-actions { display: flex; gap: var(--s2); flex-wrap: wrap; }
+
+/* Underline tabs: quieter than a filled segmented control. */
+.rl-tabs { display: flex; gap: var(--s5); border-bottom: 1px solid var(--border); }
+.rl-tab {
+  position: relative;
+  padding: 10px 2px 12px;
+  background: none;
+  border: 0;
+  color: var(--text-2);
+  font: 600 var(--fs-base) var(--font-body);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: color var(--t-fast);
+}
+.rl-tab:hover { color: var(--text); }
+.rl-tab.on { color: var(--text); }
+.rl-tab.on::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--accent); border-radius: 2px; }
+.rl-tab-count {
+  font: 600 var(--fs-xs) var(--font-data);
+  padding: 2px 7px;
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  color: var(--text-2);
+}
+.rl-tab.on .rl-tab-count { background: var(--accent-soft); color: var(--accent); }
+.rl-toolbar { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--s4); flex-wrap: wrap; margin-bottom: var(--s4); }
+.rl-toolbar .rl-tabs { flex: 1 1 auto; min-width: 200px; }
+.rl-search { position: relative; flex: 0 1 300px; min-width: 200px; margin-bottom: 6px; }
+.rl-search svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--text-3); pointer-events: none; }
+.rl-search input { width: 100%; height: 36px; padding-left: 34px; font-size: var(--fs-sm); }
+
+/* Table cells: one calm height, everything vertically centred. */
+.rl-dt-table td { vertical-align: middle; }
+.rl-dt-mobilebar { margin-bottom: var(--s3); }
+.rl-cell-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 300px; }
+.rl-cell-sub { font-size: var(--fs-xs); color: var(--text-3); margin-top: 2px; white-space: nowrap; }
+
+/* Row actions: primary button and menu always occupy the same slots, so the
+   buttons line up down the whole column whether or not a row has a menu. */
+.rl-actions { display: inline-flex; align-items: center; justify-content: flex-end; gap: 6px; }
+.rl-actions .rl-actions-primary { height: 32px; min-width: 84px; padding: 0 12px; font-size: var(--fs-sm); }
+.rl-actions-slot { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; }
+.rl-rowmenu-btn {
+  width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: 1px solid var(--border); border-radius: var(--r-sm);
+  color: var(--text-2); cursor: pointer;
+  transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+}
+.rl-rowmenu-btn:hover, .rl-rowmenu-btn[aria-expanded="true"] { background: var(--surface-2); border-color: var(--border-strong); color: var(--text); }
+.rl-rowmenu-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.rl-rowmenu {
+  position: fixed;
+  z-index: 1250;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-lg);
+  text-align: left;
+  animation: rl-rowmenu-in 120ms ease-out both;
+}
+@keyframes rl-rowmenu-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.rl-rowmenu-item {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 9px 10px; border: 0; border-radius: var(--r-sm);
+  background: transparent; color: var(--text);
+  font: 500 var(--fs-sm) var(--font-body); text-align: left; text-decoration: none; cursor: pointer;
+}
+.rl-rowmenu-item svg { color: var(--text-3); }
+.rl-rowmenu-item:hover, .rl-rowmenu-item:focus-visible { background: var(--surface-2); outline: none; }
+.rl-rowmenu-item.danger { color: var(--err); }
+.rl-rowmenu-item.danger svg { color: var(--err); }
+.rl-rowmenu-item.danger:hover { background: var(--err-soft); }
+.rl-rowmenu-divider { height: 1px; margin: 5px 4px; background: var(--border); }
+@media (prefers-reduced-motion: reduce) { .rl-rowmenu { animation: none; } }
+
+/* Dashboard */
+.rl-section-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); flex-wrap: wrap; margin-bottom: var(--s3); }
+.rl-section-head h2 { font-family: var(--font-display); font-size: var(--fs-md); font-weight: 700; }
+.rl-section-tools { display: flex; align-items: center; gap: var(--s3); }
+.rl-metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s4); margin-bottom: var(--s4); }
+.rl-mc { display: flex; align-items: center; gap: 14px; padding: 16px 18px; }
+.rl-mc-icon { width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0; display: grid; place-items: center; }
+.rl-mc-label { font-size: var(--fs-xs); color: var(--text-3); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; width: fit-content; }
+.rl-mc-value { font-family: var(--font-data); font-size: 28px; font-weight: 700; line-height: 1.15; margin-top: 2px; }
+.rl-mc-trend { font-size: var(--fs-xs); font-weight: 600; margin-top: 4px; width: fit-content; cursor: help; }
+.rl-two-col { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: var(--s4); margin-bottom: var(--s4); align-items: stretch; }
+.rl-two-col > .card { display: flex; flex-direction: column; min-width: 0; }
+.rl-card-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); margin-bottom: var(--s3); }
+.rl-card-head h3 { font-family: var(--font-display); font-size: var(--fs-md); font-weight: 700; }
+.rl-legend { display: flex; gap: var(--s4); font-size: var(--fs-xs); color: var(--text-2); }
+.rl-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.rl-legend i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+@media (max-width: 1100px) { .rl-metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 900px) { .rl-two-col { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 480px) { .rl-metric-grid { grid-template-columns: minmax(0, 1fr); } .rl-mc-value { font-size: 24px; } }
+
+/* The help bubble floats bottom right. Reserve room under every page so it
+   never sits on top of the last row, the pagination or the final button. */
+.rl-shell-content { padding-bottom: 96px !important; }
+
+/* Results table: tighter cells so the metrics a client came for (Avg ER,
+   Reels analyzed) fit on screen without a sideways scroll, and no scroll box
+   inside the page once a report has finished. While a report is still running
+   it stays bounded, so rows can stream in under a pinned header. */
+.rl-live-table-container th,
+.rl-live-table-container td { padding: 10px 12px; font-size: var(--fs-sm); }
+.rl-live-table-container td.numeric,
+.rl-live-table-container td.mono { font-size: 13px; }
+.rl-live-table-flat { max-height: none; overflow-y: visible; }
+.rl-live-table-flat thead th { position: static; }
+
+.rl-linkcell { display: flex; flex-direction: column; gap: 2px; min-width: 0; max-width: 200px; }
+.rl-linkcell .mono { font-size: var(--fs-xs); }
+.rl-live-table-container th, .rl-live-table-container td { padding: 9px 10px; }
+.rl-results-dt .data-table th, .rl-results-dt .data-table td { padding: 9px 10px; font-size: var(--fs-sm); }
+.rl-results-dt .data-table td.mono { font-size: 13px; }
+.rl-results-dt .rl-dt { padding: var(--s3); }
+.rl-results-dt .rl-dt { padding: 0; }
+.rl-results-dt .data-table th { white-space: normal; line-height: 1.2; letter-spacing: 0.02em; padding: 8px 8px; }
+.rl-results-dt .data-table td { padding: 8px 8px; }
+.rl-results-dt .rl-colhead { text-align: inherit; }
+.rl-results-dt .chip { padding-left: 8px; padding-right: 8px; }
+.rl-results-dt .rl-linkcell { max-width: 176px; }
+.rl-results-dt .rl-linkcell a.mono, .rl-results-dt .rl-linkcell .mono a { max-width: 118px !important; }
+.rl-results-dt .data-table th { font-size: 11px; }
+.rl-results-dt .chip { font-size: 11px; }
+
+/* Text must never leave its box. Break long unbroken strings (handles, emails,
+   URLs) instead of letting them poke out, let grid/flex children shrink below
+   their content width, and use .rl-clip where one line with an ellipsis is the
+   right look (always pair it with a title so the full text is one hover away). */
+html, body { overflow-wrap: break-word; }
+.card, .rl-mc, .rl-metric-grid > *, .rl-two-col > *, .rl-info-row > * { min-width: 0; }
+.rl-clip { display: block; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Finished-report numbers: one strip, content-sized cells with hairline dividers. */
+.rl-stat-strip { display: flex; flex-wrap: wrap; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface-2); max-width: 100%; }
+.rl-stat { display: flex; align-items: baseline; gap: 7px; padding: 8px 16px; border-right: 1px solid var(--border); white-space: nowrap; }
+.rl-stat svg { align-self: center; }
+.rl-stat:last-child { border-right: 0; }
+.rl-stat-value { font-family: var(--font-data); font-weight: 700; font-size: var(--fs-md); }
+.rl-stat-label { color: var(--text-2); font-size: var(--fs-sm); }
+.rl-stat-sub { font-family: var(--font-data); font-size: var(--fs-xs); }
+@media (max-width: 640px) { .rl-stat { flex: 1 1 45%; border-bottom: 1px solid var(--border); } }
+
+/* Collapsible section */
+.rl-collapsible { margin-bottom: var(--s5); }
+.rl-collapsible-bar { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); margin-bottom: var(--s3); flex-wrap: wrap; }
+.rl-collapsible-head { display: inline-flex; align-items: center; gap: 8px; background: none; border: 0; padding: 4px 6px 4px 0; margin-left: -2px; cursor: pointer; color: var(--text); font: inherit; min-width: 0; border-radius: var(--r-sm, 6px); }
+.rl-collapsible-head:hover .rl-collapsible-title { color: var(--accent); }
+.rl-collapsible-head:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.rl-collapsible-title { font-family: var(--font-display); font-weight: 700; font-size: var(--fs-md); }
+.rl-collapsible-meta { color: var(--text-3); font-size: var(--fs-sm); }
+
+.rl-results-dt .data-table th:last-child, .rl-results-dt .data-table td:last-child { padding-right: 14px; }
+
+@media (max-width: 640px) {
+  .rl-toolbar .rl-search, .rl-toolbar .input-field { flex: 1 1 100% !important; max-width: none !important; width: 100% !important; }
+  .rl-toolbar .rl-toolbar-btn { flex: 1 1 100%; justify-content: center; }
+}
+
+/* Tabs never widen the page: too many for the width and they scroll sideways inside their own row. */
+.rl-tabs { overflow-x: auto; overflow-y: hidden; scrollbar-width: none; max-width: 100%; min-width: 0; }
+.rl-tabs::-webkit-scrollbar { display: none; }
+.rl-tab { white-space: nowrap; flex-shrink: 0; }
+.rl-tab.on::after { bottom: 0; }
+
+/* Admin tables carry many columns: tighter cells so more fits before it scrolls. */
+.rl-dt .data-table th, .rl-dt .data-table td { padding-left: 12px; padding-right: 12px; }

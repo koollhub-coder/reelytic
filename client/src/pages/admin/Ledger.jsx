@@ -1,124 +1,60 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../../api/client';
 import { CopyButton } from '../../components/CopyButton';
-import { BrandLoader } from '../../components/BrandLoader';
-import { Select } from '../../components/Select';
-import { formatDate, formatDateTime, formatDayKey } from '../../utils/date';
-import { TableSkeleton } from '../../components/TableSkeleton';
+import { DataTable } from '../../components/DataTable';
+import { formatDateTime } from '../../utils/date';
 
-const PAGE_SIZE = 50;
+// The newest entries, filtered and paged in the browser with the same table
+// every other screen uses. The full history stays in the database.
+const LOAD_LIMIT = 1000;
 
 export function Ledger() {
   const [ledger, setLedger] = useState([]);
   const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [usernames, setUsernames] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [userFilter, setUserFilter] = useState('');
-  const [typeFilter, setTypeFilter] = useState('');
+  const [search, setSearch] = useState('');
 
-  // Populate the username dropdown from real clients instead of making the
-  // admin remember and type exact usernames.
   useEffect(() => {
-    apiFetch('/admin/clients')
-      .then(res => setUsernames((res.clients || []).map(c => c.username).sort()))
-      .catch(() => { });
-  }, []);
-
-  const fetchLedger = (targetPage = page) => {
-    setLoading(true);
-    let query = `?user=${userFilter}&type=${typeFilter}&page=${targetPage}&limit=${PAGE_SIZE}`;
-    apiFetch(`/admin/ledger${query}`)
-      .then(res => {
-        setLedger(res.ledger || []);
-        setTotal(res.total || 0);
-        setPage(res.page || targetPage);
-      })
+    apiFetch(`/admin/ledger?page=1&limit=${LOAD_LIMIT}`)
+      .then((res) => { setLedger(res.ledger || []); setTotal(res.total || 0); })
       .catch(() => { })
       .finally(() => setLoading(false));
-  };
+  }, []);
 
-  useEffect(() => {
-    fetchLedger(1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userFilter, typeFilter]);
-
-  const totalPages = Math.ceil(total / PAGE_SIZE) || 1;
+  const columns = [
+    { key: 'at', label: 'Timestamp', type: 'date', mono: true, accessor: (l) => l.at, render: (l) => <span style={{ color: 'var(--text-3)' }}>{formatDateTime(l.at)}</span> },
+    { key: 'username', label: 'User', type: 'select', accessor: (l) => l.username, render: (l) => <span style={{ fontWeight: 600 }}>{l.username}</span> },
+    { key: 'type', label: 'Type', type: 'select', accessor: (l) => l.type, optionLabel: (v) => String(v).toUpperCase(), render: (l) => <span className="chip" style={{ textTransform: 'uppercase' }}>{l.type}</span> },
+    {
+      key: 'url', label: 'URL', type: 'text', mono: true, accessor: (l) => l.url,
+      render: (l) => (
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6, maxWidth: 360 }}>
+          <span className="rl-clip" title={l.url}>{l.url}</span>
+          <CopyButton text={l.url} />
+        </span>
+      ),
+    },
+    { key: 'result', label: 'Result', type: 'select', accessor: (l) => l.result, render: (l) => <span className={`chip ${l.result === 'success' ? 'ok' : l.result === 'failed' ? 'err' : 'warn'}`}>{l.result}</span> },
+  ];
 
   return (
     <div>
-      <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-2xl)', fontWeight: 700, marginBottom: 'var(--s6)' }}>Audited Ledger</h1>
-
-      <div className="card" style={{ display: 'flex', gap: 'var(--s4)', marginBottom: 'var(--s5)', alignItems: 'center' }}>
-        <div style={{ flex: 1 }}>
-          <label className="input-label">Filter by Type</label>
-          <Select
-            value={typeFilter}
-            onChange={setTypeFilter}
-            options={[{ value: '', label: 'All types' }, { value: 'reel', label: 'Reel' }, { value: 'profile', label: 'Profile' }]}
-            style={{ width: '100%' }}
-          />
-        </div>
-        <div style={{ flex: 1 }}>
-          <label className="input-label">Filter by Username</label>
-          <Select
-            value={userFilter}
-            onChange={setUserFilter}
-            options={[{ value: '', label: 'All users' }, ...usernames.map(u => ({ value: u, label: u }))]}
-            style={{ width: '100%' }}
-          />
-        </div>
-      </div>
-
-      {(
-        <>
-          <div className="data-table-container" style={{ marginBottom: 'var(--s4)' }}>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Timestamp</th>
-                  <th>User</th>
-                  <th>Type</th>
-                  <th>URL</th>
-                  <th>Result</th>
-                </tr>
-              </thead>
-              {loading ? <TableSkeleton rows={10} columns={5} label="Loading ledger" /> : (
-              <tbody>
-                {ledger.map((l, i) => (
-                  <tr key={i}>
-                    <td className="mono" style={{ color: 'var(--text-3)' }}>{formatDateTime(l.at)}</td>
-                    <td style={{ fontWeight: 600 }}>{l.username}</td>
-                    <td><span className="chip" style={{ textTransform: 'uppercase' }}>{l.type}</span></td>
-                    <td className="mono" style={{ maxWidth: '320px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {l.url} <CopyButton text={l.url} />
-                    </td>
-                    <td>
-                      <span className={`chip ${l.result === 'success' ? 'ok' : l.result === 'failed' ? 'err' : 'warn'}`}>
-                        {l.result}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              )}
-            </table>
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontFamily: 'var(--font-data)', fontSize: 'var(--fs-sm)', color: 'var(--text-2)' }}>
-              Showing {ledger.length} of {total.toLocaleString()} entries
-            </div>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button className="btn btn-secondary" disabled={page <= 1} onClick={() => fetchLedger(page - 1)}>Previous</button>
-              <span style={{ display: 'flex', alignItems: 'center', padding: '0 8px', fontSize: 'var(--fs-sm)', fontFamily: 'var(--font-data)' }}>
-                Page {page} of {totalPages}
-              </span>
-              <button className="btn btn-secondary" disabled={page >= totalPages} onClick={() => fetchLedger(page + 1)}>Next</button>
-            </div>
-          </div>
-        </>
-      )}
+      <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-2xl)', fontWeight: 700, marginBottom: 'var(--s2)' }}>Audited Ledger</h1>
+      <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)', marginBottom: 'var(--s5)' }}>
+        Every link a client has submitted. {total > LOAD_LIMIT ? `Showing the newest ${LOAD_LIMIT.toLocaleString()} of ${total.toLocaleString()}.` : `${total.toLocaleString()} entries.`}
+      </p>
+      <DataTable
+        id="admin-ledger"
+        loading={loading}
+        columns={columns}
+        rows={ledger}
+        getRowId={(l) => String(l._id)}
+        defaultSort={{ key: 'at', dir: 'desc' }}
+        emptyTitle="Nothing in the ledger yet"
+        search={search}
+        searchText={(l) => `${l.username} ${l.url} ${l.type} ${l.result}`}
+        toolbar={<input type="text" className="input-field" style={{ height: 34, width: 280 }} placeholder="Search user or link" value={search} onChange={(e) => setSearch(e.target.value)} />}
+      />
     </div>
   );
 }

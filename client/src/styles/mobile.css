@@ -582,4 +582,5 @@
   .rl-summary-actions { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: var(--s2) !important; }
   .rl-summary-actions > * { width: 100%; box-sizing: border-box; }
   .rl-summary-actions > .btn-primary { grid-column: 1 / -1; }
+  .rl-summary-actions .btn { min-width: 0; white-space: normal; text-align: center; line-height: 1.25; height: auto; min-height: 40px; padding: 8px 10px; }
 }

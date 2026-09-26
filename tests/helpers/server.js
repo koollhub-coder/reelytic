@@ -62,6 +62,9 @@ async function startServer({ silent = true } = {}) {
       // mailerStub.js for why it needs its own port rather than being read
       // back via a plain require.
       REELYTIC_MAILER_STUB: require('path').resolve(__dirname, 'mailerStub.js'),
+      // Admin's credits come from Apify's allowance. The suites must never read a
+      // real account for that, so it is pinned: $5 allowance, $0.25 used.
+      PLATFORM_APIFY_STUB: JSON.stringify({ monthlyUsd: 5, spentUsd: 0.25, planName: 'TEST' }),
       REELYTIC_MAILER_STUB_PORT: String(process.env.REELYTIC_MAILER_STUB_PORT || 3458),
     },
     stdio: silent ? ['ignore', 'pipe', 'pipe'] : 'inherit',

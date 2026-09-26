@@ -71,6 +71,21 @@ const suites = [
     args: ['--test', 'tests/lifecycle.test.js'],
   },
   {
+    name: 'API: no unlimited credits, admin balance from Apify allowance',
+    cmd: process.execPath,
+    args: ['--test', 'tests/platform-credits.test.js'],
+  },
+  {
+    name: 'API: team members, sample report, owner rename',
+    cmd: process.execPath,
+    args: ['--test', 'tests/team.test.js'],
+  },
+  {
+    name: 'API: client portal per-report breakdown, admin feature overrides',
+    cmd: process.execPath,
+    args: ['--test', 'tests/portal.test.js'],
+  },
+  {
     name: 'API: crash/restart recovery, billing idempotency',
     cmd: process.execPath,
     args: ['--test', 'tests/crash-recovery.test.js'],
@@ -79,6 +94,13 @@ const suites = [
     name: 'API: signup verification, forgot/reset password',
     cmd: process.execPath,
     args: ['--test', 'tests/auth-flows.test.js'],
+  },
+  {
+    // Pure logic, no database or network: the help assistant's understanding
+    // and its guarantee of never saying anything confidential.
+    name: 'HELP: assistant answers, confidentiality',
+    cmd: process.execPath,
+    args: ['--test', 'tests/helpbot.test.js'],
   },
   {
     name: 'API: dashboard stats range handling',

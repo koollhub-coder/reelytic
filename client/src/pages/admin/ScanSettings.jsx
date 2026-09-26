@@ -1,3 +1,4 @@
+import { DataTable } from '../../components/DataTable';
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../../api/client';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
@@ -31,28 +32,18 @@ function PipelineHistoryTable({ log, infoSafe }) {
     return <p style={{ color: 'var(--text-3)', fontSize: 'var(--fs-sm)' }}>No changes yet, still on the default.</p>;
   }
   return (
-    <div className="data-table-container">
-      <table className="data-table">
-        <thead>
-          <tr>
-            <th>When</th>
-            <th>By</th>
-            <th>From</th>
-            <th>To</th>
-          </tr>
-        </thead>
-        <tbody>
-          {log.map((entry, i) => (
-            <tr key={i}>
-              <td className="mono" style={{ color: 'var(--text-3)' }}>{formatDateTime(entry.at)}</td>
-              <td style={{ fontWeight: 600 }}>{entry.by}</td>
-              <td>{infoSafe[entry.from]?.label || entry.from}</td>
-              <td>{infoSafe[entry.to]?.label || entry.to}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <DataTable
+      id="admin-scan-history"
+      columns={[
+        { key: 'at', label: 'When', type: 'date', mono: true, accessor: (e) => e.at, render: (e) => <span style={{ color: 'var(--text-3)' }}>{formatDateTime(e.at)}</span> },
+        { key: 'by', label: 'By', type: 'select', accessor: (e) => e.by, render: (e) => <span style={{ fontWeight: 600 }}>{e.by}</span> },
+        { key: 'from', label: 'From', type: 'select', accessor: (e) => infoSafe[e.from]?.label || e.from },
+        { key: 'to', label: 'To', type: 'select', accessor: (e) => infoSafe[e.to]?.label || e.to },
+      ]}
+      rows={log}
+      getRowId={(e) => String(e.at)}
+      defaultSort={{ key: 'at', dir: 'desc' }}
+    />
   );
 }
 

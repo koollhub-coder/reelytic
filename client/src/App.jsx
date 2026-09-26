@@ -64,6 +64,7 @@ const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard').then(m 
 const Clients = lazy(() => import('./pages/admin/Clients').then(m => ({ default: m.Clients })));
 const Ledger = lazy(() => import('./pages/admin/Ledger').then(m => ({ default: m.Ledger })));
 const SessionsLog = lazy(() => import('./pages/admin/SessionsLog').then(m => ({ default: m.SessionsLog })));
+const HelpInsights = lazy(() => import('./pages/admin/HelpInsights').then(m => ({ default: m.HelpInsights })));
 const UsageSpend = lazy(() => import('./pages/admin/UsageSpend').then(m => ({ default: m.UsageSpend })));
 const Health = lazy(() => import('./pages/admin/Health').then(m => ({ default: m.Health })));
 const AdminPricingEditor = lazy(() => import('./pages/admin/AdminPricingEditor').then(m => ({ default: m.AdminPricingEditor })));
@@ -94,6 +95,7 @@ import './styles/base.css';
 import './styles/components.css';
 import './styles/mobile.css';
 import { DemoGuide } from './components/DemoGuide';
+import { HelpBot } from './components/HelpBot';
 
 /*
   Renders the guided tour only for a signed-in user, and keys its progress to
@@ -230,6 +232,7 @@ export function App() {
                   <Route path="/admin/legal" element={<LegalEditor />} />
                   <Route path="/admin/ledger" element={<Ledger />} />
                   <Route path="/admin/sessions" element={<SessionsLog />} />
+                  <Route path="/admin/help" element={<HelpInsights />} />
                   <Route path="/admin/usage" element={<UsageSpend />} />
                   <Route path="/admin/health" element={<Health />} />
                   <Route path="/dashboard" element={<Dashboard />} />
@@ -248,6 +251,10 @@ export function App() {
                 is per browser rather than per account, so switching accounts
                 floated a half-finished tour over the login form. */}
             <TourHost />
+            {/* Static help assistant: answers from our own library, no outside
+                service. Hides itself on auth, checkout, admin and client-facing
+                pages (see shouldShow in HelpBot.jsx). */}
+            <HelpBot />
           </BrowserRouter>
         </AuthProvider>
       </ToastProvider>

@@ -136,6 +136,7 @@ function planSheetEdit(job, parsed, { mode = 'replace', fileName = null } = {}) 
     } else {
       update.status = 'paused';
       update.pausedReason = 'sheet-updated';
+      update.pausedAt = new Date();
       update.finishedAt = null;
     }
   }

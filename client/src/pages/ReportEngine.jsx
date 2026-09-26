@@ -10,6 +10,9 @@ import { CopyButton } from '../components/CopyButton';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { Modal } from '../components/Modal';
 import { Tooltip } from '../components/Tooltip';
+import { DataTable } from '../components/DataTable';
+import { Collapsible } from '../components/Collapsible';
+import { usePageSize } from '../utils/pagination';
 import { CampaignCombobox } from '../components/CampaignCombobox';
 import { Select } from '../components/Select';
 import {
@@ -217,9 +220,9 @@ function UrlCell({ row }) {
           href={row.input.url}
           target="_blank"
           rel="noreferrer"
-          style={{ color: 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block', maxWidth: '190px', verticalAlign: 'bottom' }}
+          style={{ color: 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block', maxWidth: '150px', verticalAlign: 'bottom' }}
         >
-          {row.input.url}
+          {String(row.input.url).replace(/^https?:\/\/(www\.)?(instagram\.com)?\/?/i, '')}
         </a>
       </Tooltip>
       {/* Same destination the text itself already links to -- an explicit
@@ -237,12 +240,25 @@ function UrlCell({ row }) {
 
 // Username cell: blank until a row resolves successfully -- never a
 // fabricated or guessed name.
+// One cell for who and where: the creator on top, the submitted link under it.
+function LinkCell({ row, type, index }) {
+  return (
+    <div className="rl-linkcell">
+      <span style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+        {index != null && <span className="mono" style={{ color: 'var(--text-3)', fontSize: 'var(--fs-xs)', minWidth: 22 }}>{index}</span>}
+        <UsernameCell row={row} type={type} />
+      </span>
+      <span style={index != null ? { paddingLeft: 28 } : undefined}><UrlCell row={row} /></span>
+    </div>
+  );
+}
+
 function UsernameCell({ row, type }) {
   const res = row.state === 'done' ? row.result : null;
   if (!res || !res.username) return <span style={{ color: 'var(--text-3)' }}>-</span>;
   const href = type === 'reel' ? (res.profileLink || `https://www.instagram.com/${res.username}`) : (res.profileLink || row.input.url);
   return (
-    <a href={href} target="_blank" rel="noreferrer" className="mono" style={{ color: 'var(--accent)', fontWeight: 600 }}>
+    <a href={href} target="_blank" rel="noreferrer" className="mono rl-clip" title={`@${res.username}`} style={{ color: 'var(--accent)', fontWeight: 600 }}>
       @{res.username}
     </a>
   );
@@ -392,23 +408,117 @@ function NoteCell({ row, onEditNote }) {
   );
 }
 
+function ResultCardMobile({ r, type, onViewReels, onEditNote }) {
+  const isOk = r.state === 'done' && r.result;
+  const res = r.result || {};
+  return (
+    <div className="card" style={{ padding: 'var(--s3)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--s2)' }}>
+        <span className="mono" style={{ color: 'var(--text-3)', fontSize: 'var(--fs-xs)' }}>#{r.i}</span>
+        {statusChip(r)}
+      </div>
+      <div style={{ marginBottom: '4px' }}><UrlCell row={r} /></div>
+      <div style={{ marginBottom: 'var(--s2)' }}><UsernameCell row={r} type={type} /></div>
+      {type === 'reel' ? (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 12px', fontSize: 'var(--fs-sm)' }}>
+          <span style={{ color: 'var(--text-3)' }}>Followers</span><span className="mono" style={{ textAlign: 'right' }}>{isOk ? (res.followers ?? 0).toLocaleString() : '-'}</span>
+          <span style={{ color: 'var(--text-3)' }}>Views</span><span className="mono" style={{ textAlign: 'right' }}>{isOk ? (res.views ?? 0).toLocaleString() : '-'}</span>
+          <span style={{ color: 'var(--text-3)' }}>Likes</span><span className="mono" style={{ textAlign: 'right' }}>{isOk ? (res.likes ?? 0).toLocaleString() : '-'}</span>
+          <span style={{ color: 'var(--text-3)' }}>Comments</span><span className="mono" style={{ textAlign: 'right' }}>{isOk ? (res.comments ?? 0).toLocaleString() : '-'}</span>
+          <span style={{ color: 'var(--text-3)' }}>Shares</span><span className="mono" style={{ textAlign: 'right' }}>{isOk ? (res.shares ?? 0).toLocaleString() : '-'}</span>
+          <span style={{ color: 'var(--text-3)' }}>Reposts</span><span className="mono" style={{ textAlign: 'right' }}>{isOk ? (res.reposts ?? 0).toLocaleString() : '-'}</span>
+          <span style={{ color: 'var(--text-3)' }}>Saves</span><span className="mono" style={{ textAlign: 'right' }}>{isOk ? (res.saves ?? 0).toLocaleString() : '-'}</span>
+          <span style={{ color: 'var(--text-3)' }}>ER</span><span className="mono" style={{ textAlign: 'right', color: isOk ? 'var(--ok)' : undefined, fontWeight: 600 }}>{isOk ? `${res.er ?? 0}%` : '-'}</span>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 12px', fontSize: 'var(--fs-sm)' }}>
+          <span style={{ color: 'var(--text-3)' }}>Followers</span><span className="mono" style={{ textAlign: 'right' }}>{isOk ? (res.followers ?? 0).toLocaleString() : '-'}</span>
+          <span style={{ color: 'var(--text-3)' }}>Avg Views</span><span className="mono" style={{ textAlign: 'right' }}>{isOk ? (res.avgViews ?? 0).toLocaleString() : '-'}</span>
+          <span style={{ color: 'var(--text-3)' }}>Avg ER</span>
+          <span className="mono" style={{ textAlign: 'right' }}>
+            {isOk ? (
+              <span style={{ color: 'var(--ok)', fontWeight: 600 }}>{res.avgEr ?? 0}%</span>
+            ) : '-'}
+          </span>
+          <span style={{ color: 'var(--text-3)' }}>Reels Analyzed</span><span className="mono" style={{ textAlign: 'right' }}>{isOk ? <ReelsAnalyzedCell res={res} onViewReels={onViewReels} /> : '-'}</span>
+          <span style={{ color: 'var(--text-3)' }}>Not Counted</span><span className="mono" style={{ textAlign: 'right' }}>{isOk ? <ReelsSkippedCell res={res} onViewReels={onViewReels} /> : '-'}</span>
+        </div>
+      )}
+      {isOk && (
+        <div style={{ marginTop: 'var(--s2)', paddingTop: 'var(--s2)', borderTop: '1px solid var(--border)' }}>
+          <NoteCell row={r} onEditNote={onEditNote} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+const STATE_LABELS = { done: 'Success', failed: "Couldn't fetch", invalid: 'Invalid link', duplicate: 'Duplicate', processing: 'Processing', skipped: 'Skipped', pending: 'Pending' };
+const FLAG_LABELS = { approved: 'Approved', flagged: 'Flagged', none: 'No flag' };
+
+// The finished report's table: the shared DataTable (same sort, filter and
+// pagination as History and Creators). The live run above keeps its own
+// streaming table because rows arrive while it is on screen.
+function resultColumns(type, onViewReels, onEditNote) {
+  const ok = (r) => r.state === 'done' && r.result;
+  const num = (key, label, pick, extra) => ({
+    key, label, type: 'number', align: 'right', mono: true,
+    accessor: (r) => (ok(r) ? (pick ? pick(r.result) : r.result[key]) ?? 0 : null),
+    render: (r) => (ok(r) ? ((pick ? pick(r.result) : r.result[key]) ?? 0).toLocaleString() : '-'),
+    ...extra,
+  });
+  const er = (key, label) => num(key, label, null, {
+    render: (r) => (ok(r) ? <span style={{ color: 'var(--ok)', fontWeight: 600 }}>{r.result[key] ?? 0}%</span> : '-'),
+  });
+  const head = [
+    { key: 'link', label: 'Link', type: 'text', filterable: false, accessor: (r) => ((r.result && r.result.username) || '') + ' ' + ((r.input && r.input.url) || ''), render: (r) => <LinkCell row={r} type={type} index={r.i} /> },
+    { key: 'state', label: 'Status', type: 'select', accessor: (r) => r.state, optionLabel: (v) => STATE_LABELS[v] || v, render: (r) => statusChip(r) },
+  ];
+  const tail = { key: 'flag', label: 'Notes', type: 'select', accessor: (r) => r.flag || 'none', optionLabel: (v) => FLAG_LABELS[v] || v, render: (r) => <NoteCell row={r} onEditNote={onEditNote} /> };
+  if (type === 'reel') {
+    return [...head, num('followers', 'Followers'), num('views', 'Views'), num('likes', 'Likes'), num('comments', 'Comments'), num('shares', 'Shares'), num('reposts', 'Reposts'), num('saves', 'Saves'), er('er', 'ER (%)'), tail];
+  }
+  return [
+    ...head,
+    num('followers', 'Followers'), num('avgViews', 'Avg Views'), er('avgEr', 'Avg ER (%)'),
+    num('analyzed', 'Reels Analyzed', (res) => res.reelsAnalyzed, { render: (r) => (ok(r) ? <ReelsAnalyzedCell res={r.result} onViewReels={onViewReels} /> : '-') }),
+    num('skipped', 'Not Counted', (res) => totalSkipped(res), { render: (r) => (ok(r) ? <ReelsSkippedCell res={r.result} onViewReels={onViewReels} /> : '-') }),
+    tail,
+  ];
+}
+
+function ResultsDataTable({ rows, type, onViewReels, onEditNote }) {
+  const columns = useMemo(() => resultColumns(type, onViewReels, onEditNote), [type, onViewReels, onEditNote]);
+  return (
+    <DataTable
+      id="report-results-done"
+      columns={columns}
+      rows={rows}
+      getRowId={(r) => r.i}
+      emptyTitle="No results"
+      renderMobile={(r) => <ResultCardMobile r={r} type={type} onViewReels={onViewReels} onEditNote={onEditNote} />}
+    />
+  );
+}
+
 // Desktop: a real fixed-column table, values aligned directly under headers.
 // Mobile: stacked label:value cards -- reused everywhere via the same rows/type.
-function ResultsTable({ rows, type, scrollRef, onViewReels, onEditNote }) {
-  const reelHeaders = ['#', 'URL', 'Username', 'Status', 'Followers', 'Views', 'Likes', 'Comments', 'Shares', 'Reposts', 'Saves', 'ER (%)', 'Notes'];
+function ResultsTable({ rows, type, scrollRef, onViewReels, onEditNote, flat = false }) {
+  const reelHeaders = ['#', 'Link', 'Status', 'Followers', 'Views', 'Likes', 'Comments', 'Shares', 'Reposts', 'Saves', 'ER (%)', 'Notes'];
   // "Not Counted" = pinned, non-Reel, missing views and the outlier trim.
   // Sponsored and collab posts are counted, so they are not in this number.
-  const profileHeaders = ['#', 'URL', 'Username', 'Status', 'Followers', 'Avg Views', 'Avg ER (%)', 'Reels Analyzed', 'Not Counted', 'Notes'];
+  const profileHeaders = ['#', 'Link', 'Status', 'Followers', 'Avg Views', 'Avg ER (%)', 'Reels Analyzed', 'Not Counted', 'Notes'];
   const headers = type === 'reel' ? reelHeaders : profileHeaders;
 
   return (
     <>
-      <div className="rl-hide-mobile rl-live-table-container" ref={scrollRef}>
+      <div className={`rl-hide-mobile rl-live-table-container${flat ? ' rl-live-table-flat' : ''}`} ref={scrollRef}>
         <table className="data-table">
           <thead>
             <tr>
               {headers.map((h, i) => (
-                <th key={h} className={i >= 4 ? 'numeric' : undefined} style={i === 0 ? { width: '56px' } : undefined}>{h}</th>
+                <th key={h} className={i >= 3 && h !== 'Notes' ? 'numeric' : undefined} style={i === 0 ? { width: '56px' } : undefined}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -416,8 +526,7 @@ function ResultsTable({ rows, type, scrollRef, onViewReels, onEditNote }) {
             {rows.map((r) => (
               <tr key={r.i}>
                 <td className="mono" style={{ color: 'var(--text-3)' }}>{r.i}</td>
-                <td><UrlCell row={r} /></td>
-                <td><UsernameCell row={r} type={type} /></td>
+                <td><LinkCell row={r} type={type} /></td>
                 <td>{statusChip(r)}</td>
                 {metricCells(r, type, onViewReels)}
                 <td><NoteCell row={r} onEditNote={onEditNote} /></td>
@@ -428,52 +537,27 @@ function ResultsTable({ rows, type, scrollRef, onViewReels, onEditNote }) {
       </div>
 
       <div className="rl-mobile-only" style={{ flexDirection: 'column', gap: 'var(--s3)', padding: 'var(--s3)' }}>
-        {rows.map((r) => {
-          const isOk = r.state === 'done' && r.result;
-          const res = r.result || {};
-          return (
-            <div key={r.i} className="card" style={{ padding: 'var(--s3)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--s2)' }}>
-                <span className="mono" style={{ color: 'var(--text-3)', fontSize: 'var(--fs-xs)' }}>#{r.i}</span>
-                {statusChip(r)}
-              </div>
-              <div style={{ marginBottom: '4px' }}><UrlCell row={r} /></div>
-              <div style={{ marginBottom: 'var(--s2)' }}><UsernameCell row={r} type={type} /></div>
-              {type === 'reel' ? (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 12px', fontSize: 'var(--fs-sm)' }}>
-                  <span style={{ color: 'var(--text-3)' }}>Followers</span><span className="mono" style={{ textAlign: 'right' }}>{isOk ? (res.followers ?? 0).toLocaleString() : '-'}</span>
-                  <span style={{ color: 'var(--text-3)' }}>Views</span><span className="mono" style={{ textAlign: 'right' }}>{isOk ? (res.views ?? 0).toLocaleString() : '-'}</span>
-                  <span style={{ color: 'var(--text-3)' }}>Likes</span><span className="mono" style={{ textAlign: 'right' }}>{isOk ? (res.likes ?? 0).toLocaleString() : '-'}</span>
-                  <span style={{ color: 'var(--text-3)' }}>Comments</span><span className="mono" style={{ textAlign: 'right' }}>{isOk ? (res.comments ?? 0).toLocaleString() : '-'}</span>
-                  <span style={{ color: 'var(--text-3)' }}>Shares</span><span className="mono" style={{ textAlign: 'right' }}>{isOk ? (res.shares ?? 0).toLocaleString() : '-'}</span>
-                  <span style={{ color: 'var(--text-3)' }}>Reposts</span><span className="mono" style={{ textAlign: 'right' }}>{isOk ? (res.reposts ?? 0).toLocaleString() : '-'}</span>
-                  <span style={{ color: 'var(--text-3)' }}>Saves</span><span className="mono" style={{ textAlign: 'right' }}>{isOk ? (res.saves ?? 0).toLocaleString() : '-'}</span>
-                  <span style={{ color: 'var(--text-3)' }}>ER</span><span className="mono" style={{ textAlign: 'right', color: isOk ? 'var(--ok)' : undefined, fontWeight: 600 }}>{isOk ? `${res.er ?? 0}%` : '-'}</span>
-                </div>
-              ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 12px', fontSize: 'var(--fs-sm)' }}>
-                  <span style={{ color: 'var(--text-3)' }}>Followers</span><span className="mono" style={{ textAlign: 'right' }}>{isOk ? (res.followers ?? 0).toLocaleString() : '-'}</span>
-                  <span style={{ color: 'var(--text-3)' }}>Avg Views</span><span className="mono" style={{ textAlign: 'right' }}>{isOk ? (res.avgViews ?? 0).toLocaleString() : '-'}</span>
-                  <span style={{ color: 'var(--text-3)' }}>Avg ER</span>
-                  <span className="mono" style={{ textAlign: 'right' }}>
-                    {isOk ? (
-                      <span style={{ color: 'var(--ok)', fontWeight: 600 }}>{res.avgEr ?? 0}%</span>
-                    ) : '-'}
-                  </span>
-                  <span style={{ color: 'var(--text-3)' }}>Reels Analyzed</span><span className="mono" style={{ textAlign: 'right' }}>{isOk ? <ReelsAnalyzedCell res={res} onViewReels={onViewReels} /> : '-'}</span>
-                  <span style={{ color: 'var(--text-3)' }}>Not Counted</span><span className="mono" style={{ textAlign: 'right' }}>{isOk ? <ReelsSkippedCell res={res} onViewReels={onViewReels} /> : '-'}</span>
-                </div>
-              )}
-              {isOk && (
-                <div style={{ marginTop: 'var(--s2)', paddingTop: 'var(--s2)', borderTop: '1px solid var(--border)' }}>
-                  <NoteCell row={r} onEditNote={onEditNote} />
-                </div>
-              )}
-            </div>
-          );
-        })}
+        {rows.map((r) => <ResultCardMobile key={r.i} r={r} type={type} onViewReels={onViewReels} onEditNote={onEditNote} />)}
       </div>
     </>
+  );
+}
+
+// The finished report's numbers as one quiet strip: content-sized cells split
+// by hairlines, so a small number never sits in a wide empty capsule.
+function StatStrip({ items }) {
+  const color = (tone) => (tone === 'ok' ? 'var(--ok)' : tone === 'err' ? 'var(--err)' : 'var(--text-3)');
+  return (
+    <div className="rl-stat-strip">
+      {items.map((it) => (
+        <div key={it.label} className="rl-stat">
+          <span style={{ color: color(it.tone), display: 'inline-flex' }}>{it.icon}</span>
+          <span className="rl-stat-value" style={it.emphasize ? { color: 'var(--ok)' } : undefined}>{it.value}</span>
+          <span className="rl-stat-label">{it.label}</span>
+          {it.sublabel && <span className="rl-stat-sub" style={{ color: color(it.tone) }}>{it.sublabel}</span>}
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -498,7 +582,7 @@ function StatFilterCard({ icon, tone, value, label, sublabel, active, emphasize,
       className="card"
       style={{
         display: 'flex', alignItems: 'center', gap: '10px', padding: '7px 12px',
-        textAlign: 'left', cursor: onClick ? 'pointer' : 'default', font: 'inherit', flex: '1 1 140px',
+        textAlign: 'left', cursor: onClick ? 'pointer' : 'default', font: 'inherit', flex: '0 1 auto',
         border: active ? `1px solid ${toneColor}` : '1px solid var(--border)',
         boxShadow: active ? `0 0 0 1px ${toneColor}` : 'none',
         transition: 'border-color var(--t-fast), box-shadow var(--t-fast)',
@@ -657,7 +741,10 @@ export function ReportEngine({ type = 'reel' }) {
   // term is just a local array filter, no server round-trip needed.
   const [resultsSearch, setResultsSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
+  // 25 by default (a results table is worked through row by row), remembered
+  // per person, same 10/25/50/100 choices as every other table. See
+  // utils/pagination.js for the research behind the numbers.
+  const [pageSize, setPageSize] = usePageSize('report-results');
   const [rows, setRows] = useState([]);
   /*
     True while a page of rows is in flight. Without this the preview table
@@ -756,7 +843,10 @@ export function ReportEngine({ type = 'reel' }) {
     const finishedTs = job.finishedAt ? new Date(job.finishedAt).getTime() : null;
     setStartedAt(job.startedAt || null);
     setFinishedAt(job.finishedAt || null);
-    if (startedTs) setElapsedMs((finishedTs || Date.now()) - startedTs);
+    // A paused report's clock stopped when it was paused. Counting to "now" made
+    // a report paused weeks ago read as tens of thousands of minutes elapsed.
+    const pausedTs = job.status === 'paused' ? (new Date(job.pausedAt || job.updatedAt || 0).getTime() || null) : null;
+    if (startedTs) setElapsedMs(Math.max(0, (finishedTs || pausedTs || Date.now()) - startedTs));
 
     if (job.status === 'preview') {
       setJobState('preview');
@@ -1316,7 +1406,11 @@ export function ReportEngine({ type = 'reel' }) {
             <button className="btn btn-secondary" onClick={exitHistoryView}>
               ← Back to current report
             </button>
-          ) : jobState !== 'done' && (
+          ) : jobState === 'done' ? (
+            <button className="btn btn-secondary" onClick={handleDiscard} style={{ gap: 'var(--s2)' }}>
+              <PlusIcon size={16} />Run another report
+            </button>
+          ) : (
             <button className="btn btn-secondary" onClick={() => setConfirmDiscard(true)} style={{ gap: 'var(--s2)' }}>
               <PlusIcon size={16} />Start new report
             </button>
@@ -1810,7 +1904,8 @@ export function ReportEngine({ type = 'reel' }) {
             card to look intentional.
           */}
           <div className="card" style={{ marginBottom: 'var(--s5)', padding: 'var(--s4) var(--s5)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s4)', flexWrap: 'wrap', marginBottom: counts.success > 0 ? 'var(--s4)' : 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--s4)', flexWrap: 'wrap', marginBottom: counts.success > 0 ? 'var(--s4)' : 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s4)', minWidth: 0 }}>
               <div style={{
                 width: '44px', height: '44px', borderRadius: '50%', flexShrink: 0,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -1836,18 +1931,16 @@ export function ReportEngine({ type = 'reel' }) {
                   </div>
                 )}
               </div>
-            </div>
-
-            {counts.success > 0 && (
-              <div style={{ display: 'flex', gap: 'var(--s2)', flexWrap: 'wrap', marginBottom: 'var(--s4)' }}>
-                <StatFilterCard icon={<FileIcon size={14} />} tone="neutral" value={counts.total} label="Total processed" />
-                <StatFilterCard icon={<SuccessIcon size={14} />} tone="ok" value={counts.success} label="Succeeded" sublabel={`${Math.round((counts.success / counts.total) * 100)}%`} emphasize />
-                <StatFilterCard icon={<XIcon size={14} />} tone={counts.failed > 0 ? 'err' : 'neutral'} value={counts.failed} label="Failed" sublabel={counts.failed > 0 ? `${Math.round((counts.failed / counts.total) * 100)}%` : undefined} />
-                {processingTimeLabel() && (
-                  <StatFilterCard icon={<ClockIcon size={14} />} tone="neutral" value={processingTimeLabel()} label="Total time" />
-                )}
               </div>
-            )}
+              {counts.success > 0 && (
+                <StatStrip items={[
+                  { icon: <FileIcon size={14} />, tone: 'neutral', value: counts.total, label: 'Total processed' },
+                  { icon: <SuccessIcon size={14} />, tone: 'ok', value: counts.success, label: 'Succeeded', sublabel: `${Math.round((counts.success / counts.total) * 100)}%`, emphasize: true },
+                  { icon: <XIcon size={14} />, tone: counts.failed > 0 ? 'err' : 'neutral', value: counts.failed, label: 'Failed', sublabel: counts.failed > 0 ? `${Math.round((counts.failed / counts.total) * 100)}%` : undefined },
+                  ...(processingTimeLabel() ? [{ icon: <ClockIcon size={14} />, tone: 'neutral', value: processingTimeLabel(), label: 'Total time' }] : []),
+                ]} />
+              )}
+            </div>
 
             {/*
               Every action that produces a document needs at least one row to
@@ -1882,9 +1975,6 @@ export function ReportEngine({ type = 'reel' }) {
                   Edit sheet
                 </button>
               </Tooltip>
-              <button className="btn btn-secondary" onClick={handleDiscard}>
-                Run another report
-              </button>
             </div>
           </div>
 
@@ -1895,23 +1985,25 @@ export function ReportEngine({ type = 'reel' }) {
               to report; average views/ER need only two successful rows. */}
           {insights && (
             <div className="card" data-tour="highlights" style={{ marginBottom: 'var(--s5)', padding: 'var(--s4) var(--s5)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--s3)' }}>
-                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-md)', fontWeight: 700 }}>
-                  Highlights
-                </h3>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  style={{ height: '28px', fontSize: 'var(--fs-xs)', padding: '0 10px' }}
-                  onClick={() => {
-                    navigator.clipboard.writeText(buildSummaryText(insights, type));
-                    setSummaryCopied(true);
-                    setTimeout(() => setSummaryCopied(false), 1500);
-                  }}
-                >
-                  {summaryCopied ? 'Copied ✓' : 'Copy summary'}
-                </button>
-              </div>
+              <Collapsible
+                id="report-highlights"
+                flush
+                title="Highlights"
+                actions={(
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ height: '28px', fontSize: 'var(--fs-xs)', padding: '0 10px' }}
+                    onClick={() => {
+                      navigator.clipboard.writeText(buildSummaryText(insights, type));
+                      setSummaryCopied(true);
+                      setTimeout(() => setSummaryCopied(false), 1500);
+                    }}
+                  >
+                    {summaryCopied ? 'Copied ✓' : 'Copy summary'}
+                  </button>
+                )}
+              >
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--s3)' }}>
                 {insights.hasSpread && (
                   <a
@@ -1924,9 +2016,9 @@ export function ReportEngine({ type = 'reel' }) {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: 'var(--fs-xs)', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '4px' }}>
                       <TrendingUpIcon size={12} style={{ color: 'var(--ok)' }} />Top performer
                     </div>
-                    <div className="mono" style={{ color: 'var(--text)', fontWeight: 700, fontSize: 'var(--fs-base)' }}>@{insights.top.name}</div>
+                    <div className="mono rl-clip" title={`@${insights.top.name}`} style={{ color: 'var(--text)', fontWeight: 700, fontSize: 'var(--fs-base)' }}>@{insights.top.name}</div>
                     <div style={{ color: 'var(--ok)', fontSize: 'var(--fs-sm)', marginTop: '2px' }}>
-                      {formatCompactNumber(insights.top.views)} views · {insights.top.er.toFixed(1)}% ER
+                      {formatCompactNumber(insights.top.views)} {insights.top.views === 1 ? 'view' : 'views'} · {insights.top.er.toFixed(1)}% ER
                     </div>
                   </a>
                 )}
@@ -1941,9 +2033,9 @@ export function ReportEngine({ type = 'reel' }) {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: 'var(--fs-xs)', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '4px' }}>
                       <TrendingDownIcon size={12} style={{ color: 'var(--err)' }} />Lowest performer
                     </div>
-                    <div className="mono" style={{ color: 'var(--text)', fontWeight: 700, fontSize: 'var(--fs-base)' }}>@{insights.bottom.name}</div>
+                    <div className="mono rl-clip" title={`@${insights.bottom.name}`} style={{ color: 'var(--text)', fontWeight: 700, fontSize: 'var(--fs-base)' }}>@{insights.bottom.name}</div>
                     <div style={{ color: 'var(--err)', fontSize: 'var(--fs-sm)', marginTop: '2px' }}>
-                      {formatCompactNumber(insights.bottom.views)} views · {insights.bottom.er.toFixed(1)}% ER
+                      {formatCompactNumber(insights.bottom.views)} {insights.bottom.views === 1 ? 'view' : 'views'} · {insights.bottom.er.toFixed(1)}% ER
                     </div>
                   </a>
                 )}
@@ -1964,6 +2056,7 @@ export function ReportEngine({ type = 'reel' }) {
                   <BarSparkline values={insights.erList} color="var(--warn)" formatValue={(v) => `${v.toFixed(1)}% ER`} />
                 </div>
               </div>
+              </Collapsible>
             </div>
           )}
 
@@ -1985,7 +2078,7 @@ export function ReportEngine({ type = 'reel' }) {
                 style={{ height: '32px', fontSize: 'var(--fs-sm)', width: '220px' }}
               />
             </div>
-            <ResultsTable rows={searchedRows} type={type} onViewReels={setViewedReels} onEditNote={openNoteEditor} />
+            <div className="rl-results-dt"><ResultsDataTable rows={searchedRows} type={type} onViewReels={setViewedReels} onEditNote={openNoteEditor} /></div>
           </div>
           <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', marginTop: 'var(--s2)' }}>
             {ER_FORMULA[type]}

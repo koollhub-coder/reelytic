@@ -131,6 +131,10 @@ async function teardown({ keepConnection = false } = {}) {
     db.collection('analyzedCreators').deleteMany({ ownerUsername: prefixed }),
     // Saved creator-database filter segments (creators.routes.js /segments).
     db.collection('creatorSegments').deleteMany({ ownerUsername: prefixed }),
+    // Per-day usage rows keyed by username. Left behind, a later run that renames
+    // an account onto the same name hit a duplicate key on (username, date).
+    db.collection('usageStats').deleteMany({ username: prefixed }),
+    db.collection('teamInvites').deleteMany({ ownerUsername: prefixed }),
   ]);
 
   return true;

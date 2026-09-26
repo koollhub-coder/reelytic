@@ -9,6 +9,8 @@ import { useToast } from '../../context/ToastContext';
 import { formatDate, formatDateTime, formatDayKey } from '../../utils/date';
 import { TableSkeleton } from '../../components/TableSkeleton';
 import { Tooltip } from '../../components/Tooltip';
+import { DataTable } from '../../components/DataTable';
+import { RowMenu } from '../../components/RowMenu';
 
 // override value ->Select value, and back. null/undefined (key never
 // touched) reads as "plan", matching hasFeature()'s fallback-to-plan rule.
@@ -17,6 +19,15 @@ const OVERRIDE_OPTIONS = [
   { value: 'on', label: 'On (override)' },
   { value: 'off', label: 'Off (override)' },
 ];
+const FEATURES = [
+  { key: 'reportBranding', label: 'Report branding (custom logo and colors)' },
+  { key: 'shareableLinks', label: 'Shareable report links' },
+  { key: 'pdfExport', label: 'PDF report download' },
+  { key: 'creatorDatabase', label: 'Creator database' },
+  { key: 'teamSeats', label: 'Team seats (invite teammates)' },
+  { key: 'clientPortal', label: 'Persistent client portal' },
+];
+const blankDraft = (v) => Object.fromEntries(FEATURES.map((f) => [f.key, v]));
 function overrideToSelect(v) { return v === true ? 'on' : v === false ? 'off' : 'plan'; }
 function selectToOverride(v) { return v === 'on' ? true : v === 'off' ? false : null; }
 
@@ -24,6 +35,7 @@ export function Clients() {
   const { addToast } = useToast();
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [clientSearch, setClientSearch] = useState('');
   const [newModal, setNewModal] = useState(false);
   const [newUsername, setNewUsername] = useState('');
   const [tempPasswordResult, setTempPasswordResult] = useState(null);
@@ -31,7 +43,7 @@ export function Clients() {
   const [creditMode, setCreditMode] = useState('add'); // 'add' | 'set'
   const [creditAmount, setCreditAmount] = useState('');
   const [featureModal, setFeatureModal] = useState(null); // the client being adjusted
-  const [featureDraft, setFeatureDraft] = useState({ reportBranding: 'plan', shareableLinks: 'plan', pdfExport: 'plan', creatorDatabase: 'plan' });
+  const [featureDraft, setFeatureDraft] = useState(blankDraft('plan'));
   const [featureSaving, setFeatureSaving] = useState(false);
 
   const fetchClients = () => {
@@ -145,12 +157,7 @@ export function Clients() {
   const openFeatureModal = (client) => {
     const overrides = client.featureOverrides || {};
     setFeatureModal(client);
-    setFeatureDraft({
-      reportBranding: overrideToSelect(overrides.reportBranding),
-      shareableLinks: overrideToSelect(overrides.shareableLinks),
-      pdfExport: overrideToSelect(overrides.pdfExport),
-      creatorDatabase: overrideToSelect(overrides.creatorDatabase),
-    });
+    setFeatureDraft(Object.fromEntries(FEATURES.map((f) => [f.key, overrideToSelect(overrides[f.key])])));
   };
 
   const handleSaveFeatures = async () => {
@@ -159,12 +166,7 @@ export function Clients() {
       await apiFetch(`/admin/clients/${featureModal.username}`, {
         method: 'PATCH',
         body: JSON.stringify({
-          featureOverrides: {
-            reportBranding: selectToOverride(featureDraft.reportBranding),
-            shareableLinks: selectToOverride(featureDraft.shareableLinks),
-            pdfExport: selectToOverride(featureDraft.pdfExport),
-            creatorDatabase: selectToOverride(featureDraft.creatorDatabase),
-          },
+          featureOverrides: Object.fromEntries(FEATURES.map((f) => [f.key, selectToOverride(featureDraft[f.key])])),
         }),
       });
       addToast(`Feature access updated for ${featureModal.username}`, 'ok');
@@ -177,6 +179,41 @@ export function Clients() {
     }
   };
 
+  const columns = [
+    { key: 'username', label: 'Username', type: 'text', accessor: (c) => c.username, render: (c) => (
+      <span style={{ fontWeight: 600, fontFamily: 'var(--font-data)', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+        {c.username}
+        {c.role === 'admin' && <span className="chip" style={{ textTransform: 'uppercase', fontSize: 10 }}>Admin</span>}
+      </span>
+    ) },
+    { key: 'email', label: 'Email', type: 'text', accessor: (c) => c.email || '', render: (c) => <span className="mono rl-clip" title={c.email || ''} style={{ color: 'var(--text-2)', maxWidth: 200 }}>{c.email || '-'}</span> },
+    { key: 'credits', label: 'Credits', type: 'number', align: 'right', mono: true, accessor: (c) => c.credits ?? 0, render: (c) => <strong>{(c.credits ?? 0).toLocaleString()}</strong> },
+    { key: 'plan', label: 'Plan', type: 'select', accessor: (c) => c.plan || 'free', render: (c) => <span className="chip accent" style={{ textTransform: 'capitalize' }}>{c.plan || 'free'}</span> },
+    { key: 'status', label: 'Status', type: 'select', accessor: (c) => (c.disabled ? 'disabled' : 'active'), optionLabel: (v) => (v === 'disabled' ? 'Disabled' : 'Active'), render: (c) => <span className={`chip ${c.disabled ? 'err' : 'ok'}`}>{c.disabled ? 'Disabled' : 'Active'}</span> },
+    { key: 'createdAt', label: 'Created', type: 'date', mono: true, accessor: (c) => c.createdAt, render: (c) => <span style={{ color: 'var(--text-3)' }}>{formatDate(c.createdAt)}</span> },
+    { key: 'lastLoginAt', label: 'Last login', type: 'date', mono: true, accessor: (c) => c.lastLoginAt, render: (c) => <span title={c.lastLoginAt ? formatDateTime(c.lastLoginAt) : ''} style={{ color: 'var(--text-3)' }}>{c.lastLoginAt ? formatDate(c.lastLoginAt) : 'Never'}</span> },
+    {
+      key: 'actions', label: '', sortable: false, filterable: false, align: 'right', sticky: 'right',
+      render: (c) => (
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center' }}>
+          <button className="btn btn-secondary" style={{ height: '30px', fontSize: 'var(--fs-xs)' }} onClick={() => openCreditModal(c)}>Credits</button>
+          <RowMenu
+            label={`Actions for ${c.username}`}
+            items={[
+              { label: 'Features', onClick: () => openFeatureModal(c) },
+              { label: 'Reset password', onClick: () => handleResetPassword(c.username) },
+              { label: 'Revoke sessions', onClick: () => handleRevokeSessions(c.username) },
+              { label: c.hasSeenTour === false ? 'Tour queued' : 'Replay tour', onClick: c.hasSeenTour === false ? undefined : () => handleResetTour(c.username) },
+              { label: 'Download .xlsx', href: `/api/admin/clients/${c.username}/export.xlsx`, divider: true },
+              { label: 'Download .csv', href: `/api/admin/clients/${c.username}/export.csv` },
+              { label: c.disabled ? 'Enable account' : 'Disable account', onClick: () => handleToggleDisable(c.username, c.disabled), danger: !c.disabled, divider: true },
+            ]}
+          />
+        </div>
+      ),
+    },
+  ];
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 'var(--s3)', marginBottom: 'var(--s6)' }}>
@@ -184,95 +221,27 @@ export function Clients() {
         <button className="btn btn-primary" onClick={() => setNewModal(true)}>+ New Client</button>
       </div>
 
-      {(
-      <div className="data-table-container">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Username</th>
-              <th>Email</th>
-              <th>Role</th>
-              <th className="numeric">Credits</th>
-              <th>Plan</th>
-              <th>Status</th>
-              <th>Created</th>
-              <th>Last Login</th>
-              <th style={{ textAlign: 'right' }}>Actions</th>
-            </tr>
-          </thead>
-          {loading ? <TableSkeleton rows={10} columns={9} label="Loading clients" /> : (
-          <tbody>
-            {clients.map(c => (
-              <tr key={c._id}>
-                <td style={{ fontWeight: 600, fontFamily: 'var(--font-data)' }}>{c.username}</td>
-                <td className="mono" style={{ color: 'var(--text-2)' }}>{c.email || '-'}</td>
-                <td><span className="chip" style={{ textTransform: 'uppercase' }}>{c.role}</span></td>
-                <td className="numeric mono" style={{ fontWeight: 700 }}>{c.plan === 'unlimited' ? '∞' : (c.credits ?? 0).toLocaleString()}</td>
-                <td><span className="chip accent" style={{ textTransform: 'capitalize' }}>{c.plan || 'free'}</span></td>
-                <td>
-                  <span className={`chip ${c.disabled ? 'err' : 'ok'}`}>
-                    {c.disabled ? 'Disabled' : 'Active'}
-                  </span>
-                </td>
-                <td className="mono" style={{ color: 'var(--text-3)' }}>{formatDate(c.createdAt)}</td>
-                <td className="mono" style={{ color: 'var(--text-3)' }}>{c.lastLoginAt ? formatDateTime(c.lastLoginAt) : 'Never'}</td>
-                <td style={{ textAlign: 'right' }}>
-                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                    <button className="btn btn-secondary" style={{ height: '28px', fontSize: 'var(--fs-xs)' }} onClick={() => openCreditModal(c)}>Credits</button>
-                    <button className="btn btn-secondary" style={{ height: '28px', fontSize: 'var(--fs-xs)' }} onClick={() => handleResetPassword(c.username)}>Reset Pwd</button>
-                    <button className="btn btn-secondary" style={{ height: '28px', fontSize: 'var(--fs-xs)' }} onClick={() => handleRevokeSessions(c.username)}>Revoke</button>
-                    <button className="btn btn-secondary" style={{ height: '28px', fontSize: 'var(--fs-xs)' }} onClick={() => openFeatureModal(c)}>Features</button>
-                    <Tooltip content={c.hasSeenTour === false ? 'Already queued for their next login' : "Show the welcome tour again on this client's next login"}>
-                      <button
-                        className="btn btn-secondary"
-                        style={{ height: '28px', fontSize: 'var(--fs-xs)' }}
-                        onClick={() => handleResetTour(c.username)}
-                        disabled={c.hasSeenTour === false}
-                      >
-                        {c.hasSeenTour === false ? 'Tour queued' : 'Replay tour'}
-                      </button>
-                    </Tooltip>
-                    <Tooltip content="Download this client's submitted links and metrics as Excel">
-                      <a
-                        className="btn btn-secondary"
-                        style={{ height: '28px', fontSize: 'var(--fs-xs)', lineHeight: '28px', padding: '0 10px' }}
-                        href={`/api/admin/clients/${c.username}/export.xlsx`}
-                      >
-                        Download ↓ .xlsx
-                      </a>
-                    </Tooltip>
-                    <Tooltip content="Download this client's submitted links and metrics as CSV">
-                      <a
-                        className="btn btn-secondary"
-                        style={{ height: '28px', fontSize: 'var(--fs-xs)', lineHeight: '28px', padding: '0 10px' }}
-                        href={`/api/admin/clients/${c.username}/export.csv`}
-                      >
-                        .csv
-                      </a>
-                    </Tooltip>
-                    <button
-                      className={`btn ${c.disabled ? 'btn-secondary' : 'btn-destructive'}`}
-                      style={{ height: '28px', fontSize: 'var(--fs-xs)' }}
-                      onClick={() => handleToggleDisable(c.username, c.disabled)}
-                    >
-                      {c.disabled ? 'Enable' : 'Disable'}
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-          )}
-        </table>
-      </div>
-      )}
+      <DataTable
+        id="admin-clients"
+        loading={loading}
+        columns={columns}
+        rows={clients}
+        getRowId={(c) => c._id}
+        defaultSort={{ key: 'createdAt', dir: 'desc' }}
+        emptyTitle="No clients yet"
+        searchText={(c) => [c.username, c.email].filter(Boolean).join(' ')}
+        search={clientSearch}
+        toolbar={(
+          <input type="text" className="input-field" style={{ height: 34, width: 260 }} placeholder="Search username or email" value={clientSearch} onChange={(e) => setClientSearch(e.target.value)} />
+        )}
+      />
 
       {/* Adjust Credits Modal */}
       <Modal isOpen={!!creditModal} onClose={() => setCreditModal(null)} title="Adjust credits">
         <p style={{ color: 'var(--text-2)', marginBottom: 'var(--s4)' }}>
           <strong>{creditModal?.username}</strong> currently has{' '}
           <span className="mono" style={{ fontWeight: 700 }}>
-            {creditModal?.plan === 'unlimited' ? '∞' : (creditModal?.credits ?? 0).toLocaleString()}
+            {(creditModal?.credits ?? 0).toLocaleString()}
           </span>{' '}credits.
         </p>
 
@@ -320,40 +289,20 @@ export function Clients() {
           <span style={{ textTransform: 'capitalize' }}>{featureModal?.plan || 'free'}</span> plan).
         </p>
 
-        <div className="input-group">
-          <label className="input-label">Report branding (custom logo/colors)</label>
-          <Select
-            value={featureDraft.reportBranding}
-            onChange={(v) => setFeatureDraft((d) => ({ ...d, reportBranding: v }))}
-            options={OVERRIDE_OPTIONS}
-          />
+        <div style={{ display: 'flex', gap: 8, marginBottom: 'var(--s4)' }}>
+          <button type="button" className="btn btn-secondary" style={{ height: 30, fontSize: 'var(--fs-xs)' }} onClick={() => setFeatureDraft(blankDraft('on'))}>Turn everything on</button>
+          <button type="button" className="btn btn-ghost" style={{ height: 30, fontSize: 'var(--fs-xs)' }} onClick={() => setFeatureDraft(blankDraft('plan'))}>Reset all to plan default</button>
         </div>
-        <div className="input-group">
-          <label className="input-label">Shareable report links</label>
-          <Select
-            value={featureDraft.shareableLinks}
-            onChange={(v) => setFeatureDraft((d) => ({ ...d, shareableLinks: v }))}
-            options={OVERRIDE_OPTIONS}
-          />
-        </div>
-        {/* Not on any plan yet, this is the only way to grant it while it's
-            being tried out ahead of being a sellable tier. */}
-        <div className="input-group">
-          <label className="input-label">PDF report download</label>
-          <Select
-            value={featureDraft.pdfExport}
-            onChange={(v) => setFeatureDraft((d) => ({ ...d, pdfExport: v }))}
-            options={OVERRIDE_OPTIONS}
-          />
-        </div>
-        <div className="input-group">
-          <label className="input-label">Creator database</label>
-          <Select
-            value={featureDraft.creatorDatabase}
-            onChange={(v) => setFeatureDraft((d) => ({ ...d, creatorDatabase: v }))}
-            options={OVERRIDE_OPTIONS}
-          />
-        </div>
+        {FEATURES.map((f) => (
+          <div className="input-group" key={f.key}>
+            <label className="input-label">{f.label}</label>
+            <Select
+              value={featureDraft[f.key]}
+              onChange={(v) => setFeatureDraft((d) => ({ ...d, [f.key]: v }))}
+              options={OVERRIDE_OPTIONS}
+            />
+          </div>
+        ))}
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: 'var(--s4)' }}>
           <button type="button" className="btn btn-secondary" onClick={() => setFeatureModal(null)}>Cancel</button>

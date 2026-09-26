@@ -14,27 +14,18 @@ const { getProfilePipelineMode, setProfilePipelineMode, PROFILE_PIPELINE_INFO, g
 const { getCacheTtlDays, setProfileCacheTtlDays, DEFAULT_PROFILE_CACHE_TTL_DAYS } = require('../services/cache.service');
 const { getReelPipelineMode, setReelPipelineMode, REEL_PIPELINE_INFO } = require('../services/reelPipeline.service');
 const { fallbackCostUsd } = require('../services/costEstimate.service');
+const { getPlatformCredits, getAdminCredits } = require('../services/platformCredits.service');
 const { getLegalDoc, updateLegalDoc, TYPES: LEGAL_TYPES } = require('../services/legal.service');
 
 /*
-  Total credits currently held across every client account -- the sidebar's
-  "your credits" panel means nothing for an admin (their own balance is a
-  fixed 1,000,000 placeholder so internal runs never block, see
-  credits.service.js's ADMIN_CREDITS), so admin sees this platform-wide
-  total there instead. Excludes admin accounts themselves for the same
-  reason; a real client on the Unlimited plan still has a genuine numeric
-  balance and is counted normally. Its own tiny route (not folded into
-  /overview) because Shell.jsx needs this on every admin page load, and
-  /overview does a lot more work than this one number needs.
+  The credits the platform can deliver, worked out from Apify's own allowance,
+  with every step of the calculation so the number can be checked by hand.
+  Shell.jsx reads this on every admin page; the Usage page shows the working.
+  See platformCredits.service.js for why there is no unlimited pool anywhere.
 */
-router.get('/credits-total', requireAdmin, async (req, res, next) => {
+router.get('/platform-credits', requireAdmin, async (req, res, next) => {
   try {
-    const db = getDb();
-    const [agg] = await db.collection('users').aggregate([
-      { $match: { role: { $ne: 'admin' } } },
-      { $group: { _id: null, total: { $sum: { $ifNull: ['$credits', 0] } } } },
-    ]).toArray();
-    res.json({ totalCredits: (agg && agg.total) || 0 });
+    res.json(await getPlatformCredits({ force: req.query.refresh === '1' }));
   } catch (err) {
     next(err);
   }
@@ -256,7 +247,7 @@ router.get('/ledger', requireAdmin, async (req, res, next) => {
   try {
     const { user, type, from, to } = req.query;
     const page = Math.max(1, parseInt(req.query.page || '1', 10));
-    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit || '50', 10)));
+    const limit = Math.min(1000, Math.max(1, parseInt(req.query.limit || '50', 10)));
     const query = {};
     if (user) query.username = user;
     if (type) query.type = type;
@@ -278,7 +269,7 @@ router.get('/ledger', requireAdmin, async (req, res, next) => {
 router.get('/sessions', requireAdmin, async (req, res, next) => {
   try {
     const page = Math.max(1, parseInt(req.query.page || '1', 10));
-    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit || '50', 10)));
+    const limit = Math.min(1000, Math.max(1, parseInt(req.query.limit || '50', 10)));
 
     const db = getDb();
     const total = await db.collection('loginHistory').countDocuments({});
@@ -715,22 +706,20 @@ router.get('/usage/credits/:username', requireAdmin, async (req, res, next) => {
       What a credit is worth to us, so the page can answer "are we making
       money on this client?" rather than only "what did it cost?".
 
-      Admins hold an effectively-infinite pool (ADMIN_CREDITS) and pay
-      nothing, so for them a credit has no revenue attached and the balance
-      is meaningless as a countdown. Reporting 999,634 as a balance invites
-      exactly the confusion it caused: it is not a balance, it is what is
-      left of a number that was never meant to be spent down.
+      Admin accounts pay nothing, so for them a credit has no revenue
+      attached. Their balance is what Apify's remaining allowance can fund
+      (platformCredits.service.js), not a stored number.
     */
     const userDoc = await db.collection('users').findOne(
       { username },
       { projection: { plan: 1, credits: 1, role: 1 } }
     );
     const plan = (userDoc && userDoc.plan) || 'free';
-    const unlimited = plan === 'unlimited' || (userDoc && userDoc.role === 'admin');
+    const internal = !!(userDoc && userDoc.role === 'admin');
 
     let planPriceInr = null;
     let planCredits = null;
-    if (!unlimited) {
+    if (!internal) {
       const planDoc = await db.collection('settings').findOne({ key: 'pricingPlans' });
       const plans = (planDoc && planDoc.value && planDoc.value.length > 0) ? planDoc.value : DEFAULT_PLANS;
       const match = plans.find((p) => p.id === plan);
@@ -829,12 +818,10 @@ router.get('/usage/credits/:username', requireAdmin, async (req, res, next) => {
       username,
       runs,
       plan,
-      unlimited,
+      internal,
       planPriceInr,
       planCredits,
-      // Meaningless as a countdown on an unlimited pool, so the client is
-      // told not to render it as one rather than being left to guess.
-      currentBalance: unlimited ? null : currentBalance,
+      currentBalance: internal ? await getAdminCredits() : currentBalance,
       days: days || 'all',
       totalSpent,
       totalCostUsd,

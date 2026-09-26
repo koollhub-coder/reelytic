@@ -1,5 +1,10 @@
 import React from 'react';
 import {
+  MessageCircle,
+  SendHorizontal,
+  ThumbsUp,
+  ThumbsDown,
+  Minus,
   SunMedium,
   MoonStar,
   Menu,
@@ -192,6 +197,11 @@ export const GlobeIcon = make(Globe, 'GlobeIcon');
 export const FilterIcon = make(Filter, 'FilterIcon');
 export const ArrowUpIcon = make(ArrowUp, 'ArrowUpIcon');
 export const ArrowDownIcon = make(ArrowDown, 'ArrowDownIcon');
+export const ChatIcon = make(MessageCircle, 'ChatIcon');
+export const SendIcon = make(SendHorizontal, 'SendIcon');
+export const ThumbsUpIcon = make(ThumbsUp, 'ThumbsUpIcon');
+export const ThumbsDownIcon = make(ThumbsDown, 'ThumbsDownIcon');
+export const MinusIcon = make(Minus, 'MinusIcon');
 
 /*
   Lucide dropped every trademarked brand/logo glyph (Instagram, LinkedIn,

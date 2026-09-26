@@ -7,7 +7,9 @@ export function EmptyState({ icon = '', title, description, action }) {
           an empty string still produced a 42px-tall line box plus its margin,
           so every empty state carried a phantom gap above its heading once the
           emoji were removed. */}
-      {icon ? <div style={{ fontSize: '42px', marginBottom: 'var(--s3)' }}>{icon}</div> : null}
+      {icon ? (
+        <div style={{ width: 64, height: 64, margin: '0 auto var(--s4)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--surface-2)', color: 'var(--text-2)', fontSize: '32px' }}>{icon}</div>
+      ) : null}
       <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 700, marginBottom: 'var(--s2)' }}>
         {title}
       </h3>

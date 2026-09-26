@@ -9,6 +9,7 @@ import {
   GridIcon, UploadIcon, TrendingUpIcon, ChartIcon, ChevronDownIcon,
   MenuIcon, XIcon, CreditCardIcon, GiftIcon, ShieldIcon, SparkleIcon,
   FileIcon, PackageIcon, TourIcon, ZapIcon, InstagramIcon, LinkedinIcon, TwitterIcon,
+  GlobeIcon, UsersIcon, UserPlusIcon, ChatIcon, ReplayIcon, HistoryIcon, ReceiptIcon,
 } from '../components/Icon';
 import { NewsletterSignup } from '../components/NewsletterSignup';
 import { useTheme } from '../context/ThemeContext';
@@ -60,6 +61,18 @@ const LANDING_FAQ_ITEMS = [
   {
     q: 'What is the difference between a Reel Report and a Profile Report?',
     a: 'A Reel Report analyzes a list of individual Instagram Reel links. A Profile Report looks at a creator’s account as a whole and gives a fair average of how they normally perform, leaving out one-off viral posts that would otherwise skew the number.',
+  },
+  {
+    q: 'Can my client see live results without a login?',
+    a: 'Yes. Give each campaign a client portal: one link that always shows the latest numbers, with every report broken out, sortable and filterable, and a CSV download. You can turn it off any time.',
+  },
+  {
+    q: 'Can my team use the same workspace?',
+    a: 'Yes. Invite teammates by email and they work in the same workspace, on the same reports, campaigns and credits. Starter includes two seats, Pro five and Agency fifteen, and you stay the only one managing billing.',
+  },
+  {
+    q: 'How do credits work?',
+    a: 'One Reel report costs one credit and one profile report costs five. Your monthly credits are shown before you run anything, repeated links are flagged up front, and the same link is never charged twice.',
   },
   {
     q: 'Is there a free plan for Instagram analytics?',
@@ -355,11 +368,12 @@ export function Landing() {
       <div className="proof-strip rl-hide-mobile">
         <div className="proof-strip-eyebrow">WHAT'S UNDER THE HOOD</div>
         <div className="proof-strip-row">
-          <span className="proof-strip-item"><SpreadsheetIcon size={16} />Excel &amp; CSV support</span>
-          <span className="proof-strip-item"><PaletteIcon size={16} />Your branding, on every report</span>
           <span className="proof-strip-item"><ReelIcon size={16} />Reel + Profile analysis</span>
-          <span className="proof-strip-item"><DownloadIcon size={16} />Exportable report data</span>
-          <span className="proof-strip-item"><LinkIcon size={16} />Shareable client links</span>
+          <span className="proof-strip-item"><PaletteIcon size={16} />Your branding, on every report</span>
+          <span className="proof-strip-item"><GlobeIcon size={16} />Live client portals</span>
+          <span className="proof-strip-item"><UsersIcon size={16} />Creator database</span>
+          <span className="proof-strip-item"><UserPlusIcon size={16} />Team seats</span>
+          <span className="proof-strip-item"><DownloadIcon size={16} />Excel, CSV and PDF</span>
         </div>
       </div>
 
@@ -376,37 +390,132 @@ export function Landing() {
               footer, so the claim and the artefact now agree. An agency
               forwarding this to a brand should not have to explain who we
               are, and some of them would simply not send it if they did. */}
-          Your logo, your colours, your layout on every page. Our name appears nowhere on
+          Your logo, your colors, your layout on every page. Our name appears nowhere on
           the report your client receives.
         </p>
         <div className="features-grid">
-          {/* Hidden on mobile only -- four cards make a clean 2-column grid
-              on a phone; five leaves one stranded alone in the second row.
-              Still shown, unchanged, on desktop's flex-wrap layout. */}
-          <div className="feature-card whats-new-card rl-hide-mobile">
-            <div className="card-icon-badge"><GridIcon size={19} /></div>
-            <div className="feature-title">Campaign over campaign</div>
-            <div className="feature-desc">Put a campaign's reports together and every new one shows what changed since the last: engagement, reach and how many creators you ran.</div>
-          </div>
           <div className="feature-card whats-new-card">
             <div className="card-icon-badge"><PaletteIcon size={19} /></div>
             <div className="feature-title">Your branding, on every report</div>
-            <div className="feature-desc">Add your logo, colors and layout once. We do the rest.</div>
+            <div className="feature-desc">Add your logo, colors and layout once. Every report, portal and PDF carries your name, not ours.</div>
           </div>
           <div className="feature-card whats-new-card">
             <div className="card-icon-badge"><LinkIcon size={19} /></div>
-            <div className="feature-title">Share links that expire</div>
-            <div className="feature-desc">Send reports with secure, expiring links.</div>
-          </div>
-          <div className="feature-card whats-new-card">
-            <div className="card-icon-badge"><EyeIcon size={19} /></div>
-            <div className="feature-title">See when it was opened</div>
-            <div className="feature-desc">Know who viewed the report and how many times.</div>
+            <div className="feature-title">Share links you control</div>
+            <div className="feature-desc">Send a report with a secure link that can expire, and see when it was opened and how many times.</div>
           </div>
           <div className="feature-card whats-new-card">
             <div className="card-icon-badge"><DownloadIcon size={19} /></div>
-            <div className="feature-title">Export as Excel</div>
-            <div className="feature-desc">Clients can download the full data in one click.</div>
+            <div className="feature-title">Excel, CSV and PDF</div>
+            <div className="feature-desc">Your sheet comes back tidy, laid out the way you sent it. Branded PDFs are one click away.</div>
+          </div>
+          <div className="feature-card whats-new-card">
+            <div className="card-icon-badge"><GridIcon size={19} /></div>
+            <div className="feature-title">Campaign over campaign</div>
+            <div className="feature-desc">Group reports into campaigns and compare them side by side: engagement, reach and creators run.</div>
+          </div>
+          <div className="feature-card whats-new-card">
+            <div className="card-icon-badge"><ReplayIcon size={19} /></div>
+            <div className="feature-title">Fix it without starting over</div>
+            <div className="feature-desc">Forgot some links or need to swap the sheet? Edit it and retry the failed ones. Finished links keep their results.</div>
+          </div>
+          <div className="feature-card whats-new-card">
+            <div className="card-icon-badge"><ZapIcon size={19} /></div>
+            <div className="feature-title">Runs while you are away</div>
+            <div className="feature-desc">Up to 2,000 links in one batch. Pause, resume or close the tab, and it carries on without you.</div>
+          </div>
+          <div className="feature-card whats-new-card">
+            <div className="card-icon-badge"><ReceiptIcon size={19} /></div>
+            <div className="feature-title">Credits you can predict</div>
+            <div className="feature-desc">One credit per Reel, five per profile. Repeated links are pointed out before you start, and never charged twice.</div>
+          </div>
+          <div className="feature-card whats-new-card">
+            <div className="card-icon-badge"><ChatIcon size={19} /></div>
+            <div className="feature-title">Help built in</div>
+            <div className="feature-desc">An assistant in the corner answers questions about your account and takes you straight to the right page.</div>
+          </div>
+          <div className="feature-card whats-new-card">
+            <div className="card-icon-badge"><HistoryIcon size={19} /></div>
+            <div className="feature-title">Nothing gets lost</div>
+            <div className="feature-desc">Every report you have run stays in your account, ready to open or download again months later.</div>
+          </div>
+        </div>
+      </div>
+
+
+      {/* Three things that turn a one-off report into an ongoing account. Each is a real,
+          shipped feature; the little panels are decoration built from the same tokens as the app. */}
+      <div id="beyond-the-report" className="landing-section">
+        <div className="hero-eyebrow" style={{ textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+          <SparkleIcon size={13} />BEYOND THE REPORT
+        </div>
+        <h2 className="section-title">Built for the whole relationship, not one deliverable</h2>
+        <p style={{ textAlign: 'center', color: 'var(--text-2)', maxWidth: '640px', margin: '0 auto var(--s6)' }}>
+          Reports get you the first meeting. A client portal, a creator database and a team workspace are what keep the retainer.
+        </p>
+
+        <div className="spot-list">
+          <div className="spot">
+            <div className="spot-copy">
+              <div className="card-icon-badge"><GlobeIcon size={19} /></div>
+              <h3 className="spot-title">A living portal for every campaign</h3>
+              <p className="spot-desc">One link per campaign that always shows your client the latest numbers, instead of a new file every time something changes.</p>
+              <ul className="spot-points">
+                <li><CheckIcon size={14} />Updates on its own as you add reports</li>
+                <li><CheckIcon size={14} />Every report broken out, so they see what came from where</li>
+                <li><CheckIcon size={14} />Sort, filter and download, with no login on their side</li>
+                <li><CheckIcon size={14} />Carries your logo and colors, and you can switch it off any time</li>
+              </ul>
+            </div>
+            <div className="spot-mock" aria-hidden="true">
+              <div className="spot-mock-head"><span className="spot-mock-dot" />Summer launch<span className="spot-mock-pill">3 reports</span></div>
+              <div className="spot-mock-stats">
+                <div><b>1.4M</b><span>Views</span></div>
+                <div><b>4.8%</b><span>Avg ER</span></div>
+                <div><b>146</b><span>Creators</span></div>
+              </div>
+              {[['Week 1 creators', '52', '4.2%'], ['Week 2 creators', '61', '5.1%'], ['Story reshares', '33', '4.9%']].map(([n, c, e]) => (
+                <div className="spot-mock-row" key={n}><span>{n}</span><span>{c}</span><span className="spot-mock-good">{e}</span></div>
+              ))}
+            </div>
+          </div>
+
+          <div className="spot spot-flip">
+            <div className="spot-copy">
+              <div className="card-icon-badge"><UsersIcon size={19} /></div>
+              <h3 className="spot-title">A creator database that builds itself</h3>
+              <p className="spot-desc">Every creator you analyze lands in one searchable place, with followers, average views and engagement across all your reports.</p>
+              <ul className="spot-points">
+                <li><CheckIcon size={14} />Filter like a spreadsheet: by reach, engagement, campaign</li>
+                <li><CheckIcon size={14} />See who has delivered before you brief them again</li>
+                <li><CheckIcon size={14} />Save the views you use most, export to CSV any time</li>
+              </ul>
+            </div>
+            <div className="spot-mock" aria-hidden="true">
+              <div className="spot-mock-head"><span className="spot-mock-dot" />Creator database<span className="spot-mock-pill">ER above 2%</span></div>
+              {[['@arjunmehra', '184K', '6.7%'], ['@the.simran', '99K', '6.2%'], ['@rhea.styles', '132K', '5.3%'], ['@zaid.fitness', '87K', '7.8%']].map(([n, f, e]) => (
+                <div className="spot-mock-row" key={n}><span>{n}</span><span>{f}</span><span className="spot-mock-good">{e}</span></div>
+              ))}
+            </div>
+          </div>
+
+          <div className="spot">
+            <div className="spot-copy">
+              <div className="card-icon-badge"><UserPlusIcon size={19} /></div>
+              <h3 className="spot-title">Bring your team in</h3>
+              <p className="spot-desc">Invite teammates by email. Everyone works in the same workspace, on the same reports, campaigns and credits, and you stay the only one managing billing.</p>
+              <ul className="spot-points">
+                <li><CheckIcon size={14} />No shared passwords, each person signs in as themselves</li>
+                <li><CheckIcon size={14} />Two seats on Starter, five on Pro, fifteen on Agency</li>
+                <li><CheckIcon size={14} />Remove someone the moment they move on</li>
+              </ul>
+            </div>
+            <div className="spot-mock" aria-hidden="true">
+              <div className="spot-mock-head"><span className="spot-mock-dot" />Team<span className="spot-mock-pill">3 of 5 seats</span></div>
+              {[['You', 'Owner'], ['ananya@youragency.com', 'Member'], ['rohit@youragency.com', 'Invited']].map(([n, r]) => (
+                <div className="spot-mock-row" key={n}><span>{n}</span><span /><span className="spot-mock-role">{r}</span></div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -447,36 +556,6 @@ export function Landing() {
             <div className="step-number"><ProfileIcon size={19} /></div>
             <h3 className="step-heading">Profile Report</h3>
             <p className="step-desc">Give us a creator's profile and get a fair read on how they normally perform, with one-off viral posts left out so the average means something.</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="landing-section rl-hide-mobile">
-        <h2 className="section-title">Built for the reports your retainer depends on</h2>
-        <div className="features-grid">
-          <div className="feature-card">
-            <div className="feature-title">Numbers that line up</div>
-            <div className="feature-desc">Every figure sits in a neat column, so a client can scan the whole report without hunting for the number they care about.</div>
-          </div>
-          <div className="feature-card">
-            <div className="feature-title">Scales with your client list</div>
-            <div className="feature-desc">Run up to 2,000 links at once, across as many clients as you handle. If the same link appears in two campaigns, you are never charged for it twice.</div>
-          </div>
-          <div className="feature-card">
-            <div className="feature-title">Stop and start whenever you like</div>
-            <div className="feature-desc">Pause it, pick it back up, or take what is ready so far. Close the tab and go to a meeting: it carries on without you.</div>
-          </div>
-          <div className="feature-card">
-            <div className="feature-title">Nothing slips through</div>
-            <div className="feature-desc">Repeated and broken links are pointed out before you start, so nothing quietly goes missing from the final count.</div>
-          </div>
-          <div className="feature-card">
-            <div className="feature-title">Ready to send, not to fix</div>
-            <div className="feature-desc">Your sheet comes back tidy in Excel or CSV, laid out exactly the way you sent it in.</div>
-          </div>
-          <div className="feature-card">
-            <div className="feature-title">Nothing gets lost</div>
-            <div className="feature-desc">Every report you have ever run stays in your account, ready to open or download again months later.</div>
           </div>
         </div>
       </div>

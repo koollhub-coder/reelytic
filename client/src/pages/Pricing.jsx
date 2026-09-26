@@ -225,7 +225,7 @@ export function Pricing() {
 
                 {!user && (
                     <div className="trial-banner">
-                        <strong>New here?</strong>{' '}Start with <strong>10 free reel reports + 5 free profile reports</strong>, no card required.
+                        <strong>New here?</strong>{' '}Start with <strong>10 free credits</strong> (enough for 10 Reels or 2 profiles), no card required.
                     </div>
                 )}
 

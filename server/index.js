@@ -93,6 +93,9 @@ async function startServer() {
   app.use('/api/legal', require('./routes/legal.routes'));
   // Public, unauthenticated -- the Landing page footer's newsletter signup.
   app.use('/api/newsletter', require('./routes/newsletter.routes'));
+  // Public, unauthenticated -- the help assistant's feedback beacon (what it
+  // could not answer). See help.routes.js for what is and is not stored.
+  app.use('/api/help', require('./routes/help.routes'));
 
   /*
     The pre-deploy checks, runnable from the Health page. This router starts

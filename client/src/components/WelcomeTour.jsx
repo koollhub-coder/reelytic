@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../api/client';
 import { startDemoGuide } from './DemoGuide';
@@ -48,6 +48,16 @@ export function WelcomeTour({ onDone, username }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const current = STEPS[step];
+
+  // The sample opens on the report page. Fetching that page's code while the
+  // person reads these slides means "Show me the sample" does not also have to
+  // wait for a download.
+  useEffect(() => {
+    const idle = window.requestIdleCallback || ((fn) => window.setTimeout(fn, 300));
+    const cancel = window.cancelIdleCallback || window.clearTimeout;
+    const id = idle(() => { import('../pages/ReportEngine').catch(() => {}); });
+    return () => cancel(id);
+  }, []);
 
   /*
     Opens (or re-creates) the sample and hands off to the guided tour.

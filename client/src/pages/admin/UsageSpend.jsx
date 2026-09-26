@@ -8,6 +8,8 @@ import { formatDate, formatDateTime, formatAge } from '../../utils/date';
 import { scanMethodLabel, scanMethodHelp, costSourceLabel, costSourceHelp } from '../../utils/labels';
 import { CreditAuditModal } from '../../components/CreditAuditModal';
 import { Tooltip } from '../../components/Tooltip';
+import { DataTable } from '../../components/DataTable';
+import { PlatformCreditsPanel } from '../../components/PlatformCreditsPanel';
 
 const REFRESH_MS = 30000;
 
@@ -27,12 +29,11 @@ export function UsageSpend() {
     // thinks in, so it's the default, not an opt-in toggle.
     const [currency, setCurrency] = useState('INR');
 
-    const DRILLDOWN_PAGE_SIZE = 50;
     const [drilldownUser, setDrilldownUser] = useState(null);
     const [drilldownItems, setDrilldownItems] = useState(null);
     const [drilldownLoading, setDrilldownLoading] = useState(false);
     const [drilldownError, setDrilldownError] = useState('');
-    const [drilldownPage, setDrilldownPage] = useState(1);
+    const [drilldownSearch, setDrilldownSearch] = useState('');
     const [drilldownCachedCount, setDrilldownCachedCount] = useState(0);
     const [auditUser, setAuditUser] = useState(null);
     const [showTechnical, setShowTechnical] = useState(false);
@@ -41,7 +42,7 @@ export function UsageSpend() {
         setDrilldownUser(username);
         setDrilldownItems(null);
         setDrilldownError('');
-        setDrilldownPage(1);
+        setDrilldownSearch('');
         setDrilldownCachedCount(0);
         setDrilldownLoading(true);
         apiFetch(`/admin/usage/by-user/${encodeURIComponent(username)}`)
@@ -130,6 +131,8 @@ export function UsageSpend() {
                 Live spend across your whole account for the current billing cycle. Past runs keep the totals they were recorded with, even after a scan method switch.
             </p>
 
+            <PlatformCreditsPanel currency={currency} rate={rate} />
+
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 'var(--s4)', marginBottom: 'var(--s6)' }}>
                 <StatCard label="This billing cycle" value={fmt(data.totalUsd, currency, rate)} accent={true} />
                 <StatCard
@@ -157,53 +160,40 @@ export function UsageSpend() {
                 {byUser.length === 0 ? (
                     <div style={{ color: 'var(--text-3)', textAlign: 'center', padding: 'var(--s6)' }}>No client activity recorded yet this cycle.</div>
                 ) : (
-                    <div className="rl-table-scroll"><table className="data-table">
-                        <thead>
-                            <tr>
-                                <th>Client</th>
-                                <th className="numeric">Profile reports</th>
-                                <th className="numeric">Profile spend</th>
-                                <th className="numeric">Reel reports</th>
-                                <th className="numeric">Reel spend</th>
-                                <th className="numeric">Total</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {byUser.map((row) => (
-                                <tr
-                                    key={row.username}
-                                    onClick={() => openDrilldown(row.username)}
-                                    style={{ cursor: 'pointer' }}
-                                    title="Click to see every item and what it cost"
-                                >
-                                    <td style={{ fontWeight: 600, color: 'var(--accent)' }}>
-                                        {row.username}
-                                        {row.username === 'admin' && (
-                                            <span className="chip" style={{ marginLeft: '8px', padding: '2px 8px', fontSize: '10px' }}>Internal</span>
-                                        )}
-                                    </td>
-                                    <td className="numeric mono">{row.profileCount || '-'}</td>
-                                    <td className="numeric mono">{row.profileCount ? fmt(row.profileUsd, currency, rate) : '-'}</td>
-                                    <td className="numeric mono">{row.reelCount || '-'}</td>
-                                    <td className="numeric mono">{row.reelCount ? fmt(row.reelUsd, currency, rate) : '-'}</td>
-                                    <td className="numeric mono" style={{ fontWeight: 700 }}>{fmt(row.totalUsd, currency, rate)}</td>
-                                    <td style={{ textAlign: 'right' }}>
-                                        <Tooltip content="Opening balance, credits charged and closing balance for every report this client has run">
-                                            <button
-                                                type="button"
-                                                className="btn btn-secondary"
-                                                style={{ height: '28px', fontSize: 'var(--fs-xs)', padding: '0 var(--s3)', whiteSpace: 'nowrap' }}
-                                                onClick={(e) => { e.stopPropagation(); setAuditUser(row.username); }}
-                                            >
-                                                Credit audit
-                                            </button>
-                                        </Tooltip>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table></div>
+                    <DataTable
+                        id="admin-spend-by-client"
+                        bare
+                        rows={byUser}
+                        getRowId={(row) => row.username}
+                        onRowClick={(row) => openDrilldown(row.username)}
+                        rowTitle="Click to see every item and what it cost"
+                        defaultSort={{ key: 'total', dir: 'desc' }}
+                        columns={[
+                            { key: 'username', label: 'Client', type: 'text', accessor: (row) => row.username, render: (row) => (
+                                <span style={{ fontWeight: 600, color: 'var(--accent)' }}>
+                                    {row.username}
+                                    {row.username === 'admin' && <span className="chip" style={{ marginLeft: '8px', padding: '2px 8px', fontSize: '10px' }}>Internal</span>}
+                                </span>
+                            ) },
+                            { key: 'profileCount', label: 'Profile reports', type: 'number', align: 'right', mono: true, accessor: (row) => row.profileCount || 0, render: (row) => row.profileCount || '-' },
+                            { key: 'profileUsd', label: 'Profile spend', type: 'number', align: 'right', mono: true, accessor: (row) => row.profileUsd || 0, render: (row) => (row.profileCount ? fmt(row.profileUsd, currency, rate) : '-') },
+                            { key: 'reelCount', label: 'Reel reports', type: 'number', align: 'right', mono: true, accessor: (row) => row.reelCount || 0, render: (row) => row.reelCount || '-' },
+                            { key: 'reelUsd', label: 'Reel spend', type: 'number', align: 'right', mono: true, accessor: (row) => row.reelUsd || 0, render: (row) => (row.reelCount ? fmt(row.reelUsd, currency, rate) : '-') },
+                            { key: 'total', label: 'Total', type: 'number', align: 'right', mono: true, accessor: (row) => row.totalUsd || 0, render: (row) => <strong>{fmt(row.totalUsd, currency, rate)}</strong> },
+                            { key: 'audit', label: '', sortable: false, filterable: false, align: 'right', render: (row) => (
+                                <Tooltip content="Opening balance, credits charged and closing balance for every report this client has run">
+                                    <button
+                                        type="button"
+                                        className="btn btn-secondary"
+                                        style={{ height: '28px', fontSize: 'var(--fs-xs)', padding: '0 var(--s3)', whiteSpace: 'nowrap' }}
+                                        onClick={(e) => { e.stopPropagation(); setAuditUser(row.username); }}
+                                    >
+                                        Credit audit
+                                    </button>
+                                </Tooltip>
+                            ) },
+                        ]}
+                    />
                 )}
                 {showOverAttributed && (
                     <div style={{ marginTop: 'var(--s4)', padding: 'var(--s3) var(--s4)', background: 'var(--surface-2)', border: '1px solid var(--warn, var(--accent))', borderRadius: 'var(--r-md)', fontSize: 'var(--fs-xs)', color: 'var(--text-2)', lineHeight: 1.65 }}>
@@ -255,20 +245,17 @@ export function UsageSpend() {
                         {(!data.byActor || data.byActor.length === 0) ? (
                             <div style={{ color: 'var(--text-3)', textAlign: 'center', padding: 'var(--s6)' }}>No scan activity recorded yet this cycle.</div>
                         ) : (
-                            <div className="rl-table-scroll"><table className="data-table">
-                                <thead>
-                                    <tr><th>What it paid for</th><th className="numeric">Requests made</th><th className="numeric">Cost</th></tr>
-                                </thead>
-                                <tbody>
-                                    {data.byActor.map((a, i) => (
-                                        <tr key={i}>
-                                            <td>{a.label}</td>
-                                            <td className="numeric mono">{a.runs}</td>
-                                            <td className="numeric mono">{fmt(a.usd, currency, rate)}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table></div>
+                            <DataTable
+                                id="admin-spend-by-actor"
+                                bare
+                                rows={data.byActor}
+                                getRowId={(a) => a.label}
+                                columns={[
+                                    { key: 'label', label: 'What it paid for', type: 'text', accessor: (a) => a.label },
+                                    { key: 'runs', label: 'Requests made', type: 'number', align: 'right', mono: true, accessor: (a) => a.runs },
+                                    { key: 'usd', label: 'Cost', type: 'number', align: 'right', mono: true, accessor: (a) => a.usd, render: (a) => fmt(a.usd, currency, rate) },
+                                ]}
+                            />
                         )}
                     </div>
                 )}
@@ -330,74 +317,37 @@ export function UsageSpend() {
                                 </>
                             )}
                         </p>
-                        <div className="rl-table-scroll"><table className="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Link</th>
-                                    <th>Type</th>
-                                    <th>Scan method</th>
-                                    <th className="numeric">Cost</th>
-                                    <th>Where this came from</th>
-                                    <th>Data age</th>
-                                    <th>When</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {drilldownItems.slice((drilldownPage - 1) * DRILLDOWN_PAGE_SIZE, drilldownPage * DRILLDOWN_PAGE_SIZE).map((it, i) => (
-                                    <tr key={i}>
-                                        <td style={{ maxWidth: '260px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                            <a href={it.url} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>{it.resolvedUsername ? `@${it.resolvedUsername}` : it.url}</a>
-                                        </td>
-                                        <td style={{ textTransform: 'capitalize' }}>{it.type}</td>
-                                        <td>
-                                            <Tooltip content={scanMethodHelp(it.pipelineMode)}>
-                                                <span
-                                                    className="chip"
-                                                    style={{ padding: '2px 8px', fontSize: '10px', whiteSpace: 'nowrap' }}
-                                                >
-                                                    {scanMethodLabel(it.pipelineMode)}
-                                                </span>
-                                            </Tooltip>
-                                        </td>
-                                        {/* A zero here is a fact, not a gap: say so in the cell rather
-                                            than leaving an unexplained 0.0000 next to a real cost. */}
-                                        <td className="numeric mono" style={it.cached ? { color: 'var(--ok)' } : null}>
-                                            {it.cached ? 'Free' : fmt(it.costUsd, currency, rate)}
-                                        </td>
-                                        <td
-                                            style={{ fontSize: 'var(--fs-xs)', color: it.cached ? 'var(--ok)' : 'var(--text-2)', whiteSpace: 'nowrap' }}
-                                            title={costSourceHelp(it.costSource)}
-                                        >
-                                            {costSourceLabel(it.costSource, '')}
-                                        </td>
-                                        <td
-                                            className="mono"
-                                            style={{ fontSize: 'var(--fs-xs)', whiteSpace: 'nowrap', color: it.cached ? 'var(--text-2)' : 'var(--text-3)' }}
-                                            title={it.cached && it.cachedAt ? `Originally scraped ${formatDateTime(it.cachedAt)}` : 'Scraped fresh for this report'}
-                                        >
-                                            {it.cached
-                                                ? (it.cachedAt ? formatAge(it.cachedAt) : 'age not recorded')
-                                                : 'Fresh'}
-                                        </td>
-                                        <td className="mono" style={{ color: 'var(--text-3)', fontSize: 'var(--fs-xs)', whiteSpace: 'nowrap' }}>{formatDateTime(it.at)}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table></div>
-                        {drilldownItems.length >DRILLDOWN_PAGE_SIZE && (
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'var(--s3)' }}>
-                                <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>
-                                    Showing {(drilldownPage - 1) * DRILLDOWN_PAGE_SIZE + 1}-{Math.min(drilldownPage * DRILLDOWN_PAGE_SIZE, drilldownItems.length)} of {drilldownItems.length}
-                                </span>
-                                <div style={{ display: 'flex', gap: '8px' }}>
-                                    <button className="btn btn-secondary" disabled={drilldownPage <= 1} onClick={() => setDrilldownPage((p) => p - 1)}>Previous</button>
-                                    <span style={{ display: 'flex', alignItems: 'center', padding: '0 8px', fontSize: 'var(--fs-sm)', fontFamily: 'var(--font-data)' }}>
-                                        Page {drilldownPage} of {Math.ceil(drilldownItems.length / DRILLDOWN_PAGE_SIZE)}
+                        <DataTable
+                            id="admin-spend-items"
+                            bare
+                            rows={drilldownItems}
+                            getRowId={(it) => `${it.url}|${it.at}|${it.type}`}
+                            defaultSort={{ key: 'at', dir: 'desc' }}
+                            searchText={(it) => `${it.resolvedUsername || ''} ${it.url}`}
+                            search={drilldownSearch}
+                            toolbar={<input type="text" className="input-field" style={{ height: 34, width: 260 }} placeholder="Search link or handle" value={drilldownSearch} onChange={(e) => setDrilldownSearch(e.target.value)} />}
+                            columns={[
+                                { key: 'link', label: 'Link', type: 'text', accessor: (it) => it.resolvedUsername || it.url, render: (it) => (
+                                    <a className="rl-clip" style={{ color: 'var(--accent)', maxWidth: 260 }} title={it.url} href={it.url} target="_blank" rel="noreferrer">{it.resolvedUsername ? `@${it.resolvedUsername}` : it.url}</a>
+                                ) },
+                                { key: 'type', label: 'Type', type: 'select', accessor: (it) => it.type, optionLabel: (v) => String(v).charAt(0).toUpperCase() + String(v).slice(1), render: (it) => <span style={{ textTransform: 'capitalize' }}>{it.type}</span> },
+                                { key: 'mode', label: 'Scan method', type: 'select', accessor: (it) => scanMethodLabel(it.pipelineMode), render: (it) => (
+                                    <Tooltip content={scanMethodHelp(it.pipelineMode)}>
+                                        <span className="chip" style={{ padding: '2px 8px', fontSize: '10px', whiteSpace: 'nowrap' }}>{scanMethodLabel(it.pipelineMode)}</span>
+                                    </Tooltip>
+                                ) },
+                                { key: 'cost', label: 'Cost', type: 'number', align: 'right', mono: true, accessor: (it) => (it.cached ? 0 : it.costUsd), render: (it) => <span style={it.cached ? { color: 'var(--ok)' } : null}>{it.cached ? 'Free' : fmt(it.costUsd, currency, rate)}</span> },
+                                { key: 'source', label: 'Where this came from', type: 'select', accessor: (it) => costSourceLabel(it.costSource, ''), render: (it) => (
+                                    <span title={costSourceHelp(it.costSource)} style={{ fontSize: 'var(--fs-xs)', color: it.cached ? 'var(--ok)' : 'var(--text-2)' }}>{costSourceLabel(it.costSource, '')}</span>
+                                ) },
+                                { key: 'age', label: 'Data age', type: 'select', accessor: (it) => (it.cached ? 'Reused' : 'Fresh'), render: (it) => (
+                                    <span className="mono" style={{ fontSize: 'var(--fs-xs)', color: it.cached ? 'var(--text-2)' : 'var(--text-3)' }} title={it.cached && it.cachedAt ? `Originally scraped ${formatDateTime(it.cachedAt)}` : 'Scraped fresh for this report'}>
+                                        {it.cached ? (it.cachedAt ? formatAge(it.cachedAt) : 'age not recorded') : 'Fresh'}
                                     </span>
-                                    <button className="btn btn-secondary" disabled={drilldownPage >= Math.ceil(drilldownItems.length / DRILLDOWN_PAGE_SIZE)} onClick={() => setDrilldownPage((p) => p + 1)}>Next</button>
-                                </div>
-                            </div>
-                        )}
+                                ) },
+                                { key: 'at', label: 'When', type: 'date', mono: true, accessor: (it) => it.at, render: (it) => <span style={{ color: 'var(--text-3)', fontSize: 'var(--fs-xs)' }}>{formatDateTime(it.at)}</span> },
+                            ]}
+                        />
                     </>
                 )}
             </Modal>

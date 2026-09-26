@@ -1,38 +1,37 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '../api/client';
 import { EmptyState } from '../components/EmptyState';
-import { BrandLoader } from '../components/BrandLoader';
 import { Modal } from '../components/Modal';
 import { Select } from '../components/Select';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
-import { formatDate, formatDateTime, formatDayKey } from '../utils/date';
-import { TableSkeleton } from '../components/TableSkeleton';
+import { formatDate } from '../utils/date';
 import {
-  PlusIcon, ChartIcon, FileIcon, ReelIcon, ProfileIcon, SuccessIcon, ClockIcon,
-  SearchIcon, ChevronDownIcon, MoreIcon, TrashIcon, GlobeIcon,
+  PlusIcon, ChartIcon, FileIcon, ReelIcon, ProfileIcon, SearchIcon, ChevronDownIcon,
+  TrashIcon, GlobeIcon, DownloadIcon,
 } from '../components/Icon';
 import { CampaignAvatar, CampaignAvatarPicker } from '../components/CampaignAvatar';
 import { Tooltip } from '../components/Tooltip';
-import { Pagination } from '../components/Pagination';
 import { PortalDialog } from '../components/PortalDialog';
 import { UpgradeDialog, PREMIUM_FEATURES } from '../components/Premium';
+import { RowMenu } from '../components/RowMenu';
+import { DataTable } from '../components/DataTable';
 
 // chip: matches the same semantic language as everywhere else in the app --
 // green = done, amber = not started, and running/paused share one "in
 // progress" blue-ish tone (--info) since both mean "not finished yet,"
 // distinguished from each other by their label text, not their color.
 const STATUS_LABELS = {
-  preview: { label: 'Not started', chip: 'warn', filterGroup: 'not-started' },
-  running: { label: 'Running', chip: 'info', filterGroup: 'running' },
-  paused: { label: 'Paused', chip: 'info', filterGroup: 'paused' },
-  done: { label: 'Complete', chip: 'ok', filterGroup: 'done' },
+  preview: { label: 'Not started', chip: 'warn' },
+  running: { label: 'Running', chip: 'info' },
+  paused: { label: 'Paused', chip: 'info' },
+  done: { label: 'Complete', chip: 'ok' },
 };
 
 function formatDuration(startedAt, finishedAt) {
-  if (!startedAt) return '-';
+  if (!startedAt) return null;
   const start = new Date(startedAt).getTime();
   const end = finishedAt ? new Date(finishedAt).getTime() : Date.now();
   const totalSec = Math.max(0, Math.floor((end - start) / 1000));
@@ -55,192 +54,111 @@ function formatViews(n) {
   return String(n);
 }
 
-// Generic "⋮" row-actions menu -- what actually killed the horizontal
-// scroll: instead of every report row laying out 3-4 buttons side by side
-// (View, .xlsx, .csv, Branded report), only View stays inline and everything
-// else collapses into this. Click-outside/Escape handling mirrors the same
-// pattern CampaignCombobox already uses.
-function RowMenu({ items }) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef(null);
+function timeOf(d) {
+  try { return new Date(d).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); } catch (e) { return ''; }
+}
 
-  useEffect(() => {
-    if (!open) return undefined;
-    const handleClick = (e) => { if (rootRef.current && !rootRef.current.contains(e.target)) setOpen(false); };
-    const handleKey = (e) => { if (e.key === 'Escape') setOpen(false); };
-    document.addEventListener('mousedown', handleClick);
-    document.addEventListener('keydown', handleKey);
-    return () => {
-      document.removeEventListener('mousedown', handleClick);
-      document.removeEventListener('keydown', handleKey);
-    };
-  }, [open]);
+// Pasted lists are all called "pasted-links.txt", which makes forty of them
+// impossible to tell apart. A plain name reads better, and a name the person
+// typed on the upload screen is shown as typed.
+const displayName = (job) => (!job.fileName || job.fileName === 'pasted-links.txt' ? 'Pasted links' : job.fileName);
 
-  if (!items || items.length === 0) return null;
+const reportPath = (job) => `${job.type === 'reel' ? '/reels' : '/profiles'}?job=${job.id}`;
 
+function exportItems(job, navigate) {
+  return [
+    { label: 'Download Excel (.xlsx)', icon: DownloadIcon, href: `/api/export/${job.id}.xlsx`, download: true },
+    { label: 'Download CSV', icon: DownloadIcon, href: `/api/export/${job.id}.csv`, download: true },
+    { label: 'Branded report', icon: FileIcon, onClick: () => navigate(`/reports/${job.id}/branded`), divider: true },
+  ];
+}
+
+// One row's actions. The primary button and the menu slot are always the same
+// width, so the buttons line up down the whole column.
+function ReportActions({ job, navigate }) {
+  const isDone = job.status === 'done';
+  const canExport = isDone && (job.counts?.success || 0) > 0;
   return (
-    <div ref={rootRef} style={{ position: 'relative', display: 'inline-block' }}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-label="More actions"
-        style={{
-          width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'none', border: '1px solid var(--border-strong)', borderRadius: 'var(--r-sm)',
-          color: 'var(--text-2)', cursor: 'pointer',
-        }}
-      >
-        <MoreIcon size={15} />
+    <div className="rl-actions">
+      <button type="button" className="btn btn-secondary rl-actions-primary" onClick={() => navigate(reportPath(job))}>
+        {isDone ? 'View' : 'Resume'}
       </button>
-      {open && (
-        <div style={{
-          position: 'absolute', top: 'calc(100% + 4px)', right: 0, minWidth: '180px', zIndex: 150,
-          backgroundColor: 'var(--surface)', border: '1px solid var(--border-strong)', borderRadius: 'var(--r-sm)',
-          boxShadow: 'var(--shadow-lg)', padding: '4px',
-        }}>
-          {items.map((item, i) => (
-            item.href ? (
-              <a
-                key={i}
-                href={item.href}
-                download={item.download}
-                onClick={() => setOpen(false)}
-                style={{ display: 'block', padding: '8px 10px', borderRadius: 'var(--r-sm)', fontSize: 'var(--fs-sm)', color: 'var(--text)', textDecoration: 'none' }}
-                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--surface-2)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-              >
-                {item.label}
-              </a>
-            ) : (
-              <button
-                key={i}
-                type="button"
-                onClick={() => { setOpen(false); item.onClick(); }}
-                style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 10px', borderRadius: 'var(--r-sm)', fontSize: 'var(--fs-sm)', color: 'var(--text)', background: 'none', border: 'none', cursor: 'pointer' }}
-                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--surface-2)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-              >
-                {item.label}
-              </button>
-            )
-          ))}
-        </div>
-      )}
+      <span className="rl-actions-slot">
+        {canExport && <RowMenu items={exportItems(job, navigate)} />}
+      </span>
     </div>
   );
 }
 
-// Reports stay put on History instead of navigating away -- this page
-// already shows everything meaningful about a finished report (status,
-// counts, timing, downloads). The one exception is a report that hasn't
-// finished yet: pausing, resuming, or starting it can only happen inside
-// the report engine itself, so those get one clearly-labeled "Resume" link
-// rather than making the whole row a hidden navigation trap.
-function ReportRow({ job, campaigns, onReassign, navigate, selectable, selected, onToggleSelect }) {
-  const statusInfo = STATUS_LABELS[job.status] || { label: job.status, chip: '' };
-  const isDone = job.status === 'done';
+function reportColumns({ campaigns, onReassign, navigate }) {
+  const campaignName = new Map(campaigns.map((c) => [c.id, c.name]));
   const campaignOptions = [{ value: '', label: 'No campaign' }, ...campaigns.map((c) => ({ value: c.id, label: c.name }))];
-
-  return (
-    <tr>
-      {selectable && (
-        <td style={{ width: '36px' }}>
-          <input type="checkbox" checked={selected} onChange={() => onToggleSelect(job.id)} aria-label={`Select ${job.fileName}`} />
-        </td>
-      )}
-      {/* File name leads the row -- it's what a person is scanning for,
-          same hierarchy the reference asked for: name -> status -> links ->
-          time/date -> campaign -> actions. Filenames are arbitrary length
-          and were wrapping to two lines, which set the height of every row;
-          truncate with the full name on hover instead. */}
-      <td style={{ fontWeight: 600, maxWidth: '170px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        <Tooltip content={job.fileName}><span>{job.fileName}</span></Tooltip>
-      </td>
-      <td>
-        <span className={`chip ${job.type === 'reel' ? 'accent' : 'ok'}`} style={{ textTransform: 'uppercase' }}>
-          {job.type}
-        </span>
-      </td>
-      <td className="numeric mono">{job.counts?.total || 0}</td>
-      <td>
-        <span className={`chip ${statusInfo.chip}`}>{statusInfo.label}</span>
-      </td>
-      <td className="mono" style={{ color: 'var(--text-3)' }}>{formatDuration(job.startedAt, job.finishedAt)}</td>
-      <td className="mono" style={{ color: 'var(--text-3)' }}>
-        {formatDateTime(job.createdAt)}
-      </td>
-      <td>
-        <Select
-          value={job.campaignId || ''}
-          onChange={(v) => onReassign(job.id, v || null)}
-          options={campaignOptions}
-          style={{ minWidth: '100px', maxWidth: '120px' }}
-        />
-      </td>
-      <td style={{ textAlign: 'right' }}>
-        {isDone ? (
-          <div style={{ display: 'inline-flex', gap: '6px' }}>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              style={{ height: '28px', fontSize: 'var(--fs-xs)', padding: '0 10px' }}
-              onClick={() => navigate(`${job.type === 'reel' ? '/reels' : '/profiles'}?job=${job.id}`)}
-            >
-              View
-            </button>
-            {/* Only View stays inline -- Excel/CSV/branded collapse into the
-                menu instead of each getting their own button, which is what
-                forced every row wider than the table before. */}
-            {(job.counts?.success || 0) > 0 && (
-              <RowMenu
-                items={[
-                  { label: 'Download Excel (.xlsx)', href: `/api/export/${job.id}.xlsx`, download: true },
-                  { label: 'Download CSV', href: `/api/export/${job.id}.csv`, download: true },
-                  { label: 'Branded report', onClick: () => navigate(`/reports/${job.id}/branded`) },
-                ]}
-              />
-            )}
+  const nameOf = (j) => campaignName.get(j.campaignId) || 'No campaign';
+  return [
+    {
+      key: 'name', label: 'Report', type: 'text', accessor: (j) => displayName(j),
+      render: (j) => (
+        <Tooltip content={j.fileName || displayName(j)}>
+          <div className="rl-cell-title">{displayName(j)}</div>
+        </Tooltip>
+      ),
+    },
+    {
+      key: 'type', label: 'Type', type: 'select', accessor: (j) => j.type,
+      optionLabel: (v) => (v === 'reel' ? 'Reel' : 'Profile'),
+      render: (j) => <span className={`chip ${j.type === 'reel' ? 'accent' : 'ok'}`} style={{ textTransform: 'uppercase' }}>{j.type}</span>,
+    },
+    { key: 'links', label: 'Links', type: 'number', align: 'right', mono: true, accessor: (j) => j.counts?.total || 0 },
+    {
+      key: 'status', label: 'Status', type: 'select', accessor: (j) => (STATUS_LABELS[j.status] || { label: j.status }).label,
+      render: (j) => {
+        const info = STATUS_LABELS[j.status] || { label: j.status, chip: '' };
+        const took = j.status === 'done' ? formatDuration(j.startedAt, j.finishedAt) : null;
+        return (
+          <div>
+            <span className={`chip ${info.chip}`}>{info.label}</span>
+            {took && <div className="rl-cell-sub">Took {took}</div>}
           </div>
-        ) : (
-          <button
-            type="button"
-            className="btn btn-secondary"
-            style={{ height: '28px', fontSize: 'var(--fs-xs)', padding: '0 10px' }}
-            onClick={() => navigate(`${job.type === 'reel' ? '/reels' : '/profiles'}?job=${job.id}`)}
-          >
-            Resume →
-          </button>
-        )}
-      </td>
-    </tr>
-  );
+        );
+      },
+    },
+    {
+      key: 'created', label: 'Created', type: 'date', accessor: (j) => j.createdAt,
+      render: (j) => (
+        <div>
+          <div style={{ fontSize: 'var(--fs-sm)' }}>{formatDate(j.createdAt)}</div>
+          <div className="rl-cell-sub">{timeOf(j.createdAt)}</div>
+        </div>
+      ),
+    },
+    {
+      key: 'campaign', label: 'Campaign', type: 'select', accessor: nameOf,
+      render: (j) => (
+        <Select value={j.campaignId || ''} onChange={(v) => onReassign(j.id, v || null)} options={campaignOptions} style={{ minWidth: '150px', maxWidth: '190px' }} />
+      ),
+    },
+    {
+      key: 'actions', label: '', type: 'none', sortable: false, filterable: false, align: 'right', width: '132px',
+      accessor: () => '', render: (j) => <ReportActions job={j} navigate={navigate} />,
+    },
+  ];
 }
 
 /*
-  Mobile equivalent of ReportRow -- an 8-column table (checkbox, name, type,
-  links, status, time, date, campaign, actions) has no honest way to fit a
-  375px screen, and forcing it to meant either crushed columns or a
-  horizontal-scroll table where the actions on the far right were the part
-  most likely to need reaching. Stacked card, same fields, same handlers,
-  hierarchy matching ReportRow's own comment: name -> status -> links ->
-  time/date -> campaign -> actions.
+  Mobile equivalent of a table row: the same fields as a stacked card. A
+  seven-column table has no honest way to fit a phone.
 */
 function ReportCardMobile({ job, campaigns, onReassign, navigate, selectable, selected, onToggleSelect }) {
   const statusInfo = STATUS_LABELS[job.status] || { label: job.status, chip: '' };
   const isDone = job.status === 'done';
   const campaignOptions = [{ value: '', label: 'No campaign' }, ...campaigns.map((c) => ({ value: c.id, label: c.name }))];
+  const took = isDone ? formatDuration(job.startedAt, job.finishedAt) : null;
 
   return (
-    <div className="card" style={{ padding: 'var(--s3) var(--s4)', marginBottom: 'var(--s3)' }}>
+    <div className="card" style={{ padding: 'var(--s3) var(--s4)' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--s2)' }}>
         {selectable && (
-          <input
-            type="checkbox"
-            checked={selected}
-            onChange={() => onToggleSelect(job.id)}
-            aria-label={`Select ${job.fileName}`}
-            style={{ marginTop: '3px', flexShrink: 0 }}
-          />
+          <input type="checkbox" checked={selected} onChange={onToggleSelect} aria-label={`Select ${displayName(job)}`} style={{ marginTop: '3px', flexShrink: 0 }} />
         )}
         <div style={{
           width: '32px', height: '32px', borderRadius: 'var(--r-md)', flexShrink: 0,
@@ -251,128 +169,49 @@ function ReportCardMobile({ job, campaigns, onReassign, navigate, selectable, se
           {job.type === 'reel' ? <ReelIcon size={15} /> : <ProfileIcon size={15} />}
         </div>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <Tooltip content={job.fileName}>
-            <div style={{ fontWeight: 600, fontSize: 'var(--fs-sm)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {job.fileName}
-            </div>
-          </Tooltip>
+          <div style={{ fontWeight: 600, fontSize: 'var(--fs-sm)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName(job)}</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
-            <span className={`chip ${job.type === 'reel' ? 'accent' : 'ok'}`} style={{ textTransform: 'uppercase', fontSize: '10px' }}>{job.type}</span>
             <span className={`chip ${statusInfo.chip}`} style={{ fontSize: '10px' }}>{statusInfo.label}</span>
             <span className="mono" style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>{job.counts?.total || 0} links</span>
           </div>
-          <div className="mono" style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', marginTop: '4px' }}>
-            {formatDuration(job.startedAt, job.finishedAt)} &middot; {formatDateTime(job.createdAt)}
+          <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', marginTop: '4px' }}>
+            {formatDate(job.createdAt)}, {timeOf(job.createdAt)}{took ? ` · took ${took}` : ''}
           </div>
         </div>
-        {/* Secondary actions live here, top-right, next to the filename --
-            not competing with the primary action button below. Downloads
-            only exist once there's something to download; RowMenu already
-            renders nothing when items is empty. */}
-        {isDone && (job.counts?.success || 0) > 0 && (
-          <RowMenu
-            items={[
-              { label: 'Download Excel (.xlsx)', href: `/api/export/${job.id}.xlsx`, download: true },
-              { label: 'Download CSV', href: `/api/export/${job.id}.csv`, download: true },
-              { label: 'Branded report', onClick: () => navigate(`/reports/${job.id}/branded`) },
-            ]}
-          />
-        )}
+        {isDone && (job.counts?.success || 0) > 0 && <RowMenu items={exportItems(job, navigate)} />}
       </div>
 
       <div style={{ marginTop: 'var(--s3)' }}>
-        <Select
-          value={job.campaignId || ''}
-          onChange={(v) => onReassign(job.id, v || null)}
-          options={campaignOptions}
-          style={{ width: '100%' }}
-        />
+        <Select value={job.campaignId || ''} onChange={(v) => onReassign(job.id, v || null)} options={campaignOptions} style={{ width: '100%' }} />
       </div>
 
-      {/* One obvious primary action, full-width -- View for a finished
-          report, Resume for one that isn't. Nothing else competes with it
-          on this row; secondary actions already moved up to the ⋮ menu. */}
-      <button
-        type="button"
-        className="btn btn-secondary"
-        style={{ width: '100%', height: '36px', fontSize: 'var(--fs-sm)', marginTop: 'var(--s3)' }}
-        onClick={() => navigate(`${job.type === 'reel' ? '/reels' : '/profiles'}?job=${job.id}`)}
-      >
+      <button type="button" className="btn btn-secondary" style={{ width: '100%', height: '36px', fontSize: 'var(--fs-sm)', marginTop: 'var(--s3)' }} onClick={() => navigate(reportPath(job))}>
         {isDone ? 'View report →' : 'Resume report →'}
       </button>
     </div>
   );
 }
 
-function ReportsTable({ jobs, campaigns, navigate, onReassign, loading = false, selectable, selectedIds, onToggleSelect, onToggleSelectAll }) {
-  const allSelected = selectable && jobs.length > 0 && jobs.every((j) => selectedIds && selectedIds.has(j.id));
+// Every list of reports on this page is this one component, so they all
+// behave the same: sortable and filterable headings, the shared page sizes,
+// cards on a phone.
+function ReportsList({ id, jobs, campaigns, navigate, onReassign, selection, loading = false, tourId, emptyTitle }) {
+  const columns = useMemo(() => reportColumns({ campaigns, onReassign, navigate }), [campaigns, onReassign, navigate]);
   return (
-    <>
-      <div className="rl-table-scroll rl-hide-mobile" data-tour="history-table">
-        <table className="data-table rl-history-table">
-          <thead>
-            <tr>
-              {selectable && (
-                <th style={{ width: '32px' }}>
-                  <input type="checkbox" checked={allSelected} onChange={() => onToggleSelectAll(jobs)} aria-label="Select all" />
-                </th>
-              )}
-              <th>File Name</th>
-              <th>Type</th>
-              <th className="numeric">Links</th>
-              <th>Status</th>
-              <th>Time taken</th>
-              <th>Date</th>
-              <th>Campaign</th>
-              <th style={{ textAlign: 'right' }}>Actions</th>
-            </tr>
-          </thead>
-          {loading ? <TableSkeleton rows={6} columns={8} rowHeight={67} label="Loading your reports" /> : (
-          <tbody>
-            {jobs.map((j) => (
-              <ReportRow
-                key={j.id}
-                job={j}
-                navigate={navigate}
-                campaigns={campaigns}
-                onReassign={onReassign}
-                selectable={selectable}
-                selected={!!(selectedIds && selectedIds.has(j.id))}
-                onToggleSelect={onToggleSelect}
-              />
-            ))}
-          </tbody>
-          )}
-        </table>
-      </div>
-
-      {/* Mobile: stacked cards instead of the same 8-column table squeezed
-          into a horizontal scroll -- see ReportCardMobile's own note. */}
-      <div className="rl-mobile-only" style={{ flexDirection: 'column', padding: 'var(--s3)' }}>
-        {selectable && jobs.length > 0 && (
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: 'var(--fs-sm)', color: 'var(--text-2)', marginBottom: 'var(--s2)', cursor: 'pointer' }}>
-            <input type="checkbox" checked={allSelected} onChange={() => onToggleSelectAll(jobs)} />
-            Select all
-          </label>
-        )}
-        {loading ? (
-          <div style={{ padding: 'var(--s4)', textAlign: 'center', color: 'var(--text-3)', fontSize: 'var(--fs-sm)' }}>Loading your reports...</div>
-        ) : (
-          jobs.map((j) => (
-            <ReportCardMobile
-              key={j.id}
-              job={j}
-              navigate={navigate}
-              campaigns={campaigns}
-              onReassign={onReassign}
-              selectable={selectable}
-              selected={!!(selectedIds && selectedIds.has(j.id))}
-              onToggleSelect={onToggleSelect}
-            />
-          ))
-        )}
-      </div>
-    </>
+    <DataTable
+      id={id}
+      tourId={tourId}
+      columns={columns}
+      rows={jobs}
+      getRowId={(j) => j.id}
+      selection={selection}
+      defaultSort={{ key: 'created', dir: 'desc' }}
+      loading={loading}
+      emptyTitle={emptyTitle || 'No reports here yet'}
+      renderMobile={(j, { selected, onToggle }) => (
+        <ReportCardMobile job={j} campaigns={campaigns} onReassign={onReassign} navigate={navigate} selectable={!!selection} selected={selected} onToggleSelect={onToggle} />
+      )}
+    />
   );
 }
 
@@ -493,7 +332,7 @@ function CampaignCard({ campaign, jobs, campaigns, navigate, onReassign, expande
           </div>
           <RowMenu items={[
             { label: 'Client portal', onClick: openPortal },
-            { label: 'Delete campaign', onClick: () => onDelete(campaign) },
+            { label: 'Delete campaign', onClick: () => onDelete(campaign), danger: true, divider: true },
           ]} />
         </div>
 
@@ -525,12 +364,50 @@ function CampaignCard({ campaign, jobs, campaigns, navigate, onReassign, expande
           </div>
         ) : (
           <div style={{ borderTop: '1px solid var(--border)', overflowX: 'auto' }}>
-            <ReportsTable jobs={jobs} campaigns={campaigns} navigate={navigate} onReassign={onReassign} />
+            <ReportsList id="history-campaign" jobs={jobs} campaigns={campaigns} navigate={navigate} onReassign={onReassign} />
           </div>
         )
       )}
     </div>
     </>
+  );
+}
+
+function CompareCard({ c, bestId }) {
+  const successRate = c.totalLinks > 0 ? Math.round((c.successCount / c.totalLinks) * 100) : null;
+  return (
+    <div className="card" style={{ padding: 'var(--s3) var(--s4)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: 'var(--s3)' }}>
+        <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '15px' }}>{c.name}</span>
+        {c.id === bestId && <span className="chip ok" style={{ fontSize: '10px' }}>Top performer</span>}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--s3)' }}>
+        <div>
+          <div className="mono" style={{ fontSize: '13px', fontWeight: 700 }}>{c.reportCount}</div>
+          <div style={{ fontSize: '10px', color: 'var(--text-3)', textTransform: 'uppercase' }}>Reports</div>
+        </div>
+        <div>
+          <div className="mono" style={{ fontSize: '13px', fontWeight: 700 }}>{c.totalLinks}</div>
+          <div style={{ fontSize: '10px', color: 'var(--text-3)', textTransform: 'uppercase' }}>Links</div>
+        </div>
+        <div>
+          <div className="mono" style={{ fontSize: '13px', fontWeight: 700 }}>{successRate != null ? `${successRate}%` : '-'}</div>
+          <div style={{ fontSize: '10px', color: 'var(--text-3)', textTransform: 'uppercase' }}>Success</div>
+        </div>
+        <div>
+          <div className="mono" style={{ fontSize: '13px', fontWeight: 700 }}>{formatViews(c.totalViews)}</div>
+          <div style={{ fontSize: '10px', color: 'var(--text-3)', textTransform: 'uppercase' }}>Views</div>
+        </div>
+        <div>
+          <div className="mono" style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ok)' }}>{c.avgEr != null ? `${c.avgEr}%` : '-'}</div>
+          <div style={{ fontSize: '10px', color: 'var(--text-3)', textTransform: 'uppercase' }}>Avg ER</div>
+        </div>
+        <div>
+          <div className="mono" style={{ fontSize: '11px', color: 'var(--text-3)' }}>{c.earliestAt ? formatDateRange(c.earliestAt, c.latestAt) : '-'}</div>
+          <div style={{ fontSize: '10px', color: 'var(--text-3)', textTransform: 'uppercase' }}>Active</div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -549,117 +426,35 @@ function CampaignCompareTable({ campaigns }) {
     return b.avgEr - a.avgEr;
   });
 
-  return (
-    <>
-      <div className="data-table-container rl-hide-mobile">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Campaign</th>
-              <th>Reports</th>
-              <th>Links</th>
-              <th>Success rate</th>
-              <th>Total views</th>
-              <th>Avg ER</th>
-              <th>Active</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((c) => {
-              const successRate = c.totalLinks > 0 ? Math.round((c.successCount / c.totalLinks) * 100) : null;
-              return (
-                <tr key={c.id}>
-                  <td style={{ fontWeight: 600 }}>
-                    {c.name}
-                    {c.id === bestId && (
-                      <span className="chip ok" style={{ marginLeft: 'var(--s2)', fontSize: '10px' }}>Top performer</span>
-                    )}
-                  </td>
-                  <td className="numeric mono">{c.reportCount}</td>
-                  <td className="numeric mono">{c.totalLinks}</td>
-                  <td className="numeric mono">{successRate != null ? `${successRate}%` : '-'}</td>
-                  <td className="numeric mono">{formatViews(c.totalViews)}</td>
-                  <td className="numeric mono" style={{ color: 'var(--ok)', fontWeight: 600 }}>{c.avgEr != null ? `${c.avgEr}%` : '-'}</td>
-                  <td className="mono" style={{ color: 'var(--text-3)', fontSize: 'var(--fs-xs)' }}>{c.earliestAt ? formatDateRange(c.earliestAt, c.latestAt) : '-'}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+  const rate = (c) => (c.totalLinks > 0 ? Math.round((c.successCount / c.totalLinks) * 100) : null);
+  const columns = [
+    { key: 'name', label: 'Campaign', type: 'text', accessor: (c) => c.name, render: (c) => (
+      <span style={{ fontWeight: 600 }}>
+        {c.name}
+        {c.id === bestId && <span className="chip ok" style={{ marginLeft: 'var(--s2)', fontSize: '10px' }}>Top performer</span>}
+      </span>
+    ) },
+    { key: 'reportCount', label: 'Reports', type: 'number', align: 'right', mono: true, accessor: (c) => c.reportCount },
+    { key: 'totalLinks', label: 'Links', type: 'number', align: 'right', mono: true, accessor: (c) => c.totalLinks },
+    { key: 'rate', label: 'Success rate', type: 'number', align: 'right', mono: true, accessor: rate, render: (c) => (rate(c) != null ? rate(c) + '%' : '-') },
+    { key: 'totalViews', label: 'Total views', type: 'number', align: 'right', mono: true, accessor: (c) => c.totalViews, render: (c) => formatViews(c.totalViews) },
+    { key: 'avgEr', label: 'Avg ER', type: 'number', align: 'right', mono: true, accessor: (c) => c.avgEr, render: (c) => (c.avgEr != null ? <span style={{ color: 'var(--ok)', fontWeight: 600 }}>{c.avgEr}%</span> : '-') },
+    { key: 'active', label: 'Active', type: 'date', accessor: (c) => c.latestAt, render: (c) => (c.earliestAt ? <span style={{ color: 'var(--text-3)', fontSize: 'var(--fs-xs)' }}>{formatDateRange(c.earliestAt, c.latestAt)}</span> : '-') },
+  ];
 
-      {/* Mobile: the same rows as stacked comparison cards instead of a
-          7-column table -- same sort, same "Top performer" flag, same
-          fields, just one per card instead of one per row. */}
-      <div className="rl-mobile-only" style={{ flexDirection: 'column', gap: 'var(--s3)' }}>
-        {sorted.map((c) => {
-          const successRate = c.totalLinks > 0 ? Math.round((c.successCount / c.totalLinks) * 100) : null;
-          return (
-            <div key={c.id} className="card" style={{ padding: 'var(--s3) var(--s4)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: 'var(--s3)' }}>
-                <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '15px' }}>{c.name}</span>
-                {c.id === bestId && <span className="chip ok" style={{ fontSize: '10px' }}>Top performer</span>}
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--s3)' }}>
-                <div>
-                  <div className="mono" style={{ fontSize: '13px', fontWeight: 700 }}>{c.reportCount}</div>
-                  <div style={{ fontSize: '10px', color: 'var(--text-3)', textTransform: 'uppercase' }}>Reports</div>
-                </div>
-                <div>
-                  <div className="mono" style={{ fontSize: '13px', fontWeight: 700 }}>{c.totalLinks}</div>
-                  <div style={{ fontSize: '10px', color: 'var(--text-3)', textTransform: 'uppercase' }}>Links</div>
-                </div>
-                <div>
-                  <div className="mono" style={{ fontSize: '13px', fontWeight: 700 }}>{successRate != null ? `${successRate}%` : '-'}</div>
-                  <div style={{ fontSize: '10px', color: 'var(--text-3)', textTransform: 'uppercase' }}>Success</div>
-                </div>
-                <div>
-                  <div className="mono" style={{ fontSize: '13px', fontWeight: 700 }}>{formatViews(c.totalViews)}</div>
-                  <div style={{ fontSize: '10px', color: 'var(--text-3)', textTransform: 'uppercase' }}>Views</div>
-                </div>
-                <div>
-                  <div className="mono" style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ok)' }}>{c.avgEr != null ? `${c.avgEr}%` : '-'}</div>
-                  <div style={{ fontSize: '10px', color: 'var(--text-3)', textTransform: 'uppercase' }}>Avg ER</div>
-                </div>
-                <div>
-                  <div className="mono" style={{ fontSize: '11px', color: 'var(--text-3)' }}>{c.earliestAt ? formatDateRange(c.earliestAt, c.latestAt) : '-'}</div>
-                  <div style={{ fontSize: '10px', color: 'var(--text-3)', textTransform: 'uppercase' }}>Active</div>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </>
+  return (
+    <DataTable
+      id="history-compare"
+      columns={columns}
+      rows={sorted}
+      getRowId={(c) => c.id}
+      defaultSort={{ key: 'avgEr', dir: 'desc' }}
+      emptyTitle="No campaigns to compare"
+      renderMobile={(c) => <CompareCard c={c} bestId={bestId} />}
+    />
   );
 }
 
-// Read-only info tile for the summary strip -- deliberately not a filter
-// control (the toolbar right below already owns filtering); this row only
-// answers "how many, of what kind" at a glance.
-function SummaryTile({ icon, tone, value, label, sublabel }) {
-  const toneColor = tone === 'ok' ? 'var(--ok)' : tone === 'warn' ? 'var(--warn)' : tone === 'info' ? 'var(--info)' : tone === 'accent' ? 'var(--accent)' : 'var(--text-2)';
-  const toneSoft = tone === 'ok' ? 'var(--ok-soft)' : tone === 'warn' ? 'var(--warn-soft)' : tone === 'info' ? 'var(--info-soft)' : tone === 'accent' ? 'var(--accent-soft)' : 'var(--surface-2)';
-  return (
-    <div className="card rl-summary-tile" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', flex: '1 1 150px' }}>
-      <div className="rl-summary-tile-icon" style={{
-        width: '40px', height: '40px', borderRadius: '50%', flexShrink: 0,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: toneSoft, color: toneColor,
-        boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${toneColor} 25%, transparent)`,
-      }}>
-        {icon}
-      </div>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
-          <span style={{ fontFamily: 'var(--font-data)', fontWeight: 700, fontSize: 'var(--fs-lg)', lineHeight: 1.1, color: toneColor === 'var(--text-2)' ? 'var(--text)' : toneColor }}>{value}</span>
-          {sublabel && <span style={{ fontFamily: 'var(--font-data)', fontSize: 'var(--fs-xs)', color: toneColor, whiteSpace: 'nowrap' }}>{sublabel}</span>}
-        </div>
-        <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-2)', whiteSpace: 'nowrap' }}>{label}</div>
-      </div>
-    </div>
-  );
-}
 
 export function History() {
   const navigate = useNavigate();
@@ -668,9 +463,7 @@ export function History() {
   const [portalTarget, setPortalTarget] = useState(null);
   const [jobs, setJobs] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
-  const [uncategorizedRollup, setUncategorizedRollup] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [typeFilter, setTypeFilter] = useState('all');
   const [groupByCampaign, setGroupByCampaign] = useState(true);
   const [expandedIds, setExpandedIds] = useState(new Set());
   const [newCampaignOpen, setNewCampaignOpen] = useState(false);
@@ -679,50 +472,25 @@ export function History() {
   const [creatingCampaign, setCreatingCampaign] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [compareOpen, setCompareOpen] = useState(false);
-  const [dateFilter, setDateFilter] = useState('all'); // all, 7d, 30d
-  // Client-side only, same as typeFilter/dateFilter -- job.status is already
-  // in every job object the page-1 query already fetches, this just adds
-  // one more filter over data already in memory rather than a new query.
-  const [statusFilter, setStatusFilter] = useState('all'); // all, not-started, running, paused, done
-  // Filters the already-loaded jobs by file name, entirely client-side --
-  // this used to hit the server on a 350ms debounce (creatorSearch, joined
-  // against every report's individual rows to match a creator username),
-  // which meant every pause in typing flashed the whole table back to its
-  // loading skeleton. File name is a plain field already sitting on every
-  // job already in memory, so filtering it needs no request at all: no
-  // flash, no debounce, no server round trip. Creator search belongs on its
-  // own dedicated page instead (searching by creator across every report at
-  // once is a materially different feature, not a filter on this one).
+  // Filters the already-loaded jobs by name, entirely in the browser -- no
+  // request, so no flash of the loading skeleton while typing. Everything
+  // else (type, status, date, campaign, links) is filtered from the column
+  // headings of each table, exactly like the Creator database.
   const [fileSearch, setFileSearch] = useState('');
-  // Mobile-only: whether the filter toolbar (desktop: always visible) is
-  // currently expanded. Never read on desktop -- the toolbar's own CSS
-  // only checks this class inside the mobile media query.
-  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
-  // Display-only paging over the already-loaded jobs array -- separate page
-  // state for the flat table and the Unassigned table since they show
-  // different slices of the same underlying data.
-  const [flatPage, setFlatPage] = useState(1);
-  const [flatPageSize, setFlatPageSize] = useState(10);
-  const [unassignedPage, setUnassignedPage] = useState(1);
-  const [unassignedPageSize, setUnassignedPageSize] = useState(10);
   const [selectedUnassignedIds, setSelectedUnassignedIds] = useState(new Set());
   const [bulkAssigning, setBulkAssigning] = useState(false);
-  // Campaigns tab leads with a curated "Recent reports" preview (most
-  // recently active campaigns first) rather than every campaign at once --
-  // "View all" swaps to the full list, computed from the same campaigns
-  // array either way, so nothing here is a new fetch.
+  // Campaigns lead with the two most recently active ones; "View all" swaps to
+  // the full list from the same array, so nothing here is a new fetch.
   const [showAllCampaigns, setShowAllCampaigns] = useState(false);
   const RECENT_CAMPAIGNS_COUNT = 2;
-  // Set once from the very first (unfiltered) load and never touched again --
-  // controls whether the filter bar shows at all. Using jobs.length instead
-  // would hide the search box itself the moment a creator search matches
-  // nothing, trapping the user with no way to clear it.
+  // Set once from the very first load and never touched again -- controls
+  // whether the toolbar shows at all. Using jobs.length instead would hide the
+  // search box the moment a search matched nothing, trapping the user.
   const [hasAnyReports, setHasAnyReports] = useState(false);
 
   // Older pages stream in behind the first one rather than the page waiting
-  // on the full set. Tracked so the run can be abandoned when the filter
-  // changes or the page unmounts mid-stream, otherwise a stale background
-  // fetch would append the previous filter's reports over the new results.
+  // on the full set. Tracked so the run can be abandoned when the page
+  // unmounts mid-stream, otherwise a stale fetch would append over new results.
   const [loadingMore, setLoadingMore] = useState(false);
   const loadRunId = useRef(0);
 
@@ -734,24 +502,15 @@ export function History() {
     return `/jobs?${params.toString()}`;
   }, []);
 
-  // Only page 1 (+ campaigns) is cached here, same reasoning as Creators.jsx's
-  // identical split: this is what makes "History -> Creators -> History"
-  // render the first screen instantly from the App.jsx-wide staleTime
-  // instead of the old blank-skeleton-then-fetch every single visit. Pages
-  // 2+ still stream in fresh via the unchanged drain loop below -- there is
-  // no per-page filter here to key a cache on (type/date/status/file search
-  // are all client-side over what's already loaded, per their own state
-  // comments above), so unlike Creators there's exactly one cache entry.
+  // Only page 1 (+ campaigns) is cached here, same reasoning as Creators.jsx:
+  // "History -> Creators -> History" renders the first screen instantly instead
+  // of a blank skeleton every visit. Pages 2+ still stream in fresh below.
   const firstPageQuery = useQuery({
     queryKey: ['history-first-page'],
     queryFn: () => Promise.all([apiFetch(qs(1)), apiFetch('/campaigns')])
       .then(([jobsRes, campaignsRes]) => ({ jobsRes, campaignsRes })),
   });
 
-  // Reseeds jobs/campaigns from page 1 the moment it's available (cache hit
-  // or fresh fetch), then runs the exact same background drain loop as the
-  // old load() to stream in the rest. Guarded by the same loadRunId
-  // cancellation, still bumped on unmount/re-run below.
   useEffect(() => {
     if (firstPageQuery.error) { setLoading(false); return undefined; }
     if (!firstPageQuery.data) { setLoading(true); return undefined; }
@@ -761,11 +520,6 @@ export function History() {
     const firstPage = jobsRes.jobs || [];
     setJobs(firstPage);
     setCampaigns(campaignsRes.campaigns || []);
-    setUncategorizedRollup(campaignsRes.uncategorized || null);
-    // Collapsed by default -- every campaign auto-expanding on load meant
-    // the page opened as one long wall of every report in every campaign at
-    // once, which is what "doesn't look responsive at all" on a phone
-    // actually was: nothing to scroll past, just everything.
     setHasAnyReports(firstPage.length > 0);
     setLoading(false);
 
@@ -782,9 +536,8 @@ export function History() {
             if (runId !== loadRunId.current) return;
             const batch = res.jobs || [];
             if (batch.length) {
-              // Guard against duplicates: a report created while paging
-              // shifts everything down a slot, which would otherwise
-              // re-append rows already on screen.
+              // Guard against duplicates: a report created while paging shifts
+              // everything down a slot, which would re-append rows on screen.
               setJobs((prev) => {
                 const seen = new Set(prev.map((j) => j.id));
                 return [...prev, ...batch.filter((j) => !seen.has(j.id))];
@@ -800,64 +553,39 @@ export function History() {
       };
       drain();
     }
-    // Abandons any in-flight background paging on unmount or a fresh reseed.
     return () => { loadRunId.current += 1; };
   }, [firstPageQuery.data, firstPageQuery.error, qs]);
 
-  // Replaces the old load() as the "force a genuinely fresh full reload"
-  // path (create/delete campaign, bulk assign -- see their own call sites).
-  // Unlike the old load(), this does not flash the table back to its
-  // skeleton first: invalidateQueries keeps the current page 1 on screen
-  // and refetches underneath it, the same "no skeleton, no full reload"
-  // treatment handleReassign's own comment below already argues for and
-  // already does for a single-row move -- this just applies it to the
-  // handful of call sites that still needed a real refetch.
+  // The "genuinely fresh reload" path (create/delete campaign, bulk assign).
+  // Keeps the current page on screen and refetches underneath it.
   const reload = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['history-first-page'] });
   }, [queryClient]);
 
-  // A filter change can put page 3 out of range for the new, smaller result
-  // set -- reset to page 1 rather than showing an empty page or clamping
-  // silently.
-  useEffect(() => {
-    setFlatPage(1);
-    setUnassignedPage(1);
-  }, [typeFilter, statusFilter, dateFilter, fileSearch]);
-
   /*
-    This used to call load() on success, which re-fetches every report AND
-    every campaign from scratch and, because load() sets loading=true first,
-    flashes the entire table back to its skeleton state -- for changing
-    ONE row's campaign. Moving a report between campaigns only actually
-    needs two things updated: that one row (which we already know the new
-    value of, no server round trip required) and the campaign rollup
-    numbers (report count, total views, avg ER) shown on the campaign
-    cards, which DO need a real fetch since they're computed server-side.
-    So: move the row instantly and optimistically, and refresh just the
-    rollups quietly in the background -- no skeleton, no full reload.
+    Moving a report between campaigns needs two things updated: that one row
+    (we already know the new value, no round trip) and the campaign rollups
+    (report count, views, avg ER) shown on the cards, which are computed
+    server-side. So: move the row instantly, refresh only the rollups quietly
+    in the background. No skeleton, no full reload.
   */
-  const handleReassign = async (jobId, campaignId) => {
-    const job = jobs.find((j) => j.id === jobId);
+  const jobsRef = useRef(jobs);
+  jobsRef.current = jobs;
+  const handleReassign = useCallback(async (jobId, campaignId) => {
+    const job = jobsRef.current.find((j) => j.id === jobId);
     const prevCampaignId = job ? (job.campaignId || null) : null;
     if (prevCampaignId === campaignId) return;
-
     setJobs((prev) => prev.map((j) => (j.id === jobId ? { ...j, campaignId } : j)));
 
     try {
       await apiFetch(`/jobs/${jobId}/campaign`, { method: 'PATCH', body: JSON.stringify({ campaignId }) });
       addToast('Report moved', 'ok');
-      apiFetch('/campaigns')
-        .then((res) => {
-          setCampaigns(res.campaigns || []);
-          setUncategorizedRollup(res.uncategorized || null);
-        })
-        .catch(() => {});
+      apiFetch('/campaigns').then((res) => setCampaigns(res.campaigns || [])).catch(() => {});
     } catch (err) {
-      // Roll back the optimistic move -- the server never actually applied it.
       setJobs((prev) => prev.map((j) => (j.id === jobId ? { ...j, campaignId: prevCampaignId } : j)));
       addToast(err.message || "Couldn't move that report, try again", 'err');
     }
-  };
+  }, [addToast]);
 
   const handleCreateCampaign = async () => {
     if (!newCampaignName.trim()) return;
@@ -876,10 +604,8 @@ export function History() {
     }
   };
 
-  // Existing campaign's avatar, changed in place (click the avatar anywhere
-  // it renders) -- optimistic update same shape as handleReassign above:
-  // move the value locally first, PATCH in the background, roll back on
-  // failure instead of a full reload for a one-field change.
+  // Existing campaign's avatar, changed in place: optimistic, PATCH in the
+  // background, rolled back on failure.
   const handleAvatarChange = async (campaignId, avatarUrl) => {
     const prev = campaigns.find((c) => c.id === campaignId);
     const prevAvatarUrl = prev ? prev.avatarUrl : null;
@@ -892,27 +618,25 @@ export function History() {
     }
   };
 
-  const toggleUnassignedSelect = (jobId) => {
+  const toggleUnassignedSelect = useCallback((jobId) => {
     setSelectedUnassignedIds((prev) => {
       const next = new Set(prev);
       if (next.has(jobId)) next.delete(jobId); else next.add(jobId);
       return next;
     });
-  };
+  }, []);
 
-  const toggleUnassignedSelectAll = (visibleJobs) => {
+  const toggleUnassignedSelectAll = useCallback((visibleJobs) => {
     setSelectedUnassignedIds((prev) => {
       const allSelected = visibleJobs.length > 0 && visibleJobs.every((j) => prev.has(j.id));
       const next = new Set(prev);
       for (const j of visibleJobs) { if (allSelected) next.delete(j.id); else next.add(j.id); }
       return next;
     });
-  };
+  }, []);
 
-  // Reuses the exact same single-report PATCH handleReassign already calls
-  // -- no new endpoint, this just loops the existing one over every selected
-  // id. Reports that fail stay selected (and uncategorized) so it's obvious
-  // which ones still need attention; the rest clear out of the selection.
+  // Loops the same single-report PATCH over every selected id. Reports that
+  // fail stay selected so it is obvious which still need attention.
   const handleBulkAssign = async (campaignId) => {
     const ids = Array.from(selectedUnassignedIds);
     if (ids.length === 0 || !campaignId) return;
@@ -955,33 +679,15 @@ export function History() {
     });
   };
 
-  const dateFilteredJobs = dateFilter === 'all' ? jobs : jobs.filter((j) => {
-    const days = dateFilter === '7d' ? 7 : 30;
-    const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
-    return new Date(j.createdAt).getTime() >= cutoff;
-  });
-  const typeFilteredJobs = typeFilter === 'all' ? dateFilteredJobs : dateFilteredJobs.filter((j) => j.type === typeFilter);
-  const statusFilteredJobs = statusFilter === 'all'
-    ? typeFilteredJobs
-    : typeFilteredJobs.filter((j) => (STATUS_LABELS[j.status] || {}).filterGroup === statusFilter);
-  const trimmedFileSearch = fileSearch.trim().toLowerCase();
-  const filteredJobs = trimmedFileSearch
-    ? statusFilteredJobs.filter((j) => (j.fileName || '').toLowerCase().includes(trimmedFileSearch))
-    : statusFilteredJobs;
-  const reelCount = dateFilteredJobs.filter((j) => j.type === 'reel').length;
-  const profileCount = dateFilteredJobs.filter((j) => j.type === 'profile').length;
-  // Summary-strip counts -- derived from data already loaded, not a new
-  // fetch. done and running/paused ("in progress") reuse the same grouping
-  // STATUS_LABELS already defines for the status filter above, so the strip
-  // and the filter can never disagree about what counts as which.
-  const completedCount = dateFilteredJobs.filter((j) => (STATUS_LABELS[j.status] || {}).filterGroup === 'done').length;
-  const runningCount = dateFilteredJobs.filter((j) => (STATUS_LABELS[j.status] || {}).filterGroup === 'running').length;
-  const pausedCount = dateFilteredJobs.filter((j) => (STATUS_LABELS[j.status] || {}).filterGroup === 'paused').length;
-  const notStartedCount = dateFilteredJobs.filter((j) => (STATUS_LABELS[j.status] || {}).filterGroup === 'not-started').length;
+  const needle = fileSearch.trim().toLowerCase();
+  const searchedJobs = useMemo(
+    () => (needle ? jobs.filter((j) => `${j.fileName || ''} ${displayName(j)}`.toLowerCase().includes(needle)) : jobs),
+    [jobs, needle],
+  );
 
   const jobsByCampaignId = new Map();
   const uncategorizedJobs = [];
-  for (const j of filteredJobs) {
+  for (const j of searchedJobs) {
     if (j.campaignId) {
       if (!jobsByCampaignId.has(j.campaignId)) jobsByCampaignId.set(j.campaignId, []);
       jobsByCampaignId.get(j.campaignId).push(j);
@@ -997,36 +703,24 @@ export function History() {
   });
   const visibleCampaigns = showAllCampaigns ? campaignsByRecency : campaignsByRecency.slice(0, RECENT_CAMPAIGNS_COUNT);
 
-  const flatTotalPages = Math.max(1, Math.ceil(filteredJobs.length / flatPageSize));
-  const pagedFlatJobs = filteredJobs.slice((flatPage - 1) * flatPageSize, flatPage * flatPageSize);
-  const unassignedTotalPages = Math.max(1, Math.ceil(uncategorizedJobs.length / unassignedPageSize));
-  const pagedUnassignedJobs = uncategorizedJobs.slice((unassignedPage - 1) * unassignedPageSize, unassignedPage * unassignedPageSize);
+  // One quiet line instead of five stat tiles. The status counts are still in
+  // the Status column filter, so nothing was lost.
+  const doneCount = jobs.filter((j) => j.status === 'done').length;
+  const pausedCount = jobs.filter((j) => j.status === 'paused').length;
+  const summary = jobs.length === 0
+    ? 'All your past imports and reports.'
+    : `${jobs.length} ${jobs.length === 1 ? 'report' : 'reports'} · ${doneCount} complete${pausedCount ? ` · ${pausedCount} paused` : ''}`;
 
-  const statusOptions = [
-    { value: 'all', label: 'All status' },
-    { value: 'done', label: `Completed (${completedCount})` },
-    { value: 'running', label: `Running (${runningCount})` },
-    { value: 'paused', label: `Paused (${pausedCount})` },
-    { value: 'not-started', label: `Not started (${notStartedCount})` },
-  ];
-
-  // Drives the dot on the mobile "Filters" toggle -- anything other than
-  // the all-encompassing default counts as "something is filtered."
-  const activeFilterCount = [
-    typeFilter !== 'all',
-    statusFilter !== 'all',
-    dateFilter !== 'all',
-    fileSearch.trim() !== '',
-  ].filter(Boolean).length;
+  const unassignedSelection = { ids: selectedUnassignedIds, onToggle: toggleUnassignedSelect, onToggleAll: toggleUnassignedSelectAll };
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--s4)', flexWrap: 'wrap', gap: 'var(--s3)' }}>
+      <div className="rl-page-head">
         <div>
-          <h1 className="rl-history-heading" style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-xl)', fontWeight: 700 }}>History</h1>
-          <p style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)' }}>All your past imports and reports.</p>
+          <h1 className="rl-history-heading">History</h1>
+          <p>{summary}</p>
         </div>
-        <div className="rl-history-header-actions" style={{ display: 'flex', gap: 'var(--s3)', flexWrap: 'wrap' }}>
+        <div className="rl-page-head-actions rl-history-header-actions">
           {campaigns.length >= 2 && (
             <button className="btn btn-secondary" onClick={() => setCompareOpen(true)} style={{ gap: 'var(--s2)' }}>
               <ChartIcon size={15} />Compare campaigns
@@ -1039,125 +733,20 @@ export function History() {
       </div>
 
       {!loading && hasAnyReports && (
-        <>
-          {/* Summary strip: read-only counts, not filters -- the toolbar
-              below is where filtering actually happens. */}
-          <div className="rl-history-summary" style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--s2)', marginBottom: 'var(--s3)' }}>
-            <SummaryTile icon={<FileIcon size={14} />} tone="neutral" value={dateFilteredJobs.length} label="Total reports" />
-            <SummaryTile icon={<ReelIcon size={14} />} tone="accent" value={reelCount} label="Reel reports" />
-            <SummaryTile icon={<ProfileIcon size={14} />} tone="info" value={profileCount} label="Profile reports" />
-            <SummaryTile icon={<SuccessIcon size={14} />} tone="ok" value={completedCount} label="Completed" />
-            <SummaryTile icon={<ClockIcon size={14} />} tone="info" value={pausedCount} label="Paused" />
-          </div>
-
-          {/* Primary view switch: same groupByCampaign state and grouping
-              logic the checkbox used to drive, just presented as the
-              Reports/Campaigns segmented control instead of a checkbox. */}
-          <div style={{ display: 'inline-flex', padding: '3px', backgroundColor: 'var(--surface-2)', borderRadius: 'var(--r-md)', marginBottom: 'var(--s3)' }}>
-            <button
-              type="button"
-              onClick={() => setGroupByCampaign(false)}
-              className="btn"
-              style={{
-                height: '32px', padding: '0 var(--s4)', fontSize: 'var(--fs-sm)', fontWeight: 600, border: 'none',
-                backgroundColor: !groupByCampaign ? 'var(--accent-soft)' : 'transparent',
-                color: !groupByCampaign ? 'var(--accent)' : 'var(--text-2)',
-                boxShadow: !groupByCampaign ? 'inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent)' : 'none',
-                transition: 'background var(--t-fast), color var(--t-fast)',
-              }}
-            >
-              Reports
+        <div className="rl-toolbar">
+          <div className="rl-tabs" role="tablist" aria-label="View">
+            <button type="button" role="tab" aria-selected={!groupByCampaign} className={`rl-tab${!groupByCampaign ? ' on' : ''}`} onClick={() => setGroupByCampaign(false)}>
+              All reports <span className="rl-tab-count">{jobs.length}</span>
             </button>
-            <button
-              type="button"
-              onClick={() => setGroupByCampaign(true)}
-              className="btn"
-              style={{
-                height: '32px', padding: '0 var(--s4)', fontSize: 'var(--fs-sm)', fontWeight: 600, border: 'none',
-                backgroundColor: groupByCampaign ? 'var(--accent-soft)' : 'transparent',
-                color: groupByCampaign ? 'var(--accent)' : 'var(--text-2)',
-                boxShadow: groupByCampaign ? 'inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent)' : 'none',
-                transition: 'background var(--t-fast), color var(--t-fast)',
-              }}
-            >
-              Campaigns
+            <button type="button" role="tab" aria-selected={groupByCampaign} className={`rl-tab${groupByCampaign ? ' on' : ''}`} onClick={() => setGroupByCampaign(true)}>
+              By campaign <span className="rl-tab-count">{campaigns.length}</span>
             </button>
           </div>
-
-          {/* Mobile-only top row: search stays visible at all times (same
-              fileSearch state as the toolbar's own search box below, just
-              surfaced up top per the reference layout) next to a compact
-              Filters trigger for the other three groups, instead of four
-              filter groups sitting on screen at once on a phone. */}
-          <div className="rl-mobile-only rl-history-searchbar" style={{ gap: 'var(--s2)', marginBottom: 'var(--s3)' }}>
-            <span style={{ position: 'relative', flex: 1, minWidth: 0 }}>
-              <SearchIcon size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)', pointerEvents: 'none' }} />
-              <input
-                type="text"
-                className="input-field"
-                placeholder="Search by file name"
-                value={fileSearch}
-                onChange={(e) => setFileSearch(e.target.value)}
-                style={{ height: '40px', fontSize: 'var(--fs-sm)', width: '100%', paddingLeft: '34px' }}
-              />
-            </span>
-            <button
-              type="button"
-              className="rl-history-filters-toggle"
-              onClick={() => setMobileFiltersOpen((v) => !v)}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', height: '40px', padding: '0 var(--s3)', flexShrink: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', color: 'var(--text)', fontSize: 'var(--fs-sm)', fontWeight: 600, cursor: 'pointer' }}
-            >
-              Filters
-              {activeFilterCount > 0 && (
-                <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'var(--accent)', display: 'inline-block' }} aria-hidden="true" />
-              )}
-            </button>
-          </div>
-
-          {/* Filter toolbar: type + status + date + search, all filtering
-              the SAME jobs array already in memory -- statusFilter is the
-              only new piece of state; every handler below already existed.
-              On mobile the search box hides here (it now lives in the
-              always-visible bar above) and each group gets its own labeled
-              row inside the collapsible panel. */}
-          <div className={`card rl-filters${mobileFiltersOpen ? ' rl-filters-open' : ''}`} style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--s3)', padding: 'var(--s3) var(--s4)', marginBottom: 'var(--s4)' }}>
-            <div className="rl-filter-row">
-              <span className="rl-filter-label rl-mobile-only">Report type</span>
-              <div className="rl-filter-group" style={{ display: 'flex', gap: '4px' }}>
-                <button onClick={() => setTypeFilter('all')} className={`chip ${typeFilter === 'all' ? 'accent' : ''}`} style={{ cursor: 'pointer', padding: '6px 12px' }}>All</button>
-                <button onClick={() => setTypeFilter('reel')} className={`chip ${typeFilter === 'reel' ? 'accent' : ''}`} style={{ cursor: 'pointer', padding: '6px 12px' }}>Reel</button>
-                <button onClick={() => setTypeFilter('profile')} className={`chip ${typeFilter === 'profile' ? 'ok' : ''}`} style={{ cursor: 'pointer', padding: '6px 12px' }}>Profile</button>
-              </div>
-            </div>
-            <span className="rl-hide-mobile" style={{ width: '1px', alignSelf: 'stretch', backgroundColor: 'var(--border)' }} />
-            <div className="rl-filter-row">
-              <span className="rl-filter-label rl-mobile-only">Status</span>
-              <Select value={statusFilter} onChange={setStatusFilter} options={statusOptions} style={{ minWidth: '150px' }} className="rl-filter-select" />
-            </div>
-            <div className="rl-filter-row">
-              <span className="rl-filter-label rl-mobile-only">Date</span>
-              <div className="rl-filter-group" style={{ display: 'flex', gap: '4px' }}>
-                <button onClick={() => setDateFilter('all')} className={`chip ${dateFilter === 'all' ? 'accent' : ''}`} style={{ cursor: 'pointer', padding: '6px 12px' }}>All time</button>
-                <button onClick={() => setDateFilter('30d')} className={`chip ${dateFilter === '30d' ? 'accent' : ''}`} style={{ cursor: 'pointer', padding: '6px 12px' }}>Last 30 days</button>
-                <button onClick={() => setDateFilter('7d')} className={`chip ${dateFilter === '7d' ? 'accent' : ''}`} style={{ cursor: 'pointer', padding: '6px 12px' }}>Last 7 days</button>
-              </div>
-            </div>
-            <span className="rl-hide-mobile" style={{ width: '1px', alignSelf: 'stretch', backgroundColor: 'var(--border)' }} />
-            <div className="rl-filter-row rl-hide-mobile">
-              <span className="rl-history-filter-search" style={{ position: 'relative', flex: '1 1 220px', minWidth: 0, maxWidth: '260px' }}>
-                <SearchIcon size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)', pointerEvents: 'none' }} />
-                <input
-                  type="text"
-                  className="input-field"
-                  placeholder="Search by file name"
-                  value={fileSearch}
-                  onChange={(e) => setFileSearch(e.target.value)}
-                  style={{ height: '32px', fontSize: 'var(--fs-sm)', width: '100%', paddingLeft: '30px' }}
-                />
-              </span>
-            </div>
-          </div>
-        </>
+          <label className="rl-search">
+            <SearchIcon size={14} />
+            <input type="text" className="input-field" placeholder="Search reports" aria-label="Search reports" value={fileSearch} onChange={(e) => setFileSearch(e.target.value)} />
+          </label>
+        </div>
       )}
 
       {/* Quiet, non-blocking: the list is already usable, this just explains
@@ -1178,37 +767,23 @@ export function History() {
       )}
 
       {loading ? (
-        <ReportsTable jobs={[]} campaigns={[]} navigate={navigate} onReassign={() => {}} loading />
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <ReportsList id="history-reports" jobs={[]} campaigns={[]} navigate={navigate} onReassign={() => {}} loading />
+        </div>
       ) : !hasAnyReports ? (
         <EmptyState
           title="No reports yet"
           description="Your finished and in-progress reports will live here across sessions."
           action={<button className="btn btn-primary" onClick={() => navigate('/reels')}>New reel report</button>}
         />
-      ) : trimmedFileSearch && filteredJobs.length === 0 ? (
+      ) : needle && searchedJobs.length === 0 ? (
         <EmptyState
-          title="No reports match that file name"
+          title="No reports match that search"
           description={`Nothing found for "${fileSearch.trim()}". Check the spelling or try a shorter search.`}
         />
-      ) : filteredJobs.length === 0 ? (
-        <EmptyState
-          title="No reports of this type yet"
-          description="Switch filters above, or start a new report."
-        />
       ) : !groupByCampaign ? (
-        <div className="data-table-container">
-          <ReportsTable jobs={pagedFlatJobs} campaigns={campaigns} navigate={navigate} onReassign={handleReassign} />
-          <div style={{ borderTop: '1px solid var(--border)' }}>
-            <Pagination
-              page={flatPage}
-              totalPages={flatTotalPages}
-              pageSize={flatPageSize}
-              totalItems={filteredJobs.length}
-              onPageChange={setFlatPage}
-              onPageSizeChange={(n) => { setFlatPageSize(n); setFlatPage(1); }}
-              pageSizeOptions={[10, 25, 50]}
-            />
-          </div>
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <ReportsList id="history-reports" tourId="history-table" jobs={searchedJobs} campaigns={campaigns} navigate={navigate} onReassign={handleReassign} />
         </div>
       ) : (
         <div>
@@ -1218,12 +793,7 @@ export function History() {
                 {showAllCampaigns ? 'All campaigns' : 'Recent campaigns'}
               </h2>
               {campaigns.length > RECENT_CAMPAIGNS_COUNT && (
-                <button
-                  type="button"
-                  onClick={() => setShowAllCampaigns((v) => !v)}
-                  className="rl-text-link"
-                  style={{ fontSize: 'var(--fs-sm)' }}
-                >
+                <button type="button" onClick={() => setShowAllCampaigns((v) => !v)} className="rl-text-link" style={{ fontSize: 'var(--fs-sm)' }}>
                   {showAllCampaigns ? 'Show recent only' : `View all (${campaigns.length})`}
                 </button>
               )}
@@ -1247,58 +817,33 @@ export function History() {
           ))}
 
           {uncategorizedJobs.length > 0 && (
-            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', rowGap: 'var(--s3)', padding: 'var(--s3) var(--s4)' }}>
+            <div className="card" style={{ padding: 0, overflow: 'hidden', marginTop: campaigns.length > 0 ? 'var(--s5)' : 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', rowGap: 'var(--s3)', padding: 'var(--s4) var(--s4) var(--s3)' }}>
                 <div>
                   <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 'var(--fs-md)' }}>
-                    Unassigned reports <span style={{ color: 'var(--text-3)', fontWeight: 500 }}>· {uncategorizedJobs.length}</span>
+                    Not in a campaign <span style={{ color: 'var(--text-3)', fontWeight: 500 }}>· {uncategorizedJobs.length}</span>
                   </div>
                   <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', marginTop: 2 }}>
-                    Reports not yet assigned to a campaign
+                    Tick some reports to move them into a campaign together.
                   </div>
                 </div>
-                {/* Same handleReassign PATCH every per-row dropdown already
-                    calls, just looped over the checked rows -- no new
-                    endpoint, only appears once something is actually
-                    selected. */}
+                {/* Same PATCH every per-row dropdown already calls, just
+                    looped over the checked rows. Only appears once something
+                    is selected. */}
                 {selectedUnassignedIds.size > 0 && (
                   <div className="rl-history-bulk-bar" style={{ display: 'flex', alignItems: 'center', gap: 'var(--s2)' }}>
-                    <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-2)', whiteSpace: 'nowrap' }}>
-                      {selectedUnassignedIds.size} selected
-                    </span>
+                    <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-2)', whiteSpace: 'nowrap' }}>{selectedUnassignedIds.size} selected</span>
                     <Select
                       value=""
                       onChange={handleBulkAssign}
                       options={campaigns.map((c) => ({ value: c.id, label: c.name }))}
-                      placeholder={bulkAssigning ? 'Assigning...' : 'Assign to campaign'}
+                      placeholder={bulkAssigning ? 'Assigning...' : 'Move to campaign'}
                       style={{ minWidth: '180px' }}
                     />
                   </div>
                 )}
               </div>
-              <div style={{ borderTop: '1px solid var(--border)', overflowX: 'auto' }}>
-                <ReportsTable
-                  jobs={pagedUnassignedJobs}
-                  campaigns={campaigns}
-                  navigate={navigate}
-                  onReassign={handleReassign}
-                  selectable
-                  selectedIds={selectedUnassignedIds}
-                  onToggleSelect={toggleUnassignedSelect}
-                  onToggleSelectAll={toggleUnassignedSelectAll}
-                />
-              </div>
-              <div style={{ borderTop: '1px solid var(--border)' }}>
-                <Pagination
-                  page={unassignedPage}
-                  totalPages={unassignedTotalPages}
-                  pageSize={unassignedPageSize}
-                  totalItems={uncategorizedJobs.length}
-                  onPageChange={setUnassignedPage}
-                  onPageSizeChange={(n) => { setUnassignedPageSize(n); setUnassignedPage(1); }}
-                  pageSizeOptions={[10, 25, 50]}
-                />
-              </div>
+              <ReportsList id="history-unassigned" tourId="history-table" jobs={uncategorizedJobs} campaigns={campaigns} navigate={navigate} onReassign={handleReassign} selection={unassignedSelection} />
             </div>
           )}
         </div>
@@ -1366,3 +911,4 @@ export function History() {
     </div>
   );
 }
+

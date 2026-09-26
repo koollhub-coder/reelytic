@@ -25,9 +25,8 @@ import { formatDate, formatDateTime } from '../utils/date';
   - A run whose endpoints do not reconcile is flagged, not corrected.
   - A gap between one run's closing balance and the next run's opening one is
     an adjustment made outside any report, drawn as its own segment.
-  - An account with an unlimited pool has no meaningful balance or revenue,
-    so those columns are withheld rather than filled with a number that
-    invites the wrong reading.
+  - An internal (admin) account pays nothing, so revenue and margin columns are
+    withheld. Its balance is what Apify's allowance can fund, not a stored number.
 */
 
 const RANGES = [
@@ -204,12 +203,12 @@ export function CreditAuditModal({ username, isOpen, onClose, currency, rate, fm
   useEffect(() => { if (isOpen) setRange('30'); }, [isOpen, username]);
 
   const runs = (data && data.runs) || [];
-  const unlimited = !!(data && data.unlimited);
-  const showMoney = !unlimited && data && data.totalRevenueUsd != null;
+  const internal = !!(data && data.internal);
+  const showMoney = !internal && data && data.totalRevenueUsd != null;
   // A client on a plan with no price attached (the free tier) genuinely
   // produces no revenue. That is a real state worth naming, not an empty
   // column: "no margin shown" and "margin is zero" look identical otherwise.
-  const freePlan = !!(data && !unlimited && data.totalRevenueUsd == null);
+  const freePlan = !!(data && !internal && data.totalRevenueUsd == null);
   const rangeLabel = (RANGES.find((r) => r.id === range) || RANGES[1]).label.toLowerCase();
 
   // Group boundaries get a rule; every numeric column right-aligns.
@@ -241,7 +240,7 @@ export function CreditAuditModal({ username, isOpen, onClose, currency, rate, fm
             </button>
           ))}
         </div>
-        {unlimited && (
+        {internal && (
           <span className="chip" style={{ padding: '2px 10px', fontSize: '10px' }}>Internal account</span>
         )}
         {freePlan && (
@@ -299,8 +298,8 @@ export function CreditAuditModal({ username, isOpen, onClose, currency, rate, fm
           }}>
             <Metric
               label="Balance now"
-              value={unlimited ? 'Unlimited' : (data.currentBalance != null ? data.currentBalance.toLocaleString() : '-')}
-              hint={unlimited ? 'Internal pool, not billed' : `${data.plan} plan`}
+              value={data.currentBalance != null ? data.currentBalance.toLocaleString() : '-'}
+              hint={internal ? 'What Apify can fund, not billed' : `${data.plan} plan`}
             />
             <Metric
               label="Credits used"
@@ -470,7 +469,7 @@ export function CreditAuditModal({ username, isOpen, onClose, currency, rate, fm
             from the account when the report starts and again when it finishes, while credits are counted per successful item as it
             runs. That is why the Balances column is a real check rather than the same figure repeated.
             {showMoney && ` They paid is what those credits are worth on the ${data.plan} plan (₹${data.planPriceInr?.toLocaleString('en-IN')} for ${data.planCredits?.toLocaleString()} credits). Cost to us counts cached items as zero, because no lookup was made.`}
-            {unlimited && 'This is an internal account with an unlimited pool, so there is no balance to run down and no revenue to compare against. Cost to us is still real money.'}
+            {internal && "This is an internal account. Its balance is what Apify's remaining allowance can fund, and there is no revenue to compare against. Cost to us is still real money."}
             {freePlan && ` This client is on the free plan, so they pay nothing and there is no margin to show. Cost to us is real money we spent on them. Move them to a paid plan and the revenue and margin columns fill in automatically.`}
           </p>
         </>

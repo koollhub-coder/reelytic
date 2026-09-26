@@ -327,6 +327,10 @@ async function ensureIndexes() {
     // that route is the one strangers can reach. Sparse because only a small
     // fraction of jobs are ever shared.
     await db.collection('jobs').createIndex({ shareToken: 1 }, { sparse: true });
+    // Help assistant feedback (help.routes.js). Expires by itself: it is a
+    // to-do list for writing answers, not a record worth keeping.
+    await db.collection('helpEvents').createIndex({ createdAt: 1 }, { expireAfterSeconds: 120 * 24 * 60 * 60 });
+    await db.collection('helpEvents').createIndex({ kind: 1, createdAt: -1 });
     await db.collection('submittedLinks').createIndex({ ownerUsername: 1, at: -1 });
     await db.collection('submittedLinks').createIndex({ url: 1 });
     /*

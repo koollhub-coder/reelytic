@@ -477,3 +477,34 @@ describe('profile actor pinned flag', () => {
     assert.equal(normalizeProfileReelItemV2({ ...base }).isPinned, false);
   });
 });
+
+/*
+  A sheet with no header row starts straight away with a link. The first row
+  used to be read as a heading and that link vanished from the report.
+*/
+describe('sheet without a header row', () => {
+  const ExcelJS = require('exceljs');
+  const { parseSpreadsheetBuffer } = require('../server/services/parse.service');
+  const links = ['https://www.instagram.com/reel/AAA111', 'https://www.instagram.com/reel/BBB222', 'https://www.instagram.com/reel/CCC333'];
+
+  test('keeps the first link when there is no heading', async () => {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('s');
+    links.forEach((l) => ws.addRow([l]));
+    const out = await parseSpreadsheetBuffer(Buffer.from(await wb.xlsx.writeBuffer()), 'a.xlsx', 'reel');
+    assert.equal(out.rows.length, 3);
+    assert.ok(out.rows.every((r) => r.state === 'pending'));
+    assert.equal(out.rows[0].input.url, 'https://www.instagram.com/reel/AAA111');
+  });
+
+  test('a normal heading row is still treated as a heading', async () => {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('s');
+    ws.addRow(['Name', 'Reel Link']);
+    ws.addRow(['a', links[0]]);
+    ws.addRow(['b', links[1]]);
+    const out = await parseSpreadsheetBuffer(Buffer.from(await wb.xlsx.writeBuffer()), 'b.xlsx', 'reel');
+    assert.equal(out.rows.length, 2);
+    assert.deepEqual(out.originalColumns.map((c) => c.name), ['Name', 'Reel Link']);
+  });
+});

@@ -37,11 +37,31 @@ async function requireLogin(req, res, next) {
       site keeps working unmodified: it just reads req.currentUser.plan the
       same way it always did, and that now happens to be the owner's plan.
     */
+    // Admin's balance is what Apify's remaining allowance can fund, not a stored
+    // number. See platformCredits.service.js.
+    if (user.role === 'admin') {
+      const { getAdminCredits } = require('../services/platformCredits.service');
+      req.currentUser = { ...user, credits: await getAdminCredits(), effectiveUsername: user.username };
+      return next();
+    }
+
     if (user.teamOwnerUsername) {
       const owner = await db.collection('users').findOne({ username: user.teamOwnerUsername });
       if (!owner || owner.disabled) {
         req.session.destroy(() => {});
         return res.status(401).json({ error: 'This team account is no longer available.', code: 'REVOKED' });
+      }
+      /*
+        A platform admin's pool is effectively unlimited (internal runs must
+        never be blocked), and every credit spent from it is real money out of
+        our pocket. Letting a member inherit that would hand out unlimited
+        free usage to anyone linked to an admin. So a link to an admin is void:
+        the person is treated as an ordinary, independent account with their
+        own plan and credits, and is not shown as a team member.
+      */
+      if (owner.role === 'admin') {
+        req.currentUser = { ...user, effectiveUsername: user.username, teamOwnerUsername: null };
+        return next();
       }
       req.currentUser = {
         ...user,

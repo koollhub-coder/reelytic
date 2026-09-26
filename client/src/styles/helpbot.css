@@ -1,0 +1,356 @@
+/*
+  Help assistant. Everything here is built from the app's own tokens, so light
+  and dark come for free and it never looks bolted on. Layering: above page
+  content, below modals, tooltips and the guided tour (z-index 200 and up).
+*/
+
+.rl-help-launcher {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 180;
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  height: 54px;
+  min-width: 54px;
+  padding: 0 15px;
+  border: 0;
+  border-radius: var(--r-full);
+  cursor: pointer;
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 72%, #5a1024) 100%);
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--accent) 38%, transparent), 0 2px 6px rgba(20, 22, 26, .18);
+  font-family: var(--font-body);
+  font-size: var(--fs-base);
+  font-weight: 600;
+  letter-spacing: .01em;
+  transition: transform var(--t-fast), box-shadow var(--t-base), gap var(--t-base), padding var(--t-base);
+  -webkit-tap-highlight-color: transparent;
+}
+.rl-help-launcher:hover,
+.rl-help-launcher:focus-visible {
+  transform: translateY(-2px);
+  gap: 8px;
+  padding: 0 20px 0 17px;
+  box-shadow: 0 14px 34px color-mix(in srgb, var(--accent) 46%, transparent), 0 3px 8px rgba(20, 22, 26, .2);
+}
+.rl-help-launcher:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 40%, transparent); outline-offset: 3px; }
+.rl-help-launcher:active { transform: translateY(0) scale(.97); }
+.rl-help-launcher-label {
+  max-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  opacity: 0;
+  transition: max-width var(--t-base), opacity var(--t-base);
+}
+.rl-help-launcher:hover .rl-help-launcher-label,
+.rl-help-launcher:focus-visible .rl-help-launcher-label { max-width: 90px; opacity: 1; }
+
+/* One quiet ring on first sight per session, then never again. */
+.rl-help-launcher.rl-help-ping::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 2px solid var(--accent);
+  opacity: 0;
+  animation: rl-help-ping 1.8s ease-out 1.2s 2;
+  pointer-events: none;
+}
+@keyframes rl-help-ping {
+  0% { transform: scale(1); opacity: .55; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+
+/* ------------------------------------------------------------------ panel */
+.rl-help-panel {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 185;
+  width: 396px;
+  height: min(660px, calc(100dvh - 40px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: var(--shadow-lg), 0 0 0 1px rgba(0, 0, 0, .02);
+  font-family: var(--font-body);
+  transform-origin: bottom right;
+  animation: rl-help-in 220ms cubic-bezier(.2, .8, .2, 1) both;
+}
+@keyframes rl-help-in {
+  from { opacity: 0; transform: translateY(14px) scale(.96); }
+  to { opacity: 1; transform: none; }
+}
+
+.rl-help-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: 14px 14px 14px 16px;
+  background:
+    radial-gradient(120% 140% at 0% 0%, var(--accent-soft) 0%, transparent 62%),
+    var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.rl-help-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 70%, #5a1024));
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.rl-help-avatar.sm { width: 26px; height: 26px; border-radius: 9px; box-shadow: none; }
+.rl-help-title { font-family: var(--font-display); font-weight: 700; font-size: var(--fs-md); line-height: 1.2; }
+.rl-help-sub { display: flex; align-items: center; gap: 6px; font-size: var(--fs-xs); color: var(--text-2); margin-top: 2px; }
+.rl-help-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px var(--ok-soft); }
+.rl-help-head-actions { margin-left: auto; display: flex; gap: 2px; }
+.rl-help-iconbtn {
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.rl-help-iconbtn:hover { background: var(--surface-2); color: var(--text); }
+.rl-help-iconbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* --------------------------------------------------------------- messages */
+.rl-help-log {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 14px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  scroll-behavior: smooth;
+  overscroll-behavior: contain;
+}
+.rl-help-log::-webkit-scrollbar { width: 8px; }
+.rl-help-log::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 8px; border: 2px solid var(--surface); }
+
+.rl-help-row { display: flex; gap: 8px; align-items: flex-start; animation: rl-help-msg 200ms ease-out both; }
+.rl-help-row.user { justify-content: flex-end; align-items: flex-end; }
+@keyframes rl-help-msg { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+.rl-help-col { display: flex; flex-direction: column; gap: 8px; min-width: 0; max-width: calc(100% - 34px); }
+.rl-help-bubble {
+  padding: 11px 14px;
+  border-radius: 16px 16px 16px 5px;
+  background: var(--surface-2);
+  font-size: var(--fs-base);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.rl-help-row.user .rl-help-bubble {
+  max-width: 82%;
+  border-radius: 16px 16px 5px 16px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 500;
+}
+.rl-help-bubble p { margin: 0; }
+.rl-help-bubble p + p, .rl-help-bubble p + ul, .rl-help-bubble ul + p { margin-top: 9px; }
+.rl-help-bubble ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.rl-help-bubble li { position: relative; padding-left: 15px; }
+.rl-help-bubble li::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: .62em;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.rl-help-bubble strong { font-weight: 650; }
+
+.rl-help-lead { font-size: var(--fs-sm); color: var(--text-2); }
+.rl-help-lead strong { color: var(--text); }
+
+/* Buttons and chips under an answer */
+.rl-help-actions, .rl-help-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.rl-help-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: var(--r-full);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: var(--surface);
+  color: var(--accent);
+  font: 600 var(--fs-sm) var(--font-body);
+  cursor: pointer;
+  text-decoration: none;
+  transition: background var(--t-fast), transform var(--t-fast), border-color var(--t-fast);
+}
+.rl-help-action:hover { background: var(--accent-soft); transform: translateY(-1px); }
+.rl-help-action:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.rl-help-chip {
+  padding: 7px 12px;
+  border-radius: var(--r-full);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font: 500 var(--fs-sm) var(--font-body);
+  cursor: pointer;
+  text-align: left;
+  line-height: 1.35;
+  transition: border-color var(--t-fast), background var(--t-fast), transform var(--t-fast);
+}
+.rl-help-chip:hover { border-color: var(--accent); background: var(--accent-soft); transform: translateY(-1px); }
+.rl-help-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.rl-help-section-label { font-size: var(--fs-xs); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+
+/* A topic's questions as a tidy list */
+.rl-help-list { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--surface); }
+.rl-help-list button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 13px;
+  border: 0;
+  border-top: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font: 500 var(--fs-sm) var(--font-body);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--t-fast);
+}
+.rl-help-list button:first-child { border-top: 0; }
+.rl-help-list button:hover { background: var(--accent-soft); }
+.rl-help-list button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.rl-help-list svg { color: var(--text-3); }
+
+/* Was this helpful */
+.rl-help-rate { display: flex; align-items: center; gap: 4px; font-size: var(--fs-xs); color: var(--text-3); }
+.rl-help-rate button {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.rl-help-rate button:hover { background: var(--surface-2); color: var(--text); }
+.rl-help-rate button.on { color: var(--accent); background: var(--accent-soft); }
+.rl-help-rate button:focus-visible { outline: 2px solid var(--accent); }
+.rl-help-thanks { font-size: var(--fs-xs); color: var(--text-2); }
+
+/* Typing indicator */
+.rl-help-typing { display: inline-flex; gap: 4px; padding: 14px 15px; border-radius: 16px 16px 16px 5px; background: var(--surface-2); }
+.rl-help-typing i { width: 6px; height: 6px; border-radius: 50%; background: var(--text-3); animation: rl-help-bounce 1s infinite ease-in-out; }
+.rl-help-typing i:nth-child(2) { animation-delay: .15s; }
+.rl-help-typing i:nth-child(3) { animation-delay: .3s; }
+@keyframes rl-help-bounce { 0%, 60%, 100% { transform: translateY(0); opacity: .5; } 30% { transform: translateY(-4px); opacity: 1; } }
+
+/* Welcome */
+.rl-help-welcome { text-align: center; padding: 10px 6px 2px; }
+.rl-help-welcome .rl-help-avatar { width: 52px; height: 52px; border-radius: 16px; margin: 0 auto 12px; }
+.rl-help-welcome h3 { font-family: var(--font-display); font-size: var(--fs-lg); font-weight: 700; margin: 0 0 4px; }
+.rl-help-welcome p { margin: 0; color: var(--text-2); font-size: var(--fs-sm); line-height: 1.5; }
+.rl-help-starters { display: flex; flex-direction: column; gap: 6px; }
+
+/* ------------------------------------------------------------------ input */
+.rl-help-foot { padding: 10px 12px 12px; border-top: 1px solid var(--border); background: var(--surface); }
+.rl-help-form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 5px 5px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  background: var(--surface);
+  transition: border-color var(--t-fast), box-shadow var(--t-fast);
+}
+.rl-help-form:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.rl-help-input {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font: 400 var(--fs-base) var(--font-body);
+}
+.rl-help-input::placeholder { color: var(--text-3); }
+.rl-help-send {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: var(--accent);
+  cursor: pointer;
+  transition: background var(--t-fast), transform var(--t-fast), opacity var(--t-fast);
+}
+.rl-help-send:hover:not(:disabled) { background: var(--accent-hover); transform: translateY(-1px); }
+.rl-help-send:disabled { opacity: .35; cursor: default; }
+.rl-help-send:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.rl-help-note { margin: 8px 2px 0; text-align: center; font-size: 10.5px; color: var(--text-3); }
+.rl-help-note a { color: var(--text-2); font-weight: 600; text-decoration: none; }
+.rl-help-note a:hover { color: var(--accent); }
+
+/* ----------------------------------------------------------------- mobile */
+@media (max-width: 560px) {
+  .rl-help-launcher { right: 14px; bottom: calc(14px + env(safe-area-inset-bottom)); height: 50px; min-width: 50px; }
+  .rl-help-launcher-label { display: none; }
+  .rl-help-panel {
+    right: 0;
+    left: 0;
+    bottom: 0;
+    top: 0;
+    width: auto;
+    height: auto;
+    max-height: none;
+    border-radius: 0;
+    border: 0;
+    animation-name: rl-help-sheet;
+  }
+  .rl-help-foot { padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+  /* 16px stops iOS zooming the page when the field is focused. */
+  .rl-help-input { font-size: 16px; }
+}
+@keyframes rl-help-sheet { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .rl-help-panel, .rl-help-row, .rl-help-launcher.rl-help-ping::after { animation: none; }
+  .rl-help-launcher, .rl-help-chip, .rl-help-action { transition: none; }
+  .rl-help-log { scroll-behavior: auto; }
+  .rl-help-typing i { animation: none; opacity: .7; }
+}
+@media print { .rl-help-launcher, .rl-help-panel { display: none !important; } }
+.rl-help-note a { white-space: nowrap; }
+
+/* The guided tour owns the screen while it runs. */
+[data-tour-active] .rl-help-launcher { opacity: 0; pointer-events: none; }
+
+/* Modal backdrops live in a lower stacking context than the bubble, so without
+   this it floats, undimmed, on top of every dialog. */
+body:has(.rl-modal-overlay) .rl-help-launcher { opacity: 0; pointer-events: none; }

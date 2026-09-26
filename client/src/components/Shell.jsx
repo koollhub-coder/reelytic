@@ -96,15 +96,14 @@ export function Shell() {
     };
   }, [user]);
 
-  // Admin's own credits panel would otherwise show '∞' -- meaningless, since
-  // an admin's balance is a fixed placeholder (see credits.service.js's
-  // ADMIN_CREDITS), not a real number. Platform-wide total is the number
-  // that's actually useful to an admin here.
+  // Nobody has an unlimited balance, admin included. An admin's credits are what
+  // Apify's remaining allowance can fund (platformCredits.service.js), worked
+  // out live; the Usage & Spend page shows the calculation.
   const [totalPlatformCredits, setTotalPlatformCredits] = useState(null);
   useEffect(() => {
     if (user?.role !== 'admin') return;
-    apiFetch('/admin/credits-total')
-      .then((r) => setTotalPlatformCredits(r.totalCredits))
+    apiFetch('/admin/platform-credits')
+      .then((r) => setTotalPlatformCredits(r && r.capacity ? r.capacity.guaranteedCredits : null))
       .catch(() => {});
   }, [user]);
   // Only the automatic first-login show lives here. Settings' "Replay tour"
@@ -195,6 +194,7 @@ export function Shell() {
       items: [
         { label: 'Clients', path: '/admin/clients', icon: UsersIcon },
         { label: 'Sessions Log', path: '/admin/sessions', icon: ListIcon },
+        { label: 'Help Assistant', path: '/admin/help', icon: HelpIcon },
       ],
     },
     {
@@ -409,47 +409,43 @@ export function Shell() {
           )}
         </nav>
 
-        {/* Credits panel. Admin's own balance is a fixed 1,000,000
-            placeholder (see credits.service.js's ADMIN_CREDITS) so their
-            runs never block -- showing it, or '∞', here means nothing to an
-            admin. Platform-wide total across every client is the number
-            that's actually useful in this spot for that role. A real client
-            on the paid Unlimited plan is unaffected -- they still see their
-            own genuine balance as '∞ Unlimited', same as always. */}
+        {/* Credits panel. A client sees their own balance. An admin sees what
+            Apify's remaining allowance can fund, which is the only real limit
+            on the platform. Nobody has an unlimited pool. */}
         <div style={{ padding: effectiveCollapsed ? 'var(--s3) var(--s2)' : 'var(--s4)', borderTop: '1px solid var(--border)' }}>
           {effectiveCollapsed ? (
             <Tooltip
               position="right"
               content={user?.role === 'admin'
-                ? `${(totalPlatformCredits ?? 0).toLocaleString()} credits held across every client`
+                ? `${(totalPlatformCredits ?? 0).toLocaleString()} credits Apify can fund right now. Click for the calculation.`
                 : `${(user?.credits ?? 0).toLocaleString()} credits: view plans & top up`}
               style={{ display: 'flex', width: '100%' }}
             >
             <div
-              onClick={() => { if (user?.role !== 'admin') { navigate('/billing'); setMobileOpen(false); } }}
+              onClick={() => { navigate(user?.role === 'admin' ? '/admin/usage' : '/billing'); setMobileOpen(false); }}
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%',
                 padding: '10px 4px', borderRadius: 'var(--r-md)', backgroundColor: 'var(--surface-2)',
-                cursor: user?.role === 'admin' ? 'default' : 'pointer', fontFamily: 'var(--font-data)',
+                cursor: 'pointer', fontFamily: 'var(--font-data)',
                 fontWeight: 700, fontSize: 'var(--fs-xs)', color: 'var(--accent)',
               }}
             >
               {user?.role === 'admin'
                 ? formatCompactCredits(totalPlatformCredits)
-                : (user?.plan === 'unlimited' ? '∞' : (user?.credits ?? 0))}
+                : (user?.credits ?? 0)}
             </div>
             </Tooltip>
           ) : (
             <Tooltip
-              content={user?.role === 'admin' ? 'Total credits held across every client account' : 'View plans & top up'}
+              content={user?.role === 'admin' ? 'Credits Apify can fund right now. Click for the calculation.' : 'View plans & top up'}
               style={{ display: 'flex', width: '100%' }}
             >
             <div
-              onClick={() => { if (user?.role !== 'admin') { navigate('/billing'); setMobileOpen(false); } }}
-              style={{ padding: '10px 12px', borderRadius: 'var(--r-md)', backgroundColor: 'var(--surface-2)', cursor: user?.role === 'admin' ? 'default' : 'pointer', width: '100%' }}
+              onClick={() => { navigate(user?.role === 'admin' ? '/admin/usage' : '/billing'); setMobileOpen(false); }}
+              style={{ padding: '10px 12px', borderRadius: 'var(--r-md)', backgroundColor: 'var(--surface-2)', cursor: 'pointer', width: '100%' }}
             >
               <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600, marginBottom: '6px' }}>
-                {user?.role === 'admin' ? 'Platform Credits' : 'Credits'}
+                {user?.role === 'admin' ? 'Apify Credits' : 'Credits'}
               </div>
               {/* Number and plan chip share one baseline instead of the chip
                   sitting centered against the whole label+number block --
@@ -459,14 +455,14 @@ export function Shell() {
                 <div style={{ fontFamily: 'var(--font-data)', fontWeight: 700, fontSize: 'var(--fs-md)', minWidth: 0 }}>
                   {user?.role === 'admin'
                     ? (totalPlatformCredits ?? 0).toLocaleString()
-                    : (user?.plan === 'unlimited' ? '∞ Unlimited' : (user?.credits ?? 0).toLocaleString())}
+                    : (user?.credits ?? 0).toLocaleString()}
                 </div>
                 {user?.role !== 'admin' && (
                   <span className="chip accent" style={{ textTransform: 'capitalize', flexShrink: 0 }}>{user?.plan || 'free'}</span>
                 )}
               </div>
               {/* Same borrowed-total logic as Dashboard's Quick Insights bar
-                  (see usePlanCreditsTotal) -- null while unlimited or still
+                  (see usePlanCreditsTotal) -- null for admin or while still
                   loading, so there's nothing to divide against yet. */}
               {user?.role !== 'admin' && planCreditsTotal ? (
                 <div style={{ height: '4px', borderRadius: 'var(--r-full)', backgroundColor: 'var(--surface)', overflow: 'hidden', marginTop: '8px' }}>

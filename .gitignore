@@ -13,3 +13,5 @@ client/dist/
 .claude/
 test-results/
 playwright-report/
+
+audit-shots/

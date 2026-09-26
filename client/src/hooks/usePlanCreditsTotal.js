@@ -9,7 +9,7 @@ export function usePlanCreditsTotal(user) {
   const [total, setTotal] = useState(null);
 
   useEffect(() => {
-    if (!user || user.plan === 'unlimited') { setTotal(null); return; }
+    if (!user || user.role === 'admin') { setTotal(null); return; }
     if (user.plan === 'free' || !user.plan) { setTotal(FREE_TIER_CREDITS); return; }
     apiFetch('/pricing/plans')
       .then((res) => {

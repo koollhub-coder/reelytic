@@ -6,6 +6,7 @@ import { CampaignAvatar } from '../components/CampaignAvatar';
 import { EmptyState } from '../components/EmptyState';
 import { TableSkeleton } from '../components/TableSkeleton';
 import { Pagination } from '../components/Pagination';
+import { usePageSize, PAGE_SIZE_OPTIONS } from '../utils/pagination';
 import { UpgradeDialog, PREMIUM_FEATURES } from '../components/Premium';
 import { Select } from '../components/Select';
 import { Modal } from '../components/Modal';
@@ -41,14 +42,16 @@ import {
 
   Loading strategy (the reason this isn't just "fetch everything then
   paginate client-side"): this collection can be far larger than anything a
-  client should hold in memory. So the first PAGE_SIZE rows render at once,
+  client should hold in memory. So the first page of rows renders at once,
   more pages stream in behind them up to WARM_CAP (paging inside that window
   is a plain array slice), and paging past it costs one real request via the
   server's keyset cursor. Any change to a filter or sort starts that whole
   sequence again from the server.
 */
 
-const PAGE_SIZE = 50;
+// How many rows one server request brings back. Not the page size shown; that
+// is the shared, remembered choice from utils/pagination.
+const FETCH_CHUNK = 50;
 const WARM_CAP = 500;
 
 // Old saved views stored a follower tier by name; column filters store a
@@ -328,6 +331,7 @@ export function Creators() {
   const [loading, setLoading] = useState(true); // the one fetch the user actually waits on
   const [extending, setExtending] = useState(false); // on-demand fetch past the warmed window -- this one IS a real wait
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = usePageSize('creators');
   const [error, setError] = useState('');
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [scope, setScope] = useState('all'); // admin only: 'all' | 'mine'
@@ -364,7 +368,7 @@ export function Creators() {
 
   const fetchPage = useCallback((afterCursor, f, sc) => {
     const params = buildParams(f, sc);
-    params.set('limit', String(PAGE_SIZE));
+    params.set('limit', String(FETCH_CHUNK));
     if (afterCursor) params.set('cursor', afterCursor);
     return apiFetch(`/creators?${params.toString()}`);
   }, []);
@@ -437,7 +441,7 @@ export function Creators() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locked, debounced, firstPageQuery.data, firstPageQuery.error]);
 
-  const totalPages = Math.ceil(rows.length / PAGE_SIZE);
+  const totalPages = Math.ceil(rows.length / pageSize);
 
   // Paging within what's already warmed is a plain slice -- no request.
   // Paging past it can only step one page forward from the server's cursor.
@@ -549,7 +553,7 @@ export function Creators() {
     );
   }
 
-  const visibleRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const visibleRows = rows.slice((page - 1) * pageSize, page * pageSize);
   const sheetSortValue = `${filters.sort}:${filters.sort === 'recent' ? '' : (filters.dir || (filters.sort === 'name' ? 'asc' : 'desc'))}`;
 
   return (
@@ -860,9 +864,11 @@ export function Creators() {
             <Pagination
               page={page}
               totalPages={totalPages}
-              pageSize={PAGE_SIZE}
+              pageSize={pageSize}
               totalItems={rows.length}
               onPageChange={handlePageChange}
+              onPageSizeChange={(n) => { setPageSize(n); setPage(1); }}
+              pageSizeOptions={rows.length > PAGE_SIZE_OPTIONS[0] ? PAGE_SIZE_OPTIONS : undefined}
               nextDisabled={page >= totalPages && hasMore ? false : undefined}
               nextLoading={extending}
               trailing={warming ? <span style={{ opacity: 0.7 }}> · loading more…</span> : null}

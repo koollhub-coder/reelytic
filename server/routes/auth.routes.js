@@ -34,9 +34,18 @@ const APP_URL = config.appUrl;
 // only once the next /auth/me call went through requireLogin's merge.
 async function publicUser(user) {
   let effective = user;
+  let isMember = !!user.teamOwnerUsername;
+  if (user.role === 'admin') {
+    // The login paths hand over the raw document; give admin the live figure.
+    const { getAdminCredits } = require('../services/platformCredits.service');
+    effective = { ...user, credits: await getAdminCredits() };
+    isMember = false;
+  }
   if (user.teamOwnerUsername && !user.effectiveUsername) {
     const owner = await getDb().collection('users').findOne({ username: user.teamOwnerUsername });
-    if (owner) effective = { ...user, plan: owner.plan, credits: owner.credits, featureOverrides: owner.featureOverrides };
+    // A link to a platform admin is void, see middleware/auth.js.
+    if (owner && owner.role === 'admin') isMember = false;
+    else if (owner) effective = { ...user, plan: owner.plan, credits: owner.credits, featureOverrides: owner.featureOverrides };
   }
   return {
     username: user.username,
@@ -65,7 +74,7 @@ async function publicUser(user) {
     // what makes user.plan/credits/features above already reflect the
     // owner's account for a member). The client uses this to hide billing
     // controls and show a read-only team view instead of the management one.
-    isTeamMember: !!user.teamOwnerUsername,
+    isTeamMember: isMember,
   };
 }
 
@@ -270,6 +279,12 @@ router.patch('/username', requireLogin, async (req, res, next) => {
       ['campaigns', 'ownerUsername'],
       ['usageStats', 'username'],
       ['loginHistory', 'username'],
+      // An owner's team hangs off their username. Without these two lines a
+      // rename left every teammate pointing at a name that no longer exists, so
+      // they silently lost access to the workspace they belong to.
+      ['users', 'teamOwnerUsername'],
+      ['teamInvites', 'ownerUsername'],
+      ['analyzedCreators', 'ownerUsername'],
     ]) {
       await db.collection(coll).updateMany({ [field]: previousUsername }, { $set: { [field]: requested } });
     }
