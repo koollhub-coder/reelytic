@@ -135,7 +135,7 @@ function PortalBody({ campaign, rows, reports, accentColor }) {
     <>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--s3)', marginBottom: 'var(--s5)' }}>
         <StatTile value={campaign.reportCount} label={campaign.reportCount === 1 ? 'Report' : 'Reports'} />
-        <StatTile value={all.length.toLocaleString()} label="Creators measured" />
+        <StatTile value={(campaign.creators ?? all.length).toLocaleString()} label="Creators measured" />
         <StatTile value={formatViews(campaign.totalViews)} label="Total views" accent />
         <StatTile value={campaign.avgEr != null ? campaign.avgEr + '%' : '-'} label="Average engagement" accent />
       </div>

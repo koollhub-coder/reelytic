@@ -61,6 +61,25 @@ function slimRow(row) {
 }
 
 /*
+  Which reel (or profile) a finished row measured, for rolling a campaign up
+  across reports. A reel re-checked every week appears in every weekly
+  report, and adding each check to the last counted its views once per week.
+  Keyed on the shortcode so "/reel/X", "/reels/X/?igsh=..." and "/p/X" are
+  the same reel. Server-side only: never sent to the client.
+  Returns null when there is nothing stable to key on, in which case the row
+  counts on its own as before.
+*/
+const SHORTCODE_RE = /\/(?:reel|reels|p)\/([a-zA-Z0-9_-]+)/;
+function campaignKey(job, row) {
+  const r = row.result || {};
+  if (job.type === 'profile') {
+    return r.username ? 'profile:' + String(r.username).toLowerCase() : null;
+  }
+  const m = String(r.reelLink || '').match(SHORTCODE_RE) || String(row.input?.url || '').match(SHORTCODE_RE);
+  return m ? 'reel:' + m[1] : null;
+}
+
+/*
   Resolves a share token to a job, or to the reason it can't be used.
 
   An expired link and a revoked one are deliberately given the SAME message.
@@ -150,6 +169,11 @@ router.get('/campaigns/:token', viewLimiter, async (req, res, next) => {
     jobs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     let totalViews = 0;
     let weightedErSum = 0;
+    let creators = 0;
+    // Jobs are newest first, so the first time a reel is seen is its latest
+    // check. Later (older) sightings still show in their own report's line
+    // and in the row list, but add nothing to the campaign totals.
+    const counted = new Set();
     const rows = [];
     // One summary line per report, so a client can tell which report each
     // creator came from and how each report performed on its own. The key is
@@ -165,8 +189,13 @@ router.get('/campaigns/:token', viewLimiter, async (req, res, next) => {
         if (!slim) continue;
         const views = Number(slim.result.views ?? slim.result.avgViews ?? 0);
         const er = Number(slim.result.er ?? slim.result.avgEr ?? 0);
-        totalViews += views;
-        weightedErSum += er * views;
+        const ck = campaignKey(job, row);
+        if (!ck || !counted.has(ck)) {
+          if (ck) counted.add(ck);
+          totalViews += views;
+          weightedErSum += er * views;
+          creators += 1;
+        }
         jobViews += views;
         jobEr += er * views;
         jobCount += 1;
@@ -192,6 +221,7 @@ router.get('/campaigns/:token', viewLimiter, async (req, res, next) => {
         name: campaign.name,
         avatarUrl: campaign.avatarUrl || null,
         reportCount: jobs.length,
+        creators,
         totalViews,
         avgEr: totalViews > 0 ? Math.round((weightedErSum / totalViews) * 100) / 100 : null,
       },

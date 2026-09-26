@@ -94,6 +94,60 @@ describe('the client portal tells reports apart', () => {
   });
 });
 
+/*
+  A reel re-checked every week lands in every weekly report. The campaign
+  totals used to add each check on top of the last, so one reel's views were
+  counted once per week. The rollup now keeps only the newest result per reel;
+  each report's own line still shows its own numbers.
+*/
+describe('a reel checked in two reports counts once in the campaign totals', () => {
+  let data;
+  const reel = (code, username, views, er, extra = {}) => ({
+    i: 1, state: 'done', input: { url: `https://www.instagram.com/reel/${code}/?igsh=abc` },
+    result: { username, followers: 1000, reelLink: `https://www.instagram.com/reel/${code}`, views, likes: 50, comments: 5, er, ...extra },
+  });
+
+  before(async () => {
+    const made = await pro.post('/campaigns', { name: 'Recheck test' });
+    const id = made.data.campaign.id;
+    await getDb().collection('jobs').insertMany([
+      { _id: 'rgr_recheck_1', ownerUsername: usernameFor('pro'), type: 'reel', status: 'done', fileName: 'check-1.xlsx', campaignId: id, createdAt: new Date('2026-09-01'), rows: [reel('SAMECODE1', 'delta', 1000, 2), reel('OTHERCODE', 'eps', 500, 4)] },
+      // Same reel a week later, pasted with a different link form.
+      { _id: 'rgr_recheck_2', ownerUsername: usernameFor('pro'), type: 'reel', status: 'done', fileName: 'check-2.xlsx', campaignId: id, createdAt: new Date('2026-09-08'), rows: [{ ...reel('SAMECODE1', 'delta', 3000, 6), input: { url: 'https://instagram.com/reels/SAMECODE1' } }] },
+    ]);
+    const portal = await pro.post(`/campaigns/${id}/portal`, {});
+    const seen = await createAgent().get(`/public/campaigns/${portal.data.portalToken}`);
+    assert.equal(seen.status, 200);
+    data = seen.data;
+  });
+
+  test('total views use the newest check of each reel', () => {
+    assert.equal(data.campaign.totalViews, 3500, 'old check of SAMECODE1 must not be added on top of the new one');
+  });
+
+  test('average engagement is weighted over distinct reels', () => {
+    // (6*3000 + 4*500) / 3500 = 5.71
+    assert.equal(data.campaign.avgEr, 5.71);
+  });
+
+  test('creators measured counts distinct reels', () => {
+    assert.equal(data.campaign.creators, 2);
+  });
+
+  test('each report keeps its own numbers', () => {
+    const byName = Object.fromEntries(data.reports.map((r) => [r.name, r]));
+    assert.equal(byName['check-1.xlsx'].totalViews, 1500);
+    assert.equal(byName['check-2.xlsx'].totalViews, 3000);
+    assert.equal(data.rows.length, 3, 'every report row is still listed');
+  });
+
+  test('no shortcode-derived key or raw input leaks into the response', () => {
+    const text = JSON.stringify(data);
+    assert.ok(!text.includes('igsh=abc'), 'raw input url leaked');
+    assert.ok(!text.includes('rgr_recheck'), 'job id leaked');
+  });
+});
+
 describe('the admin can hand out any paid feature', () => {
   test('a free account cannot make a portal until it is granted', async () => {
     const made = await free.post('/campaigns', { name: 'Free try' });
