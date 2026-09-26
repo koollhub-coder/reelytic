@@ -193,6 +193,14 @@ export function ReportThemeStyles({ theme }) {
         .rl-label-full { display: none; }
         .rl-report-brand-name { font-size: var(--fs-base); }
       }
+      /* The narrowest phones (360px): the logo, theme toggle, Excel and the
+         PDF button with its "Soon" tag ran past the right edge of the bar.
+         Tighter buttons keep all four on one row and fully visible. */
+      @media (max-width: 400px) {
+        .rl-report-topbar { padding: var(--s2); }
+        .rl-report-topbar-actions { gap: 4px; min-width: 0; }
+        .rl-report-topbar-actions .btn { padding: 0 8px; gap: 4px !important; }
+      }
       .rl-label-short { display: none; }
       @media (max-width: 640px) {
         .rl-label-short { display: inline; }
