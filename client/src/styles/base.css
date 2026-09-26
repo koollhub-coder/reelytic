@@ -113,6 +113,35 @@ input[type="checkbox"]:focus-visible {
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
+/* Radios follow the same rule as checkboxes: never the browser's blue. */
+input[type="radio"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 50%;
+  background-color: var(--surface);
+  cursor: pointer;
+  display: inline-grid;
+  place-content: center;
+  transition: border-color var(--t-fast), background-color var(--t-fast);
+}
+input[type="radio"]:hover { border-color: var(--accent); }
+input[type="radio"]:checked { border-color: var(--accent); background-color: var(--accent); }
+input[type="radio"]:checked::after {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #fff;
+}
+input[type="radio"]:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+
+/* Anything else the browser draws itself (range, progress) takes the brand colour too. */
+:root { accent-color: var(--accent); }
+
 a {
   color: var(--accent);
   text-decoration: none;

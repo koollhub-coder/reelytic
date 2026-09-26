@@ -96,3 +96,25 @@ describe('/admin/overview range handling', () => {
     assert.equal(bogus.data.days, 14, 'an unlisted range must fall back to the 14-day default, not be honored verbatim');
   });
 });
+
+describe('reports and links are counted separately and the chart agrees with the tiles', () => {
+  test('reportCount counts real reports only, and the chart total equals the link tiles', async () => {
+    const db = getDb();
+    const username = usernameFor('agency');
+    const agency = await loginAs('agency');
+    const now = new Date();
+    await db.collection('jobs').insertMany([
+      { _id: 'rgr_cnt_real', ownerUsername: username, type: 'reel', status: 'done', fileName: 'a.xlsx', counts: { total: 3, success: 3, failed: 0 }, createdAt: now, rows: [] },
+      { _id: 'rgr_cnt_demo', ownerUsername: username, type: 'reel', status: 'done', fileName: 'demo.xlsx', isDemo: true, counts: { total: 8, success: 8, failed: 0 }, createdAt: now, rows: [] },
+      { _id: 'rgr_cnt_wait', ownerUsername: username, type: 'profile', status: 'preview', fileName: 'w.xlsx', counts: { total: 2 }, createdAt: now, rows: [] },
+    ]);
+    await db.collection('submittedLinks').insertMany([1, 2, 3].map((i) => ({ jobId: 'rgr_cnt_real', username, type: 'reel', result: 'success', at: now, url: `https://www.instagram.com/reel/RGRCNT${i}/` })));
+    const res = await agency.get('/me/stats?days=7');
+    assert.equal(res.status, 200);
+    assert.equal(res.data.reportCount, 1, 'one real report: the sample and the not-yet-started one are not counted');
+    assert.equal(res.data.reelReportCount, 1);
+    assert.equal(res.data.reelCount, 3, 'links are counted separately from reports');
+    const chart = res.data.activityByDay.reduce((n, d) => n + d.reels + d.profiles, 0);
+    assert.equal(chart, res.data.totalCount, 'the chart and the tiles must add up to the same number');
+  });
+});

@@ -486,3 +486,53 @@ test.describe('production build is fast and correct', () => {
     expect(short.headers()['content-encoding']).toBeUndefined();
   });
 });
+
+test.describe('public navigation and touch charts', () => {
+  test('a signed-out visitor going from the landing page to sign up never sees a loading screen', async ({ page }) => {
+    await page.addInitScript(() => {
+      window.__loaderSeen = [];
+      new MutationObserver(() => {
+        if (window.__watch && document.querySelector('.rl-loader-ring')) window.__loaderSeen.push('loader on ' + location.pathname);
+      }).observe(document, { childList: true, subtree: true, characterData: true });
+    });
+    await page.goto('/');
+    await page.waitForTimeout(1500);
+    // the footer's "Reel Report" link is one of several that lead to sign up
+    await page.evaluate(() => { window.__watch = true; });
+    await page.locator('.landing-footer details').first().evaluate((d) => { d.open = true; });
+    await page.locator('.landing-footer-col-body button', { hasText: 'Reel Report' }).click();
+    await page.waitForURL('**/signup');
+    await expect(page.locator('#password')).toBeVisible();
+    expect(await page.evaluate(() => window.__loaderSeen), 'a loading page flashed in between').toEqual([]);
+  });
+
+  test.describe('on a phone', () => {
+    test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+    test('tapping the activity chart shows that day, with no focus box', async ({ page }) => {
+      await signIn(page, 'pro');
+      const days = Array.from({ length: 30 }, (_, i) => {
+        const d = new Date(Date.now() - (29 - i) * 86400000).toISOString().slice(0, 10);
+        return { date: d, reels: (i * 7) % 11, profiles: i % 3, total: ((i * 7) % 11) + (i % 3) };
+      });
+      await page.route('**/api/me/stats**', async (route) => {
+        const res = await route.fetch();
+        const body = await res.json();
+        await route.fulfill({ response: res, json: { ...body, activityByDay: days } });
+      });
+      await page.goto('/dashboard');
+      const chart = page.locator('.rl-chart-touch');
+      await chart.scrollIntoViewIfNeeded();
+      await expect(page.locator('.rl-chart-readout-hint')).toBeVisible();
+      const box = await chart.boundingBox();
+      await page.touchscreen.tap(box.x + box.width - 40, box.y + box.height / 2);
+      await expect(page.locator('.rl-chart-readout:not(.rl-chart-readout-hint)')).toContainText(/reel/);
+      const outline = await page.evaluate(() => {
+        const el = document.activeElement;
+        return el ? getComputedStyle(el).outlineStyle : 'none';
+      });
+      expect(outline === 'none' || outline === '').toBeTruthy();
+      await expect(page.locator('.recharts-tooltip-wrapper:visible')).toHaveCount(0);
+    });
+  });
+});

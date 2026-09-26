@@ -1109,6 +1109,9 @@ textarea.input-field {
 /* Table cells: one calm height, everything vertically centred. */
 .rl-dt-table td { vertical-align: middle; }
 .rl-dt-mobilebar { margin-bottom: var(--s3); }
+.rl-select-quiet { background: none; border: 0; padding: 4px 6px; margin: 0 -6px; border-radius: var(--r-sm); font-size: var(--fs-sm); min-width: 0; }
+.rl-select-quiet:hover { background: var(--surface-2); }
+.rl-select-quiet:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
 .rl-cell-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 300px; }
 .rl-cell-sub { font-size: var(--fs-xs); color: var(--text-3); margin-top: 2px; white-space: nowrap; }
 
@@ -1246,3 +1249,11 @@ html, body { overflow-wrap: break-word; }
 
 /* Admin tables carry many columns: tighter cells so more fits before it scrolls. */
 .rl-dt .data-table th, .rl-dt .data-table td { padding-left: 12px; padding-right: 12px; }
+
+/* Activity chart: no browser focus box around the plot, vertical swipes still scroll the page, horizontal ones scrub. */
+.rl-chart-touch { touch-action: pan-y; -webkit-tap-highlight-color: transparent; user-select: none; }
+.rl-chart-touch *:focus, .rl-chart-touch *:focus-visible, .recharts-wrapper:focus, .recharts-surface:focus { outline: none !important; }
+.rl-chart-readout { display: flex; align-items: center; gap: var(--s4); flex-wrap: wrap; min-height: 32px; padding: 6px var(--s3); margin-bottom: var(--s2); background: var(--surface-2); border-radius: var(--r-md); font-size: var(--fs-sm); }
+.rl-chart-readout span { display: inline-flex; align-items: center; gap: 6px; color: var(--text-2); }
+.rl-chart-readout i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+.rl-chart-readout-hint { color: var(--text-3); }

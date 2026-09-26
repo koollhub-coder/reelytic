@@ -30,6 +30,20 @@ async function windowCounts(db, username, start, end) {
     return { reelCount, profileCount, successCount, totalCount, successRate };
 }
 
+/*
+  Reports (a sheet the person ran), as opposed to the links inside them. Counted from the reports
+  themselves: a report that was started in the period, not the sample and not one still waiting to begin.
+*/
+async function reportCounts(db, username, start, end) {
+    const rows = await db.collection('jobs').aggregate([
+        { $match: { ownerUsername: username, createdAt: { $gte: start, $lt: end }, status: { $ne: 'preview' }, isDemo: { $ne: true } } },
+        { $group: { _id: '$type', n: { $sum: 1 } } },
+    ]).toArray();
+    const out = { reel: 0, profile: 0, total: 0 };
+    rows.forEach((r) => { if (r._id === 'reel') out.reel = r.n; else out.profile += r.n; out.total += r.n; });
+    return out;
+}
+
 // Percent change vs the previous period, or null when there's nothing in
 // the previous period to compare against -- a "0 -> 5" jump has no
 // meaningful percentage (division by zero), and showing one anyway is
@@ -81,10 +95,17 @@ router.get('/stats', requireLogin, async (req, res, next) => {
           recent-jobs query, all firing concurrently instead of queued
           behind each other.
         */
-        const [current, previous, statsRows, recentJobs] = await Promise.all([
+        const firstDay = new Date(dateStrs[0] + 'T00:00:00.000Z');
+        const [current, previous, dayRows, reportsNow, reportsBefore, recentJobs] = await Promise.all([
             windowCounts(db, username, periodStart, now),
             windowCounts(db, username, previousPeriodStart, periodStart),
-            db.collection('usageStats').find({ username, date: { $in: dateStrs } }).toArray(),
+            // Per-day links come from the same ledger as the tiles above, so the chart and the tiles cannot disagree.
+            db.collection('submittedLinks').aggregate([
+                { $match: { username, at: { $gte: firstDay, $lt: now } } },
+                { $group: { _id: { day: { $dateToString: { format: '%Y-%m-%d', date: '$at' } }, type: '$type' }, n: { $sum: 1 } } },
+            ]).toArray(),
+            reportCounts(db, username, periodStart, now),
+            reportCounts(db, username, previousPeriodStart, periodStart),
             db.collection('jobs')
                 .find({ ownerUsername: username })
                 .sort({ createdAt: -1 })
@@ -94,6 +115,7 @@ router.get('/stats', requireLogin, async (req, res, next) => {
         ]);
 
         const trends = {
+            reportCount: pctChange(reportsNow.total, reportsBefore.total),
             reelCount: pctChange(current.reelCount, previous.reelCount),
             profileCount: pctChange(current.profileCount, previous.profileCount),
             totalCount: pctChange(current.totalCount, previous.totalCount),
@@ -106,19 +128,22 @@ router.get('/stats', requireLogin, async (req, res, next) => {
                 : null,
         };
 
-        const statsByDate = new Map(statsRows.map((s) => [s.date, s]));
+        const perDay = new Map();
+        dayRows.forEach((r) => {
+            const d = perDay.get(r._id.day) || { reels: 0, profiles: 0 };
+            if (r._id.type === 'reel') d.reels += r.n; else d.profiles += r.n;
+            perDay.set(r._id.day, d);
+        });
         const activityByDay = dateStrs.map((dateStr) => {
-            const stat = statsByDate.get(dateStr);
-            return {
-                date: dateStr,
-                reels: (stat && stat.reelJobs) || 0,
-                profiles: (stat && stat.profileJobs) || 0,
-                total: (stat && stat.itemsProcessed) || 0,
-            };
+            const d = perDay.get(dateStr) || { reels: 0, profiles: 0 };
+            return { date: dateStr, reels: d.reels, profiles: d.profiles, total: d.reels + d.profiles };
         });
 
         res.json({
             ...current,
+            reportCount: reportsNow.total,
+            reelReportCount: reportsNow.reel,
+            profileReportCount: reportsNow.profile,
             trends,
             days,
             activityByDay,

@@ -413,15 +413,24 @@
      (Campaign over campaign) is hidden entirely here (see .rl-hide-mobile in
      the JSX), which is what keeps this an even 2x2 instead of a stranded
      lone card in a third row. */
+  /* One column, icon beside the text: two narrow columns squeezed every sentence into
+     five-word lines and left a hole when the count was odd. */
   .whats-new .features-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: var(--s3);
   }
   .whats-new .features-grid > * { max-width: none; flex: none; }
-  .whats-new .feature-card { padding: var(--s4); }
-  .whats-new .feature-title { font-size: var(--fs-sm); }
-  .whats-new .feature-desc { font-size: 11px; }
+  .whats-new .feature-card {
+    padding: var(--s4);
+    display: grid;
+    grid-template-columns: 40px 1fr;
+    column-gap: var(--s3);
+    align-items: start;
+  }
+  .whats-new .feature-card .card-icon-badge { grid-row: 1 / span 2; margin: 0; }
+  .whats-new .feature-title { font-size: var(--fs-md, 16px); margin: 0 0 4px; }
+  .whats-new .feature-desc { font-size: var(--fs-sm); line-height: 1.5; }
 
   /* CTA card: icon+text+button stack vertically and the button goes full
      width, instead of the desktop three-across row. */
@@ -582,5 +591,10 @@
   .rl-summary-actions { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: var(--s2) !important; }
   .rl-summary-actions > * { width: 100%; box-sizing: border-box; }
   .rl-summary-actions > .btn-primary { grid-column: 1 / -1; }
-  .rl-summary-actions .btn { min-width: 0; white-space: normal; text-align: center; line-height: 1.25; height: auto; min-height: 40px; padding: 8px 10px; }
+  /* A tooltip wrapper around a button is the grid child; the button itself must fill it,
+     or it shrinks to its label and sits at a different width from its neighbours. */
+  .rl-summary-actions > * > .btn { width: 100%; }
+  /* Same height and size on every button, and a lone last button spans the row. */
+  .rl-summary-actions .btn { min-width: 0; white-space: nowrap; text-align: center; height: 44px; min-height: 44px; padding: 0 8px; font-size: 13px; display: inline-flex; align-items: center; justify-content: center; }
+  .rl-summary-actions > :nth-child(even):last-child { grid-column: 1 / -1; }
 }

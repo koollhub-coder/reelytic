@@ -15,6 +15,7 @@ import { NewsletterSignup } from '../components/NewsletterSignup';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useDocumentMeta, SITE_URL } from '../hooks/useDocumentMeta';
+import { prefetchRoute } from '../utils/prefetch';
 import '../styles/landing.css';
 
 // SoftwareApplication, not Organization (index.html already carries that
@@ -184,7 +185,12 @@ export function Landing() {
   // browser's markup differ from the prerendered markup (a sun where the page had a moon), so the
   // icon follows it from the second render on.
   const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => {
+    setMounted(true);
+    // Every button on this page leads to one of these, so their code is fetched while the visitor reads.
+    const t = setTimeout(() => ['/signup', '/login', '/pricing'].forEach(prefetchRoute), 800);
+    return () => clearTimeout(t);
+  }, []);
   const theme = mounted ? storedTheme : 'light';
   // The nav's right-hand action group (Pricing/Resources/theme/Login/Get
   // started) is a separate inner flex container from .landing-nav itself,

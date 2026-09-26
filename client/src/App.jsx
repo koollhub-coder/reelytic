@@ -198,7 +198,9 @@ function PublicRoute({ children }) {
   const { user, loading } = useAuth();
   // The landing page reads fine signed in or out (its buttons adapt once the answer arrives),
   // so it is shown immediately instead of waiting on a round trip to the server first.
-  if (loading && window.location.pathname === '/') return children;
+  // The log in and sign up forms are also shown at once. A visitor who is not signed in (nearly everyone
+  // who gets here) used to see a full-screen "Loading your workspace" page flash before the form.
+  if (loading && ['/', '/login', '/signup'].includes(window.location.pathname)) return children;
   if (loading) return <BrandLoader variant="full" message="Loading your workspace..." />;
   // A logged-in user landing on /login or /signup (bookmark, shared link,
   // etc) sees an explicit "continue as X, or switch accounts" screen instead
@@ -216,7 +218,7 @@ export function App({ Router = BrowserRouter, routerProps = {} } = {}) {
     <ThemeProvider>
       <ToastProvider>
         <AuthProvider>
-          <Router {...routerProps}>
+          <Router {...(Router === BrowserRouter ? { future: { v7_startTransition: true, v7_relativeSplatPath: true } } : {})} {...routerProps}>
             <Suspense fallback={<BrandLoader variant="full" message="Loading..." />}>
               <Routes>
                 <Route path="/" element={<PublicRoute><Landing /></PublicRoute>} />

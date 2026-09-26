@@ -8,6 +8,9 @@
   ready. Failures are ignored: the worst case is the ordinary lazy load on click.
 */
 const loaders = {
+  '/login': () => import('../pages/Login'),
+  '/signup': () => import('../pages/Signup'),
+  '/pricing': () => import('../pages/Pricing'),
   '/dashboard': () => import('../pages/Dashboard'),
   '/history': () => import('../pages/History'),
   '/reels': () => import('../pages/ReelReport'),

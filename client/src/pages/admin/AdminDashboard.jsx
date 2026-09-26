@@ -57,7 +57,7 @@ export function AdminDashboard() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 'var(--s4)', marginBottom: 'var(--s6)' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(max(220px, calc((100% - 2 * var(--s4)) / 3)), 1fr))', gap: 'var(--s4)', marginBottom: 'var(--s6)' }}>
         <StatCard label="Total Clients" value={stats.totalClients} />
         <StatCard label="Active Clients (period)" value={stats.activeClients} sub={stats.totalClients > 0 ? `${Math.round((stats.activeClients / stats.totalClients) * 100)}% of all clients` : null} />
         <StatCard label="Reel Jobs" value={stats.reelJobs} />
@@ -88,10 +88,10 @@ export function AdminDashboard() {
           <>
             <div style={{ display: 'flex', gap: 'var(--s4)', marginBottom: 'var(--s3)', fontSize: 'var(--fs-xs)', color: 'var(--text-2)' }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: 'var(--accent)', display: 'inline-block' }} />Reel reports
+                <span style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: 'var(--accent)', display: 'inline-block' }} />Reel links
               </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: 'var(--ok)', display: 'inline-block' }} />Profile reports
+                <span style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: 'var(--ok)', display: 'inline-block' }} />Profile links
               </span>
             </div>
             <ActivityChart data={activity} height={260} />

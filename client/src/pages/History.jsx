@@ -61,7 +61,8 @@ function timeOf(d) {
 // Pasted lists are all called "pasted-links.txt", which makes forty of them
 // impossible to tell apart. A plain name reads better, and a name the person
 // typed on the upload screen is shown as typed.
-const displayName = (job) => (!job.fileName || job.fileName === 'pasted-links.txt' ? 'Pasted links' : job.fileName);
+const displayName = (job) => (!job.fileName || job.fileName === 'pasted-links.txt' ? (job.type === 'reel' ? 'Reel report' : 'Profile report') : job.fileName);
+const linkCount = (job) => { const n = job.counts?.total || 0; return n + (n === 1 ? ' link' : ' links'); };
 
 const reportPath = (job) => `${job.type === 'reel' ? '/reels' : '/profiles'}?job=${job.id}`;
 
@@ -98,17 +99,17 @@ function reportColumns({ campaigns, onReassign, navigate }) {
     {
       key: 'name', label: 'Report', type: 'text', accessor: (j) => displayName(j),
       render: (j) => (
-        <Tooltip content={j.fileName || displayName(j)}>
-          <div className="rl-cell-title">{displayName(j)}</div>
-        </Tooltip>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s3)', minWidth: 0 }}>
+          <span style={{ color: 'var(--text-3)', display: 'inline-flex', flexShrink: 0 }}>{j.type === 'reel' ? <ReelIcon size={16} /> : <ProfileIcon size={16} />}</span>
+          <div style={{ minWidth: 0 }}>
+            <Tooltip content={j.fileName || displayName(j)}>
+              <div className="rl-cell-title">{displayName(j)}</div>
+            </Tooltip>
+            <div className="rl-cell-sub">{linkCount(j)}</div>
+          </div>
+        </div>
       ),
     },
-    {
-      key: 'type', label: 'Type', type: 'select', accessor: (j) => j.type,
-      optionLabel: (v) => (v === 'reel' ? 'Reel' : 'Profile'),
-      render: (j) => <span className={`chip ${j.type === 'reel' ? 'accent' : 'ok'}`} style={{ textTransform: 'uppercase' }}>{j.type}</span>,
-    },
-    { key: 'links', label: 'Links', type: 'number', align: 'right', mono: true, accessor: (j) => j.counts?.total || 0 },
     {
       key: 'status', label: 'Status', type: 'select', accessor: (j) => (STATUS_LABELS[j.status] || { label: j.status }).label,
       render: (j) => {
@@ -134,7 +135,7 @@ function reportColumns({ campaigns, onReassign, navigate }) {
     {
       key: 'campaign', label: 'Campaign', type: 'select', accessor: nameOf,
       render: (j) => (
-        <Select value={j.campaignId || ''} onChange={(v) => onReassign(j.id, v || null)} options={campaignOptions} style={{ minWidth: '150px', maxWidth: '190px' }} />
+        <Select quiet value={j.campaignId || ''} onChange={(v) => onReassign(j.id, v || null)} options={campaignOptions} style={{ minWidth: '150px', maxWidth: '190px' }} />
       ),
     },
     {
@@ -169,24 +170,25 @@ function ReportCardMobile({ job, campaigns, onReassign, navigate, selectable, se
           {job.type === 'reel' ? <ReelIcon size={15} /> : <ProfileIcon size={15} />}
         </div>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontWeight: 600, fontSize: 'var(--fs-sm)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName(job)}</div>
+          <div style={{ fontWeight: 600, fontSize: 'var(--fs-md, 16px)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName(job)}</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
-            <span className={`chip ${statusInfo.chip}`} style={{ fontSize: '10px' }}>{statusInfo.label}</span>
-            <span className="mono" style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>{job.counts?.total || 0} links</span>
+            <span className={`chip ${statusInfo.chip}`}>{statusInfo.label}</span>
+            <span style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-2)' }}>{linkCount(job)}</span>
           </div>
-          <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)', marginTop: '4px' }}>
+          <div style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-3)', marginTop: '4px' }}>
             {formatDate(job.createdAt)}, {timeOf(job.createdAt)}{took ? ` · took ${took}` : ''}
           </div>
         </div>
         {isDone && (job.counts?.success || 0) > 0 && <RowMenu items={exportItems(job, navigate)} />}
       </div>
 
-      <div style={{ marginTop: 'var(--s3)' }}>
-        <Select value={job.campaignId || ''} onChange={(v) => onReassign(job.id, v || null)} options={campaignOptions} style={{ width: '100%' }} />
+      <div style={{ marginTop: 'var(--s3)', display: 'flex', alignItems: 'center', gap: 'var(--s2)', fontSize: 'var(--fs-sm)', color: 'var(--text-3)' }}>
+        <span>Campaign</span>
+        <Select quiet value={job.campaignId || ''} onChange={(v) => onReassign(job.id, v || null)} options={campaignOptions} style={{ flex: 1, minWidth: 0 }} />
       </div>
 
       <button type="button" className="btn btn-secondary" style={{ width: '100%', height: '36px', fontSize: 'var(--fs-sm)', marginTop: 'var(--s3)' }} onClick={() => navigate(reportPath(job))}>
-        {isDone ? 'View report →' : 'Resume report →'}
+        {isDone ? 'View report' : 'Resume report'}
       </button>
     </div>
   );

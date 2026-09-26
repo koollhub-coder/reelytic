@@ -5,7 +5,8 @@ import React, { useState, useRef, useEffect } from 'react';
 // dropdown list is rendered by the OS and ignores our styles entirely --
 // that's the "childish" mismatched popup. This replaces it with a fully
 // custom, dark-mode-correct dropdown built from plain divs.
-export function Select({ value, onChange, options, placeholder = 'Select...', style, className, disabled = false }) {
+// quiet: reads as text with a chevron until it is pressed, for dense lists where a boxed input in every row is noise.
+export function Select({ value, onChange, options, placeholder = 'Select...', style, className, disabled = false, quiet = false }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
 
@@ -31,8 +32,8 @@ export function Select({ value, onChange, options, placeholder = 'Select...', st
         type="button"
         disabled={disabled}
         onClick={() => !disabled && setOpen((v) => !v)}
-        className="input-field"
-        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.6 : 1 }}
+        className={quiet ? 'rl-select-quiet' : 'input-field'}
+        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: quiet ? 'flex-start' : 'space-between', gap: quiet ? '4px' : '8px', cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.6 : 1 }}
       >
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: selected ? 'var(--text)' : 'var(--text-3)' }}>
           {selected ? selected.label : placeholder}

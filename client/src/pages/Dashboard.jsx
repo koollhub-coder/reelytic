@@ -13,7 +13,7 @@ import { formatDate, formatDayKey } from '../utils/date';
 import { displayName, reportPath } from '../utils/reports';
 import { RowMenu } from '../components/RowMenu';
 import {
-  ReelIcon, ProfileIcon, LayersIcon, TrendingUpIcon, PlusIcon, CalendarIcon,
+  ReelIcon, ProfileIcon, LayersIcon, TrendingUpIcon, PlusIcon, CalendarIcon, FileIcon,
   DownloadIcon, ArrowUpRightIcon, SuccessIcon, ClockIcon, StarIcon,
 } from '../components/Icon';
 
@@ -120,13 +120,13 @@ function ReportSplitDonut({ reelCount, profileCount }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', fontSize: '13px', color: 'var(--text-2)', flexWrap: 'wrap' }}>
           <span style={{ width: 9, height: 9, borderRadius: '50%', backgroundColor: 'var(--accent)', display: 'inline-block', flexShrink: 0, alignSelf: 'center' }} />
-          <span>Reel reports</span>
+          <span>Reel links</span>
           <span style={{ fontFamily: 'var(--font-data)', fontWeight: 700, color: 'var(--text)' }}>{reelCount.toLocaleString()}</span>
           <span style={{ color: 'var(--text-3)' }}>· {(reelFrac * 100).toFixed(1)}%</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', fontSize: '13px', color: 'var(--text-2)', flexWrap: 'wrap' }}>
           <span style={{ width: 9, height: 9, borderRadius: '50%', backgroundColor: 'var(--ok)', display: 'inline-block', flexShrink: 0, alignSelf: 'center' }} />
-          <span>Profile reports</span>
+          <span>Profile links</span>
           <span style={{ fontFamily: 'var(--font-data)', fontWeight: 700, color: 'var(--text)' }}>{profileCount.toLocaleString()}</span>
           <span style={{ color: 'var(--text-3)' }}>· {((1 - reelFrac) * 100).toFixed(1)}%</span>
         </div>
@@ -322,19 +322,19 @@ export function Dashboard() {
 
       <div className="rl-dashboard-metrics rl-metric-grid">
         <MetricCard
-          icon={<ReelIcon size={20} />} tone="accent" label="Reel reports"
+          icon={<FileIcon size={20} />} tone="accent" label="Reports"
+          value={(data.reportCount || 0).toLocaleString()} trend={trends.reportCount} periodDays={days}
+          tooltip={`Reports you ran in the last ${days} days (${data.reelReportCount || 0} reel, ${data.profileReportCount || 0} profile)`}
+        />
+        <MetricCard
+          icon={<ReelIcon size={20} />} tone="info" label="Reel links"
           value={data.reelCount.toLocaleString()} trend={trends.reelCount} periodDays={days}
           tooltip={`Reel links processed in the last ${days} days`}
         />
         <MetricCard
-          icon={<ProfileIcon size={20} />} tone="ok" label="Profile reports"
+          icon={<ProfileIcon size={20} />} tone="ok" label="Profile links"
           value={data.profileCount.toLocaleString()} trend={trends.profileCount} periodDays={days}
           tooltip={`Profile links processed in the last ${days} days`}
-        />
-        <MetricCard
-          icon={<LayersIcon size={20} />} tone="info" label="Total processed"
-          value={data.totalCount.toLocaleString()} trend={trends.totalCount} periodDays={days}
-          tooltip="Total reel and profile links processed during the selected period"
         />
         <MetricCard
           icon={<TrendingUpIcon size={20} />} tone="warn" label="Success rate"
@@ -381,7 +381,7 @@ export function Dashboard() {
                       <span className="rl-activity-stat-icon" style={{ background: 'var(--info-soft)', color: 'var(--info)' }}><LayersIcon size={14} /></span>
                       <span>
                         <span className="rl-activity-stat-value">{periodTotal.toLocaleString()}</span>
-                        <span className="rl-activity-stat-label">Processed</span>
+                        <span className="rl-activity-stat-label">Links processed</span>
                       </span>
                     </div>
                     <div className="rl-activity-stat">
@@ -407,7 +407,7 @@ export function Dashboard() {
             </div>
 
             <div className="card">
-              <div className="rl-card-head"><h3>Report type split</h3></div>
+              <div className="rl-card-head"><h3>Reel and profile links</h3></div>
               <div style={{ display: 'flex', alignItems: 'center', minHeight: 200 }}>
                 <ReportSplitDonut reelCount={data.reelCount} profileCount={data.profileCount} />
               </div>

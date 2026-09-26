@@ -62,6 +62,52 @@ function findOverflow() {
     bad.push(`offscreen ${name(el)} "${el.textContent.trim().slice(0, 40)}" runs past the right edge of the screen`);
   });
 
+  // Layout consistency, which overflow checks cannot see.
+  // 1. Buttons that share a row must be the same height, and none may wrap its label onto two lines.
+  document.querySelectorAll('body *').forEach((parent) => {
+    const btns = [...parent.children].map((c) => (c.matches('.btn') ? c : c.querySelector(':scope > .btn'))).filter((b) => b && visible(b));
+    if (btns.length < 2) return;
+    const rows = new Map();
+    btns.forEach((b) => { const r = b.getBoundingClientRect(); const k = Math.round(r.top / 8); rows.set(k, [...(rows.get(k) || []), r]); });
+    rows.forEach((rects) => {
+      if (rects.length < 2) return;
+      const hs = rects.map((r) => Math.round(r.height));
+      if (Math.max(...hs) - Math.min(...hs) > 2) bad.push('buttons ' + name(parent) + ' "' + parent.textContent.trim().slice(0, 40) + '" sit in one row at different heights');
+    });
+  });
+  document.querySelectorAll('.btn').forEach((b) => {
+    if (!visible(b) || b.closest('[data-allow-wrap]')) return;
+    // A button built as a title plus a hint is meant to be two lines.
+    if ([...b.children].some((c) => c.textContent.trim() && getComputedStyle(c).display === 'block')) return;
+    const tops = new Set();
+    const walker = document.createTreeWalker(b, NodeFilter.SHOW_TEXT);
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      if (!n.textContent.trim()) continue;
+      const range = document.createRange();
+      range.selectNodeContents(n);
+      [...range.getClientRects()].forEach((r) => tops.add(Math.round((r.top + r.height / 2) / 10)));
+    }
+    if (tops.size > 1) bad.push('wrap button "' + b.textContent.trim().slice(0, 40) + '" label breaks onto a second line');
+  });
+
+  // 2. A card grid whose last row is only partly filled leaves a hole.
+  document.querySelectorAll('body *').forEach((g) => {
+    const cs = getComputedStyle(g);
+    if (cs.display !== 'grid' || !visible(g)) return;
+    const kids = [...g.children].filter(visible);
+    if (kids.length < 3 || !kids.every((k) => k.matches('.card, .feature-card, .rl-mc'))) return;
+    const cols = cs.gridTemplateColumns.split(' ').length;
+    if (cols < 2) return;
+    if (kids.length % cols !== 0 && !g.hasAttribute('data-allow-orphan')) bad.push('grid ' + name(g) + ' has ' + kids.length + ' cards in ' + cols + ' columns, so the last row is left with a hole');
+  });
+
+  // 3. Native controls must not show the browser's own blue.
+  document.querySelectorAll('input[type=radio], input[type=checkbox]').forEach((i) => {
+    if (!visible(i)) return;
+    const a = getComputedStyle(i).appearance;
+    if (a !== 'none') bad.push('control input[' + i.type + '] uses the browser default look, not the app theme');
+  });
+
   return bad;
 }
 
