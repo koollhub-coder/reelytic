@@ -14,6 +14,24 @@ async function resolvePlan(planId) {
 }
 
 /*
+  What an order costs, decided here and nowhere else. The browser used to send
+  its own `amount` and that number went straight to Razorpay, so an edited
+  request could buy any plan for one rupee. The client still shows a price,
+  but it is only display: this is what gets charged.
+
+  Mirrors the pricing pages' current maths exactly (Pricing.jsx and
+  BillingPlans.jsx, ANNUAL_DISCOUNT = 0.9), so nobody's checkout total moves.
+*/
+const ANNUAL_DISCOUNT = 0.9;
+const BILLING_PERIODS = new Set(['monthly', 'annual']);
+
+function priceRupees(plan, billing) {
+    const monthly = Number(plan.monthly);
+    if (!Number.isFinite(monthly) || monthly <= 0) return null;
+    return billing === 'annual' ? Math.round(monthly * ANNUAL_DISCOUNT) : monthly;
+}
+
+/*
   Grants a plan's credits for one order, exactly once. Shared by both the
   client-side checkout handler (verify-payment, below) and the webhook --
   whichever of the two fires first wins, the other is a no-op. Idempotency
@@ -22,13 +40,33 @@ async function resolvePlan(planId) {
   created, so a retried call (or the webhook arriving after the client
   already fulfilled the same order) touches nothing a second time.
 */
-async function fulfillOrder(razorpayOrderId) {
+async function fulfillOrder(razorpayOrderId, { checkCapture = false, capturedAmount, capturedCurrency } = {}) {
     const db = getDb();
+    const filter = { razorpayOrderId, status: 'created' };
+    // The webhook knows what was actually captured. Anything other than the
+    // amount this order was created for (in paise), including no amount at
+    // all, grants nothing.
+    const captureOk = !checkCapture || (
+        Number.isFinite(Number(capturedAmount)) && (!capturedCurrency || capturedCurrency === 'INR')
+    );
+    if (checkCapture) filter.amount = captureOk ? Number(capturedAmount) : -1;
     const order = await db.collection('billingOrders').findOneAndUpdate(
-        { razorpayOrderId, status: 'created' },
+        filter,
         { $set: { status: 'paid', paidAt: new Date() } }
     );
-    if (!order) return null; // already fulfilled, or no such order
+    if (!order) {
+        if (checkCapture) {
+            const pending = await db.collection('billingOrders').findOne({ razorpayOrderId, status: 'created' });
+            if (pending) {
+                await db.collection('billingOrders').updateOne(
+                    { _id: pending._id, status: 'created' },
+                    { $set: { status: 'amount_mismatch', capturedAmount: Number(capturedAmount), capturedCurrency: capturedCurrency || null, flaggedAt: new Date() } }
+                );
+                console.error(`[Billing] Order ${razorpayOrderId} captured ${capturedAmount} ${capturedCurrency || ''} but expected ${pending.amount}. Credits not granted.`);
+            }
+        }
+        return null; // already fulfilled, no such order, or the amount was wrong
+    }
 
     const plan = await resolvePlan(order.planId);
     if (!plan) return null;
@@ -53,12 +91,20 @@ function requireAccountOwner(req, res) {
 router.post('/create-order', requireLogin, async (req, res, next) => {
     try {
         if (!requireAccountOwner(req, res)) return;
-        const { planId, amount, billing } = req.body || {};
-        if (!planId || !amount) {
-            return res.status(400).json({ error: 'planId and amount are required' });
+        // Any `amount` in the body is ignored on purpose; see priceRupees.
+        const { planId } = req.body || {};
+        const billing = (req.body && req.body.billing) || 'monthly';
+        if (!planId) {
+            return res.status(400).json({ error: 'Choose a plan first.' });
+        }
+        if (!BILLING_PERIODS.has(billing)) {
+            return res.status(400).json({ error: 'Choose monthly or annual billing.' });
         }
         const plan = await resolvePlan(planId);
         if (!plan) return res.status(400).json({ error: 'Unknown plan.' });
+        const amountRupees = priceRupees(plan, billing);
+        if (!amountRupees) return res.status(400).json({ error: 'This plan cannot be bought online. Contact us to activate it.' });
+        const expectedPaise = Math.round(amountRupees * 100);
 
         if (!razorpay.isConfigured()) {
             // DUMMY MODE -- no real Razorpay credentials configured yet.
@@ -66,7 +112,7 @@ router.post('/create-order', requireLogin, async (req, res, next) => {
             // "contact us to activate" flow instead of opening a payment form.
             return res.json({
                 id: `order_dummy_${Date.now()}`,
-                amount: Math.round(amount * 100),
+                amount: expectedPaise,
                 currency: 'INR',
                 keyId: 'rzp_test_YOUR_KEY_ID',
                 planId,
@@ -76,10 +122,13 @@ router.post('/create-order', requireLogin, async (req, res, next) => {
 
         const username = req.currentUser.username;
         const order = await razorpay.createOrder({
-            amountRupees: amount,
+            amountRupees,
             receipt: `plan_${planId}_${username}_${Date.now()}`.slice(0, 40), // Razorpay caps receipt at 40 chars
-            notes: { username, planId, billing: billing || '' },
+            notes: { username, planId, billing },
         });
+        if (Number(order.amount) !== expectedPaise) {
+            throw new Error(`Razorpay order ${order.id} came back for ${order.amount} paise, expected ${expectedPaise}`);
+        }
 
         // planId is locked in HERE, tied to the order Razorpay actually
         // created for THIS amount -- verify-payment below looks the plan up
@@ -91,8 +140,11 @@ router.post('/create-order', requireLogin, async (req, res, next) => {
             razorpayOrderId: order.id,
             username,
             planId,
-            billing: billing || null,
-            amount: order.amount, // paise, as Razorpay itself recorded it
+            billing,
+            // Paise. Computed here from the plan, and equal to what Razorpay
+            // recorded (checked above). The webhook grants credits only when
+            // the captured amount matches this.
+            amount: expectedPaise,
             status: 'created',
             createdAt: new Date(),
         });
@@ -172,11 +224,11 @@ router.post('/webhook', async (req, res) => {
 
     const event = req.body || {};
     if (event.event === 'payment.captured') {
-        const orderId = event.payload && event.payload.payment && event.payload.payment.entity
-            && event.payload.payment.entity.order_id;
+        const payment = (event.payload && event.payload.payment && event.payload.payment.entity) || {};
+        const orderId = payment.order_id;
         if (orderId) {
             try {
-                await fulfillOrder(orderId);
+                await fulfillOrder(orderId, { checkCapture: true, capturedAmount: payment.amount, capturedCurrency: payment.currency });
             } catch (err) {
                 console.warn('[Razorpay Webhook] fulfillOrder failed', err.message);
             }
