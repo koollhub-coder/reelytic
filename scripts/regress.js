@@ -100,6 +100,11 @@ const suites = [
     args: ['--test', 'tests/portal.test.js'],
   },
   {
+    name: 'EXPORT: reel ER (views) and profile ER (followers) labels',
+    cmd: process.execPath,
+    args: ['--test', 'tests/er-labels.test.js'],
+  },
+  {
     name: 'API: crash/restart recovery, billing idempotency',
     cmd: process.execPath,
     args: ['--test', 'tests/crash-recovery.test.js'],

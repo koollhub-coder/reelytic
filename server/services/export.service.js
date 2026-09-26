@@ -1,6 +1,15 @@
 const ExcelJS = require('exceljs');
 
-const ER_FORMULA_NOTE = 'ER = (Likes + Comments) / Views x 100';
+/*
+  Two different engagement rates, so they never share a label. A reel's ER
+  divides by that reel's views; a profile's average ER divides by followers.
+  Same wording in the app, the portal, the PDF and the methodology pages (see
+  client/src/utils/erLabels.js).
+*/
+const ER_VIEWS = 'ER % (views)';
+const ER_FOLLOWERS = 'Avg ER % (followers)';
+const ER_FORMULA_NOTE = 'ER % (views) = (Likes + Comments) / Views x 100';
+const PROFILE_ER_FORMULA_NOTE = 'Avg ER % (followers) = (Avg Likes + Avg Comments) / Followers x 100';
 
 /*
   Spreadsheet formula injection. Column names and cell values from an
@@ -102,7 +111,7 @@ async function generateExcelExport(job) {
       'Shares',
       'Reposts',
       'Saves',
-      'ER (%)'
+      ER_VIEWS,
     ];
     const headerRow = sheet.addRow(headers);
     styleHeaderRow(headerRow);
@@ -134,7 +143,7 @@ async function generateExcelExport(job) {
     });
 
     // Header layout: SR No., ...origCols, Username, Profile URL, Reel URL,
-    // Followers, Views, Likes, Comments, Shares, Reposts, Saves, ER (%)
+    // Followers, Views, Likes, Comments, Shares, Reposts, Saves, ER % (views)
     const base = 1 + origCols.length;
     applyNumberFormats(sheet, {
       thousands: [base + 4, base + 5, base + 6, base + 7, base + 8, base + 9, base + 10],
@@ -153,13 +162,13 @@ async function generateExcelExport(job) {
       'Profile URL',
       'Followers',
       'Average Views',
-      'Average ER (%)',
+      ER_FOLLOWERS,
     ];
     const sumHeaderRow = summarySheet.addRow(sumHeaders);
     styleHeaderRow(sumHeaderRow);
 
     const breakdownSheet = workbook.addWorksheet('Reel Breakdown');
-    const bdHeaders = ['Username', 'Profile URL', 'Reel URL', 'Date', 'Shortcode', 'Views', 'Likes', 'Comments', 'ER (%)', 'Status'];
+    const bdHeaders = ['Username', 'Profile URL', 'Reel URL', 'Date', 'Shortcode', 'Views', 'Likes', 'Comments', ER_VIEWS, 'Status'];
     const bdHeaderRow = breakdownSheet.addRow(bdHeaders);
     styleHeaderRow(bdHeaderRow);
 
@@ -227,7 +236,7 @@ async function generateExcelExport(job) {
     });
 
     // Header layout: SR No., ...origCols, Username, Profile URL, Followers,
-    // Average Views, Average ER (%)
+    // Average Views, Avg ER % (followers)
     const sumBase = 1 + origCols.length;
     applyNumberFormats(summarySheet, {
       thousands: [sumBase + 3, sumBase + 4],
@@ -237,9 +246,9 @@ async function generateExcelExport(job) {
     summarySheet.views = [{ state: 'frozen', ySplit: 1 }];
 
     // Breakdown header layout: Username, Profile URL, Reel URL, Shortcode,
-    // Views, Likes, Comments, ER (%)
+    // Views, Likes, Comments, ER % (views)
     // Header layout: Username, Profile URL, Reel URL, Date, Shortcode, Views,
-    // Likes, Comments, ER (%), Status
+    // Likes, Comments, ER % (views), Status
     applyNumberFormats(breakdownSheet, { thousands: [6, 7, 8], percent: [9] });
     autoFitColumns(breakdownSheet);
     breakdownSheet.views = [{ state: 'frozen', ySplit: 1 }];
@@ -254,8 +263,8 @@ function generateCsvExport(job) {
   const rows = exportableRows(job);
 
   const headers = isReel
-    ? ['SR No.', ...origCols.map(c => c.renamedTo || c.name), 'Username', 'Profile URL', 'Reel URL', 'Followers', 'Views', 'Likes', 'Comments', 'Shares', 'Reposts', 'Saves', 'ER (%)']
-    : ['SR No.', ...origCols.map(c => c.renamedTo || c.name), 'Username', 'Profile URL', 'Followers', 'Average Views', 'Average ER (%)'];
+    ? ['SR No.', ...origCols.map(c => c.renamedTo || c.name), 'Username', 'Profile URL', 'Reel URL', 'Followers', 'Views', 'Likes', 'Comments', 'Shares', 'Reposts', 'Saves', ER_VIEWS]
+    : ['SR No.', ...origCols.map(c => c.renamedTo || c.name), 'Username', 'Profile URL', 'Followers', 'Average Views', ER_FOLLOWERS];
 
 
   let csv = csvRow(headers);
@@ -284,7 +293,7 @@ function generateCsvExport(job) {
 // (see that function's own comment on why), so every column below reads
 // straight off the stored totals, same math searchAnalyzedCreators uses.
 function generateCreatorsCsv(rows) {
-  const headers = ['Name', 'Username', 'Gender (estimated)', 'Profile Link', 'Followers', 'Times Analyzed', 'Reel Avg Views', 'Reel Avg ER (%)', 'Profile Avg Views', 'Profile Avg ER (%)', 'First Analyzed', 'Last Analyzed'];
+  const headers = ['Name', 'Username', 'Gender (estimated)', 'Profile Link', 'Followers', 'Times Analyzed', 'Reel Avg Views', 'Reel Avg ER % (views)', 'Profile Avg Views', 'Profile ' + ER_FOLLOWERS, 'First Analyzed', 'Last Analyzed'];
 
   let csv = csvRow(headers);
   for (const row of rows) {
@@ -313,7 +322,7 @@ function generateCreatorsCsv(rows) {
 // snapshot on every entry (see recordLedgerEntry), so no join back to the
 // original job is needed here.
 function clientLedgerHeaders() {
-  return ['#', 'Date', 'Type', 'Result', 'Username', 'Submitted URL', 'Views', 'Likes', 'Comments', 'Shares', 'Reposts', 'Saves', 'ER (%)', 'Followers'];
+  return ['#', 'Date', 'Type', 'Result', 'Username', 'Submitted URL', 'Views', 'Likes', 'Comments', 'Shares', 'Reposts', 'Saves', ER_VIEWS, 'Followers'];
 }
 
 function clientLedgerRow(entry, idx) {
@@ -394,8 +403,8 @@ async function generateSharedReportExcel({ job, branding }) {
   sheet.addRow([]);
 
   const headers = isReel
-    ? ['Creator', 'Followers', 'Views', 'Likes', 'Comments', 'Engagement rate']
-    : ['Creator', 'Followers', 'Avg views', 'Engagement rate'];
+    ? ['Creator', 'Followers', 'Views', 'Likes', 'Comments', ER_VIEWS]
+    : ['Creator', 'Followers', 'Avg views', ER_FOLLOWERS];
 
   const headerRowIndex = sheet.lastRow.number + 1;
   styleHeaderRow(sheet.addRow(headers));
@@ -421,7 +430,7 @@ async function generateSharedReportExcel({ job, branding }) {
   });
 
   applyNumberFormats(sheet, isReel ? { thousands: [2, 3, 4, 5], percent: [6] } : { thousands: [2, 3], percent: [4] });
-  writeFooter(sheet);
+  writeFooter(sheet, isReel ? ER_FORMULA_NOTE : PROFILE_ER_FORMULA_NOTE);
   autoFitColumns(sheet);
   sheet.views = [{ state: 'frozen', ySplit: headerRowIndex }];
 
@@ -457,9 +466,9 @@ function writeMetadataBlock(sheet, { title, generatedAt, counts, procTime }) {
   sheet.addRow([]);
 }
 
-function writeFooter(sheet) {
+function writeFooter(sheet, formulaNote = ER_FORMULA_NOTE) {
   sheet.addRow([]);
-  const note = sheet.addRow([ER_FORMULA_NOTE]);
+  const note = sheet.addRow([formulaNote]);
   note.font = { italic: true, size: 9, name: 'Inter', color: { argb: '5B5F66' } };
 }
 

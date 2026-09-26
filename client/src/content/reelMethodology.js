@@ -8,7 +8,7 @@
 export const REEL_METHODOLOGY = {
   erFormula: {
     heading: 'Engagement rate formula',
-    body: 'ER = (Likes + Comments) ÷ Views × 100',
+    body: 'ER % (views) = (Likes + Comments) ÷ Views × 100',
   },
   whatEachColumnMeans: {
     heading: 'What each column shows',

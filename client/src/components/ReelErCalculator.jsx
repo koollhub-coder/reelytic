@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { ER_VIEWS } from '../utils/erLabels';
 
 // Turns the Reel ER formula from something you read into something you can
 // poke at: ER = (Likes + Comments) / Views * 100, live-computed from three
@@ -38,7 +39,7 @@ export function ReelErCalculator() {
         {field('Likes', likes, setLikes)}
         {field('Comments', comments, setComments)}
         <div style={{ flex: '1 1 140px', textAlign: 'right' }}>
-          <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>Engagement rate</div>
+          <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-3)' }}>{ER_VIEWS}</div>
           <div className="mono" style={{ fontSize: 'var(--fs-lg)', fontWeight: 700, color: 'var(--accent)' }}>
             {er == null ? '-' : `${er.toFixed(2)}%`}
           </div>

@@ -27,15 +27,16 @@ import { EditSheetDialog } from '../components/EditSheetDialog';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import { formatDate, formatDateTime, formatDayKey } from '../utils/date';
+import { ER_VIEWS, ER_FOLLOWERS, erLabel, erAvgLabel } from '../utils/erLabels';
 
 const ER_FORMULA = {
-  reel: 'ER = (Likes + Comments) / Views × 100',
-  profile: 'Average ER = (Avg Likes + Avg Comments) / Followers × 100',
+  reel: `${ER_VIEWS} = (Likes + Comments) / Views × 100`,
+  profile: `${ER_FOLLOWERS} = (Avg Likes + Avg Comments) / Followers × 100`,
 };
 
 const LOCKED_COLUMNS = {
-  reel: ['Username', 'Followers', 'Views', 'Likes', 'Comments', 'Shares', 'Reposts', 'Saves', 'ER %'],
-  profile: ['Username', 'Followers', 'Avg Views', 'Avg ER %', 'Reels Analyzed'],
+  reel: ['Username', 'Followers', 'Views', 'Likes', 'Comments', 'Shares', 'Reposts', 'Saves', ER_VIEWS],
+  profile: ['Username', 'Followers', 'Avg Views', ER_FOLLOWERS, 'Reels Analyzed'],
 };
 
 function formatDurationWords(ms) {
@@ -184,8 +185,8 @@ function BarSparkline({ values, color, formatValue, height = 32 }) {
 function buildSummaryText(insights, type) {
   const lines = [
     type === 'reel'
-      ? `${insights.count} Reels analyzed. Average ${formatCompactNumber(insights.avgViews)} views, ${insights.medianEr.toFixed(1)}% typical engagement rate.`
-      : `${insights.count} profiles analyzed. Average ${formatCompactNumber(insights.avgViews)} views per Reel, ${insights.medianEr.toFixed(1)}% typical engagement rate.`,
+      ? `${insights.count} Reels analyzed. Average ${formatCompactNumber(insights.avgViews)} views, ${insights.medianEr.toFixed(1)}% typical ER (views).`
+      : `${insights.count} profiles analyzed. Average ${formatCompactNumber(insights.avgViews)} views per Reel, ${insights.medianEr.toFixed(1)}% typical ER (followers).`,
   ];
   if (insights.hasSpread) {
     lines.push(`Top performer: @${insights.top.name} (${formatCompactNumber(insights.top.views)} views, ${insights.top.er.toFixed(1)}% ER)`);
@@ -428,13 +429,13 @@ function ResultCardMobile({ r, type, onViewReels, onEditNote }) {
           <span style={{ color: 'var(--text-3)' }}>Shares</span><span className="mono" style={{ textAlign: 'right' }}>{isOk ? (res.shares ?? 0).toLocaleString() : '-'}</span>
           <span style={{ color: 'var(--text-3)' }}>Reposts</span><span className="mono" style={{ textAlign: 'right' }}>{isOk ? (res.reposts ?? 0).toLocaleString() : '-'}</span>
           <span style={{ color: 'var(--text-3)' }}>Saves</span><span className="mono" style={{ textAlign: 'right' }}>{isOk ? (res.saves ?? 0).toLocaleString() : '-'}</span>
-          <span style={{ color: 'var(--text-3)' }}>ER</span><span className="mono" style={{ textAlign: 'right', color: isOk ? 'var(--ok)' : undefined, fontWeight: 600 }}>{isOk ? `${res.er ?? 0}%` : '-'}</span>
+          <span style={{ color: 'var(--text-3)' }}>{ER_VIEWS}</span><span className="mono" style={{ textAlign: 'right', color: isOk ? 'var(--ok)' : undefined, fontWeight: 600 }}>{isOk ? `${res.er ?? 0}%` : '-'}</span>
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 12px', fontSize: 'var(--fs-sm)' }}>
           <span style={{ color: 'var(--text-3)' }}>Followers</span><span className="mono" style={{ textAlign: 'right' }}>{isOk ? (res.followers ?? 0).toLocaleString() : '-'}</span>
           <span style={{ color: 'var(--text-3)' }}>Avg Views</span><span className="mono" style={{ textAlign: 'right' }}>{isOk ? (res.avgViews ?? 0).toLocaleString() : '-'}</span>
-          <span style={{ color: 'var(--text-3)' }}>Avg ER</span>
+          <span style={{ color: 'var(--text-3)' }}>{ER_FOLLOWERS}</span>
           <span className="mono" style={{ textAlign: 'right' }}>
             {isOk ? (
               <span style={{ color: 'var(--ok)', fontWeight: 600 }}>{res.avgEr ?? 0}%</span>
@@ -477,11 +478,11 @@ function resultColumns(type, onViewReels, onEditNote) {
   ];
   const tail = { key: 'flag', label: 'Notes', type: 'select', accessor: (r) => r.flag || 'none', optionLabel: (v) => FLAG_LABELS[v] || v, render: (r) => <NoteCell row={r} onEditNote={onEditNote} /> };
   if (type === 'reel') {
-    return [...head, num('followers', 'Followers'), num('views', 'Views'), num('likes', 'Likes'), num('comments', 'Comments'), num('shares', 'Shares'), num('reposts', 'Reposts'), num('saves', 'Saves'), er('er', 'ER (%)'), tail];
+    return [...head, num('followers', 'Followers'), num('views', 'Views'), num('likes', 'Likes'), num('comments', 'Comments'), num('shares', 'Shares'), num('reposts', 'Reposts'), num('saves', 'Saves'), er('er', ER_VIEWS), tail];
   }
   return [
     ...head,
-    num('followers', 'Followers'), num('avgViews', 'Avg Views'), er('avgEr', 'Avg ER (%)'),
+    num('followers', 'Followers'), num('avgViews', 'Avg Views'), er('avgEr', ER_FOLLOWERS),
     num('analyzed', 'Reels Analyzed', (res) => res.reelsAnalyzed, { render: (r) => (ok(r) ? <ReelsAnalyzedCell res={r.result} onViewReels={onViewReels} /> : '-') }),
     num('skipped', 'Not Counted', (res) => totalSkipped(res), { render: (r) => (ok(r) ? <ReelsSkippedCell res={r.result} onViewReels={onViewReels} /> : '-') }),
     tail,
@@ -505,10 +506,10 @@ function ResultsDataTable({ rows, type, onViewReels, onEditNote }) {
 // Desktop: a real fixed-column table, values aligned directly under headers.
 // Mobile: stacked label:value cards -- reused everywhere via the same rows/type.
 function ResultsTable({ rows, type, scrollRef, onViewReels, onEditNote, flat = false }) {
-  const reelHeaders = ['#', 'Link', 'Status', 'Followers', 'Views', 'Likes', 'Comments', 'Shares', 'Reposts', 'Saves', 'ER (%)', 'Notes'];
+  const reelHeaders = ['#', 'Link', 'Status', 'Followers', 'Views', 'Likes', 'Comments', 'Shares', 'Reposts', 'Saves', ER_VIEWS, 'Notes'];
   // "Not Counted" = pinned, non-Reel, missing views and the outlier trim.
   // Sponsored and collab posts are counted, so they are not in this number.
-  const profileHeaders = ['#', 'Link', 'Status', 'Followers', 'Avg Views', 'Avg ER (%)', 'Reels Analyzed', 'Not Counted', 'Notes'];
+  const profileHeaders = ['#', 'Link', 'Status', 'Followers', 'Avg Views', ER_FOLLOWERS, 'Reels Analyzed', 'Not Counted', 'Notes'];
   const headers = type === 'reel' ? reelHeaders : profileHeaders;
 
   return (
@@ -2049,7 +2050,7 @@ export function ReportEngine({ type = 'reel' }) {
                 </div>
                 <div className="card" style={{ padding: 'var(--s3) var(--s4)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: 'var(--fs-xs)', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '4px' }}>
-                    <TrendingUpIcon size={12} style={{ color: 'var(--warn)' }} />Avg engagement rate
+                    <TrendingUpIcon size={12} style={{ color: 'var(--warn)' }} />{erAvgLabel(type)}
                   </div>
                   <div className="mono" style={{ color: 'var(--warn)', fontWeight: 700, fontSize: 'var(--fs-base)' }}>{insights.medianEr.toFixed(1)}%</div>
                   <div style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)', marginTop: '2px' }}>Typical ER</div>
@@ -2183,7 +2184,7 @@ export function ReportEngine({ type = 'reel' }) {
                     </div>
                     <div className="data-table-container">
                       <table className="data-table">
-                        <thead><tr><th>Report date</th><th className="numeric">Avg views</th><th className="numeric">ER %</th></tr></thead>
+                        <thead><tr><th>Report date</th><th className="numeric">Avg views</th><th className="numeric">{erLabel(type)}</th></tr></thead>
                         <tbody>
                           {creatorInsights.history.map((h, i) => (
                             <tr key={i}>
@@ -2211,7 +2212,7 @@ export function ReportEngine({ type = 'reel' }) {
                         <th className="numeric">Views</th>
                         <th className="numeric">Likes</th>
                         <th className="numeric">Comments</th>
-                        <th className="numeric">ER (%)</th>
+                        <th className="numeric">{ER_VIEWS}</th>
                         <th>Status</th>
                       </tr>
                     </thead>
@@ -2268,7 +2269,7 @@ export function ReportEngine({ type = 'reel' }) {
                   <th className="numeric">Views</th>
                   <th className="numeric">Likes</th>
                   <th className="numeric">Comments</th>
-                  <th className="numeric">ER (%)</th>
+                  <th className="numeric">{ER_VIEWS}</th>
                 </tr>
               </thead>
               <tbody>

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { formatDate, formatDateTime, formatDayKey } from '../utils/date';
 import { SunIcon, MoonIcon } from './Icon';
 import { Tooltip } from './Tooltip';
+import { erLabel } from '../utils/erLabels';
 
 // Big campaigns run into the hundreds of creators. Show a readable page at a
 // time on screen; the printed PDF and the Excel export always carry every row.
@@ -374,14 +375,14 @@ export function ReportSheet({ job, branding, context = {}, maxWidth = '1000px' }
             <>
               <StatTile label="Total views" value={formatCompactNumber(totalViews)} />
               <StatTile label="Total engagement" value={formatCompactNumber(totalEngagement)} />
-              <StatTile label="Typical ER" value={`${typicalEr.toFixed(1)}%`} />
+              <StatTile label="Typical ER (views)" value={`${typicalEr.toFixed(1)}%`} />
               <StatTile label="Reels analyzed" value={successRows.length} />
             </>
           ) : (
             <>
               <StatTile label="Combined followers" value={formatCompactNumber(totalFollowers)} />
               <StatTile label="Avg views / reel" value={formatCompactNumber(totalViews / (successRows.length || 1))} />
-              <StatTile label="Typical ER" value={`${typicalEr.toFixed(1)}%`} />
+              <StatTile label="Typical ER (followers)" value={`${typicalEr.toFixed(1)}%`} />
               <StatTile label="Profiles analyzed" value={successRows.length} />
             </>
           )}
@@ -398,7 +399,7 @@ export function ReportSheet({ job, branding, context = {}, maxWidth = '1000px' }
                       must not look like the same number disagreeing with
                       itself. */}
                   The median creator in this report sits at{' '}
-                  <strong className="mono">{context.benchmark.reportEr.toFixed(1)}%</strong> engagement, against{' '}
+                  <strong className="mono">{context.benchmark.reportEr.toFixed(1)}%</strong> {isReel ? 'ER (views)' : 'ER (followers)'}, against{' '}
                   <strong className="mono">{context.benchmark.median.toFixed(1)}%</strong> for creators {context.benchmark.bandLabel}.
                   {' '}{STANDING_COPY[context.benchmark.standing] || ''}
                   {/* The sample size is stated because a benchmark without
@@ -417,7 +418,7 @@ export function ReportSheet({ job, branding, context = {}, maxWidth = '1000px' }
                   borderTop: context.benchmark ? '1px solid var(--border)' : 'none',
                 }}>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--s5)' }}>
-                    <DeltaStat label="Engagement rate" change={context.previous.medianEr.changePct} suffix="" />
+                    <DeltaStat label={isReel ? 'Typical ER (views)' : 'Typical ER (followers)'} change={context.previous.medianEr.changePct} suffix="" />
                     <DeltaStat label="Total views" change={context.previous.totalViews.changePct} suffix="" />
                     <DeltaStat label="Creators" change={context.previous.creators.changePct} suffix="" />
                   </div>
@@ -437,12 +438,12 @@ export function ReportSheet({ job, branding, context = {}, maxWidth = '1000px' }
               <div style={{ border: '1px solid var(--border)', borderLeft: '3px solid var(--ok)', padding: 'var(--s3) var(--s4)' }}>
                 <div style={{ fontSize: '10.5px', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-3)', marginBottom: '4px' }}>Top performer</div>
                 <div className="mono" style={{ fontWeight: 700, color: 'var(--text)' }}>@{insights.top.name}</div>
-                <div className="mono" style={{ fontSize: 'var(--fs-sm)', color: 'var(--ok)' }}>{insights.top.er.toFixed(1)}% engagement rate</div>
+                <div className="mono" style={{ fontSize: 'var(--fs-sm)', color: 'var(--ok)' }}>{insights.top.er.toFixed(1)}% {isReel ? 'ER (views)' : 'ER (followers)'}</div>
               </div>
               <div style={{ border: '1px solid var(--border)', borderLeft: '3px solid var(--text-3)', padding: 'var(--s3) var(--s4)' }}>
                 <div style={{ fontSize: '10.5px', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-3)', marginBottom: '4px' }}>Lowest performer</div>
                 <div className="mono" style={{ fontWeight: 700, color: 'var(--text)' }}>@{insights.bottom.name}</div>
-                <div className="mono" style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-2)' }}>{insights.bottom.er.toFixed(1)}% engagement rate</div>
+                <div className="mono" style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-2)' }}>{insights.bottom.er.toFixed(1)}% {isReel ? 'ER (views)' : 'ER (followers)'}</div>
               </div>
             </div>
           </>
@@ -471,7 +472,7 @@ export function ReportSheet({ job, branding, context = {}, maxWidth = '1000px' }
                 ) : (
                   <th className="numeric">Avg views</th>
                 )}
-                <th className="numeric">ER</th>
+                <th className="numeric">{erLabel(job.type)}</th>
               </tr>
             </thead>
             <tbody>

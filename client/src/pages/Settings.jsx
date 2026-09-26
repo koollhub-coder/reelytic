@@ -13,6 +13,7 @@ import {
 import { apiFetch } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { ER_VIEWS, ER_VIEWS_AVG } from '../utils/erLabels';
 
 const MAX_LOGO_BYTES = 1024 * 1024;
 const ALLOWED_LOGO_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'];
@@ -623,7 +624,7 @@ export function Settings() {
                     <div style={{ fontSize: '10px', color: '#D33131' }}>210K Views · 0.4% ER</div>
                   </div>
                   <div style={{ border: '1px solid #E4E1DA', borderRadius: '6px', padding: '6px 8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '9px', color: '#8B8F98', textTransform: 'uppercase' }}><EyeIcon size={10} style={{ color: branding.accentColor }} />Avg. engagement rate</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '9px', color: '#8B8F98', textTransform: 'uppercase' }}><EyeIcon size={10} style={{ color: branding.accentColor }} />{ER_VIEWS_AVG}</div>
                     <div style={{ fontWeight: 700, fontSize: '13px', color: branding.accentColor }}>2.05%</div>
                   </div>
                 </div>
@@ -634,7 +635,7 @@ export function Settings() {
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px' }}>
                   <thead>
                     <tr style={{ backgroundColor: '#F1EFEA' }}>
-                      {['Username', 'Views', 'Likes', 'Comments', 'Shares', 'ER %'].map((h) => (
+                      {['Username', 'Views', 'Likes', 'Comments', 'Shares', ER_VIEWS].map((h) => (
                         <th key={h} style={{ textAlign: h === 'Username' ? 'left' : 'right', padding: '5px 8px', color: '#5D6169', fontWeight: 600 }}>{h}</th>
                       ))}
                     </tr>

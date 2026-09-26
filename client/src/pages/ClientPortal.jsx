@@ -8,6 +8,7 @@ import { DataTable } from '../components/DataTable';
 import { Collapsible } from '../components/Collapsible';
 import { DownloadIcon } from '../components/Icon';
 import { useDocumentMeta } from '../hooks/useDocumentMeta';
+import { ER_VIEWS, ER_VIEWS_AVG } from '../utils/erLabels';
 
 function formatViews(n) {
   if (n == null) return '-';
@@ -85,7 +86,7 @@ function PortalBody({ campaign, rows, reports, accentColor }) {
   const scoped = active === 'all' ? null : reports.find((r) => r.key === active);
 
   const download = () => {
-    const head = ['Creator', 'Report', 'Followers', 'Views', 'Likes', 'Comments', 'ER %', 'Added'];
+    const head = ['Creator', 'Report', 'Followers', 'Views', 'Likes', 'Comments', ER_VIEWS, 'Added'];
     const lines = [head.join(',')].concat(visible.map((r) => [r.username ? '@' + r.username : '', r.label, r.followers, r.views, r.likes, r.comments, r.er, formatDate(r.addedAt)].map(csvCell).join(',')));
     const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');
@@ -107,7 +108,7 @@ function PortalBody({ campaign, rows, reports, accentColor }) {
     { key: 'addedAt', label: 'Added', type: 'date', mono: true, accessor: (r) => r.addedAt, render: (r) => <span style={{ color: 'var(--text-3)', fontSize: 'var(--fs-xs)' }}>{formatDate(r.addedAt)}</span> },
     { key: 'creators', label: 'Creators', type: 'number', align: 'right', mono: true, accessor: (r) => r.creators },
     { key: 'totalViews', label: 'Views', type: 'number', align: 'right', mono: true, accessor: (r) => r.totalViews, render: (r) => formatViews(r.totalViews) },
-    { key: 'avgEr', label: 'Avg ER', type: 'number', align: 'right', mono: true, accessor: (r) => r.avgEr, render: (r) => (r.avgEr != null ? <span style={{ color: 'var(--ok)', fontWeight: 600 }}>{r.avgEr}%</span> : '-') },
+    { key: 'avgEr', label: ER_VIEWS_AVG, type: 'number', align: 'right', mono: true, accessor: (r) => r.avgEr, render: (r) => (r.avgEr != null ? <span style={{ color: 'var(--ok)', fontWeight: 600 }}>{r.avgEr}%</span> : '-') },
     { key: 'open', label: '', sortable: false, filterable: false, align: 'right', render: (r) => (
       <button type="button" className="btn btn-secondary" style={{ height: 28, fontSize: 'var(--fs-xs)', padding: '0 12px', whiteSpace: 'nowrap' }} onClick={() => setActive(r.key)}>View creators</button>
     ) },
@@ -119,7 +120,7 @@ function PortalBody({ campaign, rows, reports, accentColor }) {
     { key: 'followers', label: 'Followers', type: 'number', align: 'right', mono: true, accessor: (r) => r.followers, render: (r) => formatViews(r.followers) },
     { key: 'views', label: 'Views', type: 'number', align: 'right', mono: true, accessor: (r) => r.views, render: (r) => formatViews(r.views) },
     { key: 'likes', label: 'Likes', type: 'number', align: 'right', mono: true, accessor: (r) => r.likes, render: (r) => formatViews(r.likes) },
-    { key: 'er', label: 'ER %', type: 'number', align: 'right', mono: true, accessor: (r) => r.er, render: (r) => <span style={{ color: 'var(--ok)', fontWeight: 600 }}>{r.er.toFixed(2)}%</span> },
+    { key: 'er', label: ER_VIEWS, type: 'number', align: 'right', mono: true, accessor: (r) => r.er, render: (r) => <span style={{ color: 'var(--ok)', fontWeight: 600 }}>{r.er.toFixed(2)}%</span> },
     { key: 'addedAt', label: 'Added', type: 'date', mono: true, accessor: (r) => r.addedAt, render: (r) => <span style={{ color: 'var(--text-3)', fontSize: 'var(--fs-xs)' }}>{formatDate(r.addedAt)}</span> },
   ];
 
@@ -137,7 +138,7 @@ function PortalBody({ campaign, rows, reports, accentColor }) {
         <StatTile value={campaign.reportCount} label={campaign.reportCount === 1 ? 'Report' : 'Reports'} />
         <StatTile value={(campaign.creators ?? all.length).toLocaleString()} label="Creators measured" />
         <StatTile value={formatViews(campaign.totalViews)} label="Total views" accent />
-        <StatTile value={campaign.avgEr != null ? campaign.avgEr + '%' : '-'} label="Average engagement" accent />
+        <StatTile value={campaign.avgEr != null ? campaign.avgEr + '%' : '-'} label={ER_VIEWS_AVG} accent />
       </div>
 
       {reports.length > 1 && (
@@ -153,7 +154,7 @@ function PortalBody({ campaign, rows, reports, accentColor }) {
                 <div className="rl-clip" title={labels[r.key]} style={{ fontWeight: 700 }}>{labels[r.key]}</div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', margin: '6px 0', fontSize: 'var(--fs-xs)', color: 'var(--text-2)' }}>
                   <span>{r.creators} creators</span><span>{formatViews(r.totalViews)} views</span>
-                  <span style={{ color: 'var(--ok)', fontWeight: 600 }}>{r.avgEr != null ? r.avgEr + '%' : '-'} ER</span>
+                  <span style={{ color: 'var(--ok)', fontWeight: 600 }}>{r.avgEr != null ? r.avgEr + '%' : '-'} ER (views)</span>
                 </div>
                 <button type="button" className="btn btn-secondary" style={{ width: '100%', height: 32, fontSize: 'var(--fs-xs)' }} onClick={() => setActive(r.key)}>View creators</button>
               </div>
@@ -165,7 +166,7 @@ function PortalBody({ campaign, rows, reports, accentColor }) {
       {(top || most) && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--s3)', marginBottom: 'var(--s5)' }}>
           {top && <Highlight label="Highest engagement" row={top} value={top.er.toFixed(2) + '% · ' + formatViews(top.views) + ' views'} />}
-          {most && <Highlight label="Most views" row={most} value={formatViews(most.views) + ' views · ' + most.er.toFixed(2) + '% ER'} />}
+          {most && <Highlight label="Most views" row={most} value={formatViews(most.views) + ' views · ' + most.er.toFixed(2) + '% ER (views)'} />}
         </div>
       )}
 

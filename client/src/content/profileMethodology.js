@@ -27,14 +27,14 @@ export const PROFILE_METHODOLOGY = {
   // shows. Keep this in sync with metrics.service.js if that ever changes.
   erFormula: {
     heading: 'Engagement rate formula',
-    body: 'ER = (Avg. Likes + Avg. Comments) ÷ Followers × 100',
+    body: 'Avg ER % (followers) = (Avg. Likes + Avg. Comments) ÷ Followers × 100',
   },
   // Called out separately from the formula itself because the difference
   // from a Reel report's formula is the exact thing worth a reader's
   // attention -- the two numbers are not the same kind of metric and were
   // never meant to be compared to each other directly.
   erNote: 'This divides by the creator\'s FOLLOWER count, not views, '
-    + 'unlike a Reel report\'s engagement rate, which is per-view. A '
+    + 'unlike a Reel report\'s ER % (views), which is per-view. A '
     + 'Profile report\'s ER measures engagement relative to audience size '
     + '(the standard way to compare creators of different sizes to each '
     + 'other); a Reel report\'s ER measures one post\'s performance '
@@ -95,6 +95,6 @@ export const PROFILE_METHODOLOGY = {
     // average, one that also brings in followers), and folding both into
     // one paragraph is exactly how the old version of this page made the
     // ÷followers step easy to skim past.
-    erOutcome: 'Likes and comments are averaged the same way, which gives about 991 likes and 46.7 comments. Engagement rate = (991 + 46.7) ÷ 50,000 followers × 100 = 2.1%. Notice the denominator: it\'s the creator\'s follower count, not their view count. The same 6 Reels would produce a very different number if this were calculated the way a Reel report is.',
+    erOutcome: 'Likes and comments are averaged the same way, which gives about 991 likes and 46.7 comments. Avg ER % (followers) = (991 + 46.7) ÷ 50,000 followers × 100 = 2.1%. Notice the denominator: it\'s the creator\'s follower count, not their view count. The same 6 Reels would produce a very different number if this were calculated the way a Reel report is.',
   },
 };

@@ -14,6 +14,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { Tooltip } from '../components/Tooltip';
 import { useToast } from '../context/ToastContext';
 import { SearchIcon, UsersIcon, DownloadIcon, PlusIcon, XIcon } from '../components/Icon';
+import { ER_VIEWS_AVG, ER_FOLLOWERS } from '../utils/erLabels';
 import {
   COLUMNS, EMPTY_FILTERS, GOOD_ER, ColumnHead, FilterControls, Popover,
   anyFilterActive, clearPatch, describeFilters, filterNumber,
@@ -160,7 +161,9 @@ function ErBadge({ creator }) {
   const h = headlineEr(creator);
   if (!h || h.er == null) return <span style={{ color: 'var(--text-3)' }}>-</span>;
   const good = h.er > GOOD_ER;
-  const tip = h.type === 'Profile' ? PROFILE_ER_TOOLTIP : 'Reel engagement: likes and comments per view, averaged across their Reel reports.';
+  const tip = h.type === 'Profile'
+    ? `${ER_FOLLOWERS}. ${PROFILE_ER_TOOLTIP}`
+    : `${ER_VIEWS_AVG}. Likes and comments per view, averaged across their Reel reports.`;
   return (
     <Tooltip content={good ? `Above ${GOOD_ER}%. ${tip}` : tip} maxWidth={260}>
       <span className={`rl-er-badge${good ? ' rl-er-badge-good' : ''}`}>{h.er}%</span>

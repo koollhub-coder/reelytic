@@ -52,7 +52,7 @@ function buildRowsHtml(job) {
   const rows = (job.rows || []).filter((r) => r.state === 'done' && r.result);
   if (job.type === 'reel') {
     return {
-      headers: ['Username', 'Followers', 'Views', 'Likes', 'Comments', 'ER %'],
+      headers: ['Username', 'Followers', 'Views', 'Likes', 'Comments', 'ER % (views)'],
       body: rows.map((r) => {
         const res = r.result;
         return `<tr>
@@ -67,7 +67,7 @@ function buildRowsHtml(job) {
     };
   }
   return {
-    headers: ['Username', 'Followers', 'Avg Views', 'Avg ER %'],
+    headers: ['Username', 'Followers', 'Avg Views', 'Avg ER % (followers)'],
     body: rows.map((r) => {
       const res = r.result;
       return `<tr>
@@ -156,13 +156,15 @@ function buildHtml({ job, branding }) {
   <div class="stats">
     <div class="stat"><div class="label">Creators covered</div><div class="value">${num(headline.count)}</div></div>
     <div class="stat"><div class="label">Avg views</div><div class="value">${num(headline.avgViews)}</div></div>
-    <div class="stat"><div class="label">Avg engagement rate</div><div class="value">${headline.avgEr}%</div></div>
+    <div class="stat"><div class="label">${job.type === 'reel' ? 'Avg ER % (views)' : 'Avg ER % (followers)'}</div><div class="value">${headline.avgEr}%</div></div>
   </div>
   <table>
     <thead><tr>${headers.map((h, i) => `<th class="${i > 0 ? 'num' : ''}">${esc(h)}</th>`).join('')}</tr></thead>
     <tbody>${body}</tbody>
   </table>
-  <div class="footer">Engagement rate = (Likes + Comments) / Views &times; 100.</div>
+  <div class="footer">${job.type === 'reel'
+    ? 'ER % (views) = (Likes + Comments) / Views &times; 100.'
+    : 'Avg ER % (followers) = (Avg Likes + Avg Comments) / Followers &times; 100.'}</div>
 </body></html>`;
 }
 
