@@ -134,7 +134,8 @@ async function teardown({ keepConnection = false } = {}) {
     // Per-day usage rows keyed by username. Left behind, a later run that renames
     // an account onto the same name hit a duplicate key on (username, date).
     db.collection('usageStats').deleteMany({ username: prefixed }),
-    db.collection('teamInvites').deleteMany({ ownerUsername: prefixed }),
+    // Invites store their owner as teamOwnerUsername.
+    db.collection('teamInvites').deleteMany({ teamOwnerUsername: prefixed }),
   ]);
 
   return true;

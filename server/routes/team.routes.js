@@ -125,9 +125,11 @@ router.post('/invite', requireLogin, requireChangePasswordCheck, async (req, res
     const db = getDb();
     const ownerUsername = req.currentUser.username;
 
+    // An expired invite can never be accepted, so it must not hold a seat.
+    const livePending = { teamOwnerUsername: ownerUsername, status: 'pending', expiresAt: { $gt: new Date() } };
     const [memberCount, pendingCount, maxSeats] = await Promise.all([
       db.collection('users').countDocuments({ teamOwnerUsername: ownerUsername }),
-      db.collection('teamInvites').countDocuments({ teamOwnerUsername: ownerUsername, status: 'pending' }),
+      db.collection('teamInvites').countDocuments(livePending),
       resolveOwnerMaxSeats(req.currentUser),
     ]);
     // +1 counts the owner's own seat.
@@ -139,7 +141,7 @@ router.post('/invite', requireLogin, requireChangePasswordCheck, async (req, res
     if (existingUser) {
       return res.status(409).json({ error: 'That email already has a Reelytic account.' });
     }
-    const existingInvite = await db.collection('teamInvites').findOne({ teamOwnerUsername: ownerUsername, email: cleanEmail, status: 'pending' });
+    const existingInvite = await db.collection('teamInvites').findOne({ ...livePending, email: cleanEmail });
     if (existingInvite) {
       return res.status(409).json({ error: 'You already have a pending invite out to that email.' });
     }

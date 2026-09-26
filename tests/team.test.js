@@ -155,3 +155,62 @@ describe('a link to an admin account grants nothing', () => {
     assert.equal(res.data.code, 'ADMIN_NO_TEAM');
   });
 });
+
+describe('invites survive an owner rename, and expired ones free their seat', () => {
+  const { anonymousAgent } = require('./helpers/client');
+
+  test('an invite sent before the owner renames lands the member in the renamed workspace', async () => {
+    const db = getDb();
+    const original = usernameFor('pro');
+    const renamed = `${original}_inv`;
+    const email = `${usernameFor('invitee')}@regression.test`;
+    // A fresh session: the earlier rename test moved the shared one's name.
+    const inviter = await loginAs('pro');
+
+    const sent = await inviter.post('/team/invite', { email });
+    assert.equal(sent.status, 200, JSON.stringify(sent.data));
+    const { token } = sent.data.invite;
+
+    const res = await inviter.patch('/auth/username', { username: renamed });
+    assert.equal(res.status, 200, JSON.stringify(res.data));
+
+    try {
+      const invite = await db.collection('teamInvites').findOne({ token });
+      assert.equal(invite.teamOwnerUsername, renamed, 'the pending invite must follow the rename');
+
+      const accepted = await anonymousAgent().post(`/team/invite/${token}/accept`, { username: usernameFor('invitee'), password: PASSWORD });
+      assert.equal(accepted.status, 201, JSON.stringify(accepted.data));
+      assert.equal(accepted.data.user.plan, 'pro', 'the new member shares the owner\'s plan');
+
+      const row = await db.collection('users').findOne({ username: usernameFor('invitee') });
+      assert.equal(row.teamOwnerUsername, renamed);
+    } finally {
+      // put it back so teardown and later tests can find the account
+      await db.collection('users').updateOne({ username: renamed }, { $set: { username: original } });
+      await db.collection('users').updateMany({ teamOwnerUsername: renamed }, { $set: { teamOwnerUsername: original } });
+      await db.collection('teamInvites').updateMany({ teamOwnerUsername: renamed }, { $set: { teamOwnerUsername: original } });
+      await db.collection('users').deleteOne({ username: usernameFor('invitee') });
+    }
+  });
+
+  test('expired pending invites do not use up seats', async () => {
+    const db = getDb();
+    const fresh = await loginAs('pro');
+    const past = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    await db.collection('teamInvites').insertMany([1, 2, 3, 4, 5].map((i) => ({
+      token: `rgr_expired_${i}_${Date.now()}`,
+      email: `${usernameFor('expired' + i)}@regression.test`,
+      teamOwnerUsername: usernameFor('pro'),
+      status: 'pending',
+      createdAt: past,
+      expiresAt: past,
+    })));
+
+    const res = await fresh.post('/team/invite', { email: `${usernameFor('seatcheck')}@regression.test` });
+    assert.equal(res.status, 200, JSON.stringify(res.data));
+
+    // And re-inviting an address whose earlier invite expired works too.
+    const again = await fresh.post('/team/invite', { email: `${usernameFor('expired1')}@regression.test` });
+    assert.equal(again.status, 200, JSON.stringify(again.data));
+  });
+});

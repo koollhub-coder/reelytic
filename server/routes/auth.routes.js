@@ -299,7 +299,10 @@ router.patch('/username', requireLogin, async (req, res, next) => {
       // rename left every teammate pointing at a name that no longer exists, so
       // they silently lost access to the workspace they belong to.
       ['users', 'teamOwnerUsername'],
-      ['teamInvites', 'ownerUsername'],
+      // Invites store the owner as teamOwnerUsername (see team.routes.js).
+      // This used to update a field no invite has, so an invite sent before
+      // a rename was accepted into a workspace that no longer existed.
+      ['teamInvites', 'teamOwnerUsername'],
       ['analyzedCreators', 'ownerUsername'],
     ]) {
       await db.collection(coll).updateMany({ [field]: previousUsername }, { $set: { [field]: requested } });
