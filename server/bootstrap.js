@@ -29,14 +29,7 @@ async function runBootstrap() {
     await settingsColl.insertOne({ key: 'sessionSecret', value: config.sessionSecret });
   }
 
-  // 2. Dev password check (default: Devcanonlyaccess)
-  let devPwdSetting = await settingsColl.findOne({ key: 'devPassword' });
-  if (!devPwdSetting) {
-    const hashedDev = await hashPassword('Devcanonlyaccess');
-    await settingsColl.insertOne({ key: 'devPassword', value: hashedDev });
-  }
-
-  // 3. Admin user creation if users collection empty
+  // 2. Admin user creation if users collection empty
   const userCount = await usersColl.countDocuments({});
   if (userCount === 0) {
     const adminUser = config.adminUsername || 'admin';
@@ -60,13 +53,13 @@ async function runBootstrap() {
     console.log('================================================================\n');
   }
 
-  // 4. Job recovery: any job running -> paused with server-restart
+  // 3. Job recovery: any job running -> paused with server-restart
   await jobsColl.updateMany(
     { status: 'running' },
     { $set: { status: 'paused', pausedReason: 'server-restart' } }
   );
 
-  // 5. Credit backfill: any user created before the credit system gets defaults.
+  // 4. Credit backfill: any user created before the credit system gets defaults.
   await backfillCredits();
 
   console.log('[Reelytic Bootstrap] System initialized successfully.');

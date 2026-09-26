@@ -306,3 +306,11 @@ describe('exports cannot smuggle spreadsheet formulas', () => {
     assert.ok(ledger.includes('"\'+x"'));
   });
 });
+
+describe('the old developer unlock is gone', () => {
+  test('POST /api/auth/dev-unlock no longer exists, even for an admin', async () => {
+    const admin = await loginAs('admin');
+    const res = await admin.post('/auth/dev-unlock', { password: 'Devcanonlyaccess' });
+    assert.equal(res.status, 404);
+  });
+});

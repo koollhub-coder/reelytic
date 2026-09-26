@@ -31,7 +31,7 @@ const EXAMPLE_PROMPTS = [
 ];
 
 const HIDDEN_PREFIXES = ['/admin', '/share/', '/portal/', '/reports/'];
-const HIDDEN_EXACT = ['/login', '/signup', '/forgot-password', '/reset-password', '/verify-email', '/team/accept', '/dev-unlock', '/change-password', '/checkout'];
+const HIDDEN_EXACT = ['/login', '/signup', '/forgot-password', '/reset-password', '/verify-email', '/team/accept', '/change-password', '/checkout'];
 
 const MAX_SAVED = 30;
 

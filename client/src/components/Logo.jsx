@@ -1,26 +1,12 @@
-import React, { useRef } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
 
 export function Logo({ compact = false, size = 36 }) {
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const clickTimes = useRef([]);
 
   const handleClick = (e) => {
     e.preventDefault();
     navigate('/');
-
-    if (!user || user.role !== 'admin') return;
-
-    const now = Date.now();
-    clickTimes.current.push(now);
-    clickTimes.current = clickTimes.current.filter(t => now - t < 3000);
-
-    if (clickTimes.current.length >= 5) {
-      clickTimes.current = [];
-      navigate('/dev-unlock');
-    }
   };
 
   return (

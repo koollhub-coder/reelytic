@@ -100,17 +100,6 @@ async function requireLogin(req, res, next) {
   }
 }
 
-// async function requireAdmin(req, res, next) {
-//   await requireLogin(req, res, async () => {
-//     if (req.currentUser.role !== 'admin') {
-//       return res.status(403).json({ error: 'Admin access required', code: 'FORBIDDEN' });
-//     }
-//     if (!req.session.devMode) {
-//       return res.status(403).json({ error: 'Developer unlock required', code: 'DEV_UNLOCK_REQUIRED' });
-//     }
-//     next();
-//   });
-// }
 async function requireAdmin(req, res, next) {
   await requireLogin(req, res, async () => {
     if (req.currentUser.role !== 'admin') {

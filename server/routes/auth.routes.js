@@ -294,31 +294,6 @@ router.patch('/username', requireLogin, async (req, res, next) => {
   }
 });
 
-router.post('/dev-unlock', requireLogin, async (req, res, next) => {
-  try {
-    const { password } = req.body;
-    if (req.currentUser.role !== 'admin') {
-      return res.status(403).json({ error: 'Unauthorized' });
-    }
-
-    const db = getDb();
-    const devSetting = await db.collection('settings').findOne({ key: 'devPassword' });
-    if (!devSetting) {
-      return res.status(400).json({ error: 'Dev mode not configured' });
-    }
-
-    const match = await comparePassword(password, devSetting.value);
-    if (!match) {
-      return res.status(401).json({ error: 'That\'s not it.' });
-    }
-
-    req.session.devMode = true;
-    res.json({ success: true });
-  } catch (err) {
-    next(err);
-  }
-});
-
 // ---- Self-service email signup (open, free tier) -------------------------
 router.post('/signup', async (req, res, next) => {
   try {

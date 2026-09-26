@@ -59,7 +59,6 @@ const ProfileReport = lazy(() => import('./pages/ProfileReport').then(m => ({ de
 const History = lazy(() => import('./pages/History').then(m => ({ default: m.History })));
 const Creators = lazy(() => import('./pages/Creators').then(m => ({ default: m.Creators })));
 
-const DevUnlock = lazy(() => import('./pages/admin/DevUnlock').then(m => ({ default: m.DevUnlock })));
 const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
 const Clients = lazy(() => import('./pages/admin/Clients').then(m => ({ default: m.Clients })));
 const Ledger = lazy(() => import('./pages/admin/Ledger').then(m => ({ default: m.Ledger })));
@@ -228,7 +227,6 @@ export function App({ Router = BrowserRouter, routerProps = {} } = {}) {
                 <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="/verify-email" element={<VerifyEmailLink />} />
                 <Route path="/team/accept" element={<AcceptTeamInvite />} />
-                <Route path="/dev-unlock" element={<DevUnlock />} />
                 <Route path="/pricing" element={<Pricing />} />
                 <Route path="/terms" element={<Legal type="terms" />} />
                 <Route path="/privacy" element={<Legal type="privacy" />} />
