@@ -314,3 +314,56 @@ describe('the old developer unlock is gone', () => {
     assert.equal(res.status, 404);
   });
 });
+
+describe('anonymous error beacons cannot use up the alert budget', () => {
+  test('client faults have their own small hourly cap, server faults still alert', () => {
+    // In-process: the throttle is pure bookkeeping, nothing is sent.
+    const { allowedToSend } = require('../server/services/alerting.service');
+    const sent = [];
+    for (let i = 0; i < 20; i += 1) sent.push(allowedToSend(`rgr_client_${i}`, 'client-error'));
+    assert.ok(sent.filter(Boolean).length <= 2, `a flood of distinct client faults sent ${sent.filter(Boolean).length} alerts`);
+    assert.equal(allowedToSend('rgr_server_1', 'server'), true, 'a real server fault must still alert after the flood');
+    assert.equal(allowedToSend('rgr_server_1', 'server'), false, 'the same fault is still limited to once an hour');
+  });
+});
+
+describe('temporary passwords', () => {
+  test('come from a secure random source, not Math.random', () => {
+    const { generateTempPassword } = require('../server/utils/password');
+    const real = Math.random;
+    Math.random = () => 0.5;
+    try {
+      const a = generateTempPassword();
+      const b = generateTempPassword();
+      assert.equal(a.length, 14);
+      assert.notEqual(a, b, 'a fixed Math.random must not produce fixed passwords');
+    } finally {
+      Math.random = real;
+    }
+  });
+});
+
+// Keep last in this file: it fills one address's failure budget.
+describe('login is limited per address, across usernames', () => {
+  test('one address spraying many accounts gets cut off', async () => {
+    // trust proxy is 1 hop, so X-Forwarded-For stands in for a distinct
+    // client address and nothing else in this run is affected.
+    const headers = { 'X-Forwarded-For': '203.0.113.77' };
+    const agent = anonymousAgent();
+    let lastStatus;
+    for (let i = 0; i < 31; i += 1) {
+      const res = await agent.post('/auth/login', { username: `rgr_spray_${i}`, password: 'wrong-password' }, { headers });
+      lastStatus = res.status;
+    }
+    assert.equal(lastStatus, 429);
+
+    // Even the right password for a real account is refused from there now.
+    const { PASSWORD } = require('./helpers/seed');
+    const blocked = await agent.post('/auth/login', { username: usernameFor('free'), password: PASSWORD }, { headers });
+    assert.equal(blocked.status, 429);
+
+    // Other addresses are unaffected.
+    const fine = await anonymousAgent().post('/auth/login', { username: usernameFor('free'), password: PASSWORD }, { headers: { 'X-Forwarded-For': '203.0.113.78' } });
+    assert.equal(fine.status, 200);
+  });
+});

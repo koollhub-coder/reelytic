@@ -236,20 +236,49 @@ function buildSlackMessage(fault, { spiking }) {
   };
 }
 
-function allowedToSend(faultId) {
-  const now = Date.now();
+/*
+  Browser-reported faults (client-crash, client-error, ...) arrive through
+  /api/errors, which anyone can post to without signing in. Each distinct
+  made-up message is a new fault, so without a budget of their own a script
+  could spend the whole hourly allowance above and leave a real server
+  outage with no alert. They get a small separate allowance and never touch
+  the one server faults use.
+*/
+const CLIENT_MAX_PER_HOUR = 2;
+let clientWindowStart = 0;
+let clientSentThisWindow = 0;
 
-  if (now - globalWindowStart > 60 * 60 * 1000) {
-    globalWindowStart = now;
-    globalSentThisWindow = 0;
-  }
-  if (globalSentThisWindow >= GLOBAL_MAX_PER_HOUR) return false;
+function isClientKind(kind) {
+  return typeof kind === 'string' && kind.startsWith('client-');
+}
+
+function allowedToSend(faultId, kind) {
+  const now = Date.now();
 
   const last = lastSentPerFault.get(faultId);
   if (last && now - last < PER_FAULT_COOLDOWN_MS) return false;
 
+  if (isClientKind(kind)) {
+    if (now - clientWindowStart > 60 * 60 * 1000) {
+      clientWindowStart = now;
+      clientSentThisWindow = 0;
+    }
+    if (clientSentThisWindow >= CLIENT_MAX_PER_HOUR) return false;
+    clientSentThisWindow += 1;
+  } else {
+    if (now - globalWindowStart > 60 * 60 * 1000) {
+      globalWindowStart = now;
+      globalSentThisWindow = 0;
+    }
+    if (globalSentThisWindow >= GLOBAL_MAX_PER_HOUR) return false;
+    globalSentThisWindow += 1;
+  }
+
   lastSentPerFault.set(faultId, now);
-  globalSentThisWindow += 1;
+  // Bounded: one entry per alert actually sent, and only the last hour matters.
+  if (lastSentPerFault.size > 500) {
+    for (const [id, at] of lastSentPerFault) if (now - at >= PER_FAULT_COOLDOWN_MS) lastSentPerFault.delete(id);
+  }
   return true;
 }
 
@@ -370,7 +399,7 @@ async function maybeAlert(fault, { isNew }) {
     // but guard anyway: an alert about the app working is worse than silence.
     if (fault.status === 401 || fault.status === 403) return { sent: false, reason: 'expected-status' };
 
-    if (!allowedToSend(fault._id)) return { sent: false, reason: 'throttled' };
+    if (!allowedToSend(fault._id, fault.kind)) return { sent: false, reason: 'throttled' };
 
     const prefix = spiking ? `Spiking (${fault.count}x)` : 'New fault';
 
@@ -466,4 +495,4 @@ async function sendTestAlert() {
   };
 }
 
-module.exports = { maybeAlert, sendTestAlert, isConfigured, slackConfigured, emailConfigured };
+module.exports = { maybeAlert, sendTestAlert, isConfigured, slackConfigured, emailConfigured, allowedToSend };
