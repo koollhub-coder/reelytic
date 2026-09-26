@@ -1179,6 +1179,10 @@ textarea.input-field {
 /* The help bubble floats bottom right. Reserve room under every page so it
    never sits on top of the last row, the pagination or the final button. */
 .rl-shell-content { padding-bottom: 96px !important; }
+/* The phone layout in mobile.css resets this padding to var(--s5), which put
+   the bubble back on top of the last card and button. The extra class wins
+   over that rule without editing it, and adds the phone's home-bar inset. */
+.rl-shell-main > .rl-shell-content { padding-bottom: calc(96px + env(safe-area-inset-bottom)) !important; }
 
 /* Results table: tighter cells so the metrics a client came for (Avg ER,
    Reels analyzed) fit on screen without a sideways scroll, and no scroll box
